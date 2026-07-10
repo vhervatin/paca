@@ -1,0 +1,142 @@
+{
+	"activityPane": {
+		"title": "Atividade",
+		"empty": "Nenhuma atividade ainda",
+		"editingComment": "Editando comentário...",
+		"cancel": "Cancelar",
+		"sendHint": "⌘↵ para enviar",
+		"systemActor": "Sistema",
+		"editing": "Editando",
+		"edit": "Editar",
+		"delete": "Excluir",
+		"viewDiff": "Ver diferenças",
+		"revert": "Reverter",
+		"errors": {
+			"revertFailed": "Falha ao reverter. Tente novamente."
+		}
+	},
+	"contentDiff": {
+		"emptyLine": "(linha vazia)",
+		"noDifferences": "Nenhuma diferença de texto",
+		"changeDiff": "Alterar diferenças",
+		"removed": "Removido",
+		"added": "Adicionado"
+	},
+	"home": {
+		"greeting": {
+			"morning": "Bom dia",
+			"afternoon": "Boa tarde",
+			"evening": "Boa noite",
+			"fallbackName": "olá"
+		},
+		"hero": {
+			"badge": "Workspace scrumban",
+			"subtitleWithProjects_one": "Você tem {{count}} projeto ativo. Continue de onde parou.",
+			"subtitleWithProjects_other": "Você tem {{count}} projetos ativos. Continue de onde parou.",
+			"subtitleEmpty": "Seu workspace está pronto. Crie um projeto, convide sua equipe e comece a entregar.",
+			"newProject": "Novo Projeto"
+		},
+		"stats": {
+			"projects": {
+				"label": "Projetos",
+				"subEmpty": "Nenhum projeto ainda",
+				"subActive": "{{count}} ativos"
+			},
+			"openTasks": {
+				"label": "Tarefas Abertas",
+				"sub": "Em todos os projetos"
+			},
+			"teamMembers": {
+				"label": "Membros da Equipe",
+				"sub": "Incluindo você"
+			},
+			"aiAgents": {
+				"label": "Agentes de IA",
+				"sub": "Nenhum configurado"
+			}
+		},
+		"projectsSection": {
+			"title": "Projetos",
+			"countInWorkspace_one": "{{count}} projeto no seu workspace",
+			"countInWorkspace_other": "{{count}} projetos no seu workspace",
+			"newShort": "Novo",
+			"newProjectCard": "Novo projeto"
+		},
+		"projectCard": {
+			"public": "Público",
+			"noDescription": "Sem descrição"
+		},
+		"gettingStarted": {
+			"title": "Comece agora",
+			"progress": "{{completed}} / {{total}}",
+			"subtitle": "Complete estas etapas para desbloquear todo o poder do Paca.",
+			"steps": {
+				"createProject": {
+					"title": "Crie seu primeiro projeto",
+					"description": "Configure um quadro scrumban para gerenciar o trabalho da sua equipe."
+				},
+				"inviteTeam": {
+					"title": "Convide sua equipe",
+					"description": "Adicione colaboradores humanos e atribua funções."
+				},
+				"configureAgent": {
+					"title": "Configure um agente de IA",
+					"description": "Conecte uma IA para lidar com tarefas de forma autônoma."
+				},
+				"runSprint": {
+					"title": "Execute seu primeiro sprint",
+					"description": "Mova tarefas pelo ciclo Planejar → Agir → Verificar → Adaptar."
+				}
+			}
+		},
+		"quickActions": {
+			"title": "Ações rápidas",
+			"newProject": {
+				"label": "Novo Projeto",
+				"description": "Criar um quadro scrumban"
+			},
+			"inviteTeam": {
+				"label": "Convidar Equipe",
+				"description": "Adicionar membros ou agentes"
+			},
+			"addAiAgent": {
+				"label": "Adicionar Agente de IA",
+				"description": "Configurar automação"
+			}
+		},
+		"about": {
+			"title": "Como o Paca funciona",
+			"descriptionLead": "Combine a criatividade humana com a velocidade da IA em um quadro scrumban compartilhado. As tarefas fluem por",
+			"workflow": "Planejar → Agir → Verificar → Adaptar",
+			"descriptionTrail": "com total transparência sobre quem — humano ou IA — fez o quê.",
+			"openSource": "Código aberto · Apache-2.0"
+		},
+		"createDialog": {
+			"title": "Novo projeto",
+			"description": "Crie um workspace scrumban para sua equipe. Você pode convidar membros e ajustar as configurações após a criação.",
+			"nameLabel": "Nome do projeto *",
+			"namePlaceholder": "ex.: Platform v3",
+			"prefixLabel": "Prefixo do ID da tarefa",
+			"prefixHint": "(ex.: PACA)",
+			"prefixPlaceholder": "PROJ",
+			"prefixExampleLead": "As tarefas serão rotuladas como",
+			"descriptionLabel": "Descrição",
+			"optionalHint": "(opcional)",
+			"descriptionPlaceholder": "Sobre o que é este projeto?",
+			"publicProject": {
+				"label": "Projeto público",
+				"publicHint": "Qualquer pessoa com o link pode visualizar este projeto. Usuários anônimos têm acesso somente leitura.",
+				"privateHint": "Apenas membros da equipe podem acessar este projeto."
+			},
+			"cancel": "Cancelar",
+			"submit": "Criar projeto",
+			"errors": {
+				"nameRequired": "O nome do projeto é obrigatório.",
+				"nameTaken": "Já existe um projeto com este nome.",
+				"nameInvalid": "O nome do projeto está vazio ou é inválido.",
+				"prefixInvalid": "O prefixo deve ter de 1 a 10 letras maiúsculas/dígitos (ex.: PACA).",
+				"generic": "Algo deu errado. Tente novamente."
+			}
+		}
+	}
+}

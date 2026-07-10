@@ -47,6 +47,8 @@ export function BrandPanel() {
 					<span className="text-xl font-bold tracking-tight text-white">
 						paca
 					</span>
+					<span aria-hidden className="h-5 w-px bg-white/15" />
+					<img src="/evup-logo.png" alt="EVUP" className="h-5 w-auto" />
 					<span className="rounded-full border border-white/20 bg-white/8 px-2 py-0.5 text-xs font-semibold uppercase tracking-widest text-white/60">
 						{t("brand.ossBadge")}
 					</span>

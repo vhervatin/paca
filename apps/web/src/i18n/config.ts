@@ -4,6 +4,7 @@ import { initReactI18next } from "react-i18next";
 import { onStorageKeyChange } from "@/lib/storage-sync";
 
 export const SUPPORTED_LANGUAGES = [
+	"pt-BR",
 	"en",
 	"vi",
 	"ko",
@@ -16,6 +17,7 @@ export const SUPPORTED_LANGUAGES = [
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 
 export const LOCALE_LABELS: Record<SupportedLanguage, string> = {
+	"pt-BR": "Português (Brasil)",
 	en: "English",
 	vi: "Tiếng Việt",
 	ko: "한국어",
@@ -46,14 +48,17 @@ i18next
 	.use(initReactI18next)
 	.init({
 		resources,
-		fallbackLng: "en",
+		fallbackLng: "pt-BR",
 		supportedLngs: SUPPORTED_LANGUAGES,
 		defaultNS: "common",
 		interpolation: {
 			escapeValue: false,
 		},
 		detection: {
-			order: ["localStorage", "navigator"],
+			// pt-BR é o padrão: só respeitamos escolha explícita salva no
+			// localStorage; não seguimos o idioma do navegador (senão um
+			// navegador em inglês abriria em inglês em vez de pt-BR).
+			order: ["localStorage"],
 			lookupLocalStorage: LOCALE_STORAGE_KEY,
 			caches: ["localStorage"],
 		},

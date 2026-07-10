@@ -34,6 +34,8 @@ export function LoginFormPanel() {
 					<span className="text-base font-bold tracking-tight text-(--sea-ink)">
 						paca
 					</span>
+					<span aria-hidden className="h-4 w-px bg-(--line)" />
+					<img src="/evup-logo.png" alt="EVUP" className="h-4 w-auto" />
 				</div>
 
 				{/* Heading */}

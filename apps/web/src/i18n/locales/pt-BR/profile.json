@@ -1,0 +1,106 @@
+{
+	"page": {
+		"title": "Meu Perfil",
+		"subtitle": "Visualize e atualize as informações da sua conta."
+	},
+	"fields": {
+		"fullName": "Nome completo",
+		"fullNamePlaceholder": "Digite seu nome completo",
+		"notSet": "Não definido",
+		"username": "Usuário"
+	},
+	"actions": {
+		"editProfile": "Editar perfil",
+		"saveChanges": "Salvar alterações",
+		"saving": "Salvando…",
+		"cancel": "Cancelar"
+	},
+	"errors": {
+		"updateFailed": "Falha ao atualizar o perfil. Tente novamente."
+	},
+	"joinedOn": "Ingressou em {{date}}",
+	"changePassword": {
+		"title": "Alterar Senha",
+		"description": "Atualize a senha da sua conta.",
+		"descriptionMustChange": "Você precisa definir uma nova senha antes de continuar.",
+		"temporaryPasswordNotice": "Uma senha temporária foi definida para sua conta. Altere-a agora.",
+		"success": "Senha alterada com sucesso.",
+		"fields": {
+			"currentPassword": "Senha atual",
+			"newPassword": "Nova senha",
+			"confirmPassword": "Confirmar nova senha",
+			"passwordPlaceholder": "••••••••",
+			"newPasswordHint": "Use pelo menos 8 caracteres e escolha algo diferente da sua senha atual."
+		},
+		"aria": {
+			"showCurrentPassword": "Mostrar senha atual",
+			"hideCurrentPassword": "Ocultar senha atual",
+			"showNewPassword": "Mostrar nova senha",
+			"hideNewPassword": "Ocultar nova senha",
+			"showConfirmPassword": "Mostrar confirmação da senha",
+			"hideConfirmPassword": "Ocultar confirmação da senha"
+		},
+		"actions": {
+			"submit": "Alterar senha",
+			"updating": "Atualizando…"
+		},
+		"errors": {
+			"currentPasswordRequired": "A senha atual é obrigatória.",
+			"currentPasswordIncorrect": "A senha atual está incorreta.",
+			"sessionExpired": "Sua sessão expirou. Entre novamente.",
+			"serverError": "Algo deu errado no servidor. Tente novamente.",
+			"changeFailed": "Falha ao alterar a senha."
+		}
+	},
+	"apiKeys": {
+		"title": "Chaves de API",
+		"subtitle": "As chaves de API permitem autenticar requisições de API sem usar os cookies da sua sessão. Trate-as como senhas — nunca as compartilhe.",
+		"empty": "Nenhuma chave de API ainda. Crie uma para começar.",
+		"yourKeys": {
+			"title": "Suas chaves",
+			"description": "As chaves são exibidas apenas com os 8 primeiros caracteres para identificação."
+		},
+		"table": {
+			"name": "Nome",
+			"prefix": "Prefixo",
+			"created": "Criada",
+			"expires": "Expira",
+			"lastUsed": "Último uso"
+		},
+		"actions": {
+			"newKey": "Nova chave",
+			"cancel": "Cancelar",
+			"creating": "Criando…",
+			"createKey": "Criar chave",
+			"done": "Concluído",
+			"revoking": "Revogando…",
+			"revokeKey": "Revogar chave",
+			"revokeKeyAria": "Revogar chave",
+			"copyKeyAria": "Copiar chave"
+		},
+		"createDialog": {
+			"title": "Criar chave de API",
+			"description": "Dê um nome descritivo à sua chave para poder identificá-la depois.",
+			"nameLabel": "Nome",
+			"namePlaceholder": "ex.: Pipeline de CI, Dev local",
+			"expiryLabel": "Data de expiração",
+			"expiryOptional": "(opcional)"
+		},
+		"revealDialog": {
+			"title": "Chave de API criada",
+			"description": "Copie sua nova chave agora. Você não poderá vê-la novamente.",
+			"copied": "Copiada para a área de transferência!"
+		},
+		"revokeDialog": {
+			"title": "Revogar chave de API",
+			"confirmPrefix": "Tem certeza de que deseja revogar",
+			"confirmSuffix": "? Qualquer requisição que use esta chave deixará de funcionar imediatamente."
+		},
+		"errors": {
+			"nameRequired": "O nome não pode ficar vazio.",
+			"nameTooLong": "O nome deve ter no máximo 100 caracteres.",
+			"createFailed": "Falha ao criar a chave. Tente novamente.",
+			"copyFailed": "Falha ao copiar. Copie a chave manualmente."
+		}
+	}
+}

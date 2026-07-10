@@ -16,13 +16,13 @@ function getSystemPrefersDark(): boolean {
 
 function getStoredTheme(): ThemeMode {
 	if (typeof window === "undefined") {
-		return "auto";
+		return "dark";
 	}
 
 	const value = window.localStorage.getItem(THEME_STORAGE_KEY);
 	return value === "light" || value === "dark" || value === "auto"
 		? value
-		: "auto";
+		: "dark";
 }
 
 function applyTheme(mode: ThemeMode) {

@@ -1,0 +1,264 @@
+{
+	"users": {
+		"header": {
+			"title": "Gerenciamento de Usuários",
+			"description": "Visualize e gerencie contas de usuários e as funções atribuídas a eles.",
+			"newUser": "Novo Usuário"
+		},
+		"stats": {
+			"userCount_one": "{{count}} usuário",
+			"userCount_other": "{{count}} usuários",
+			"inSystem": "no sistema",
+			"mustChangePassword": "devem alterar a senha"
+		},
+		"empty": {
+			"title": "Nenhum usuário encontrado",
+			"description": "Crie seu primeiro usuário para começar.",
+			"createUser": "Criar usuário"
+		},
+		"errors": {
+			"loadFailed": "Falha ao carregar usuários",
+			"tryAgain": "Atualize a página e tente novamente."
+		},
+		"noPermission": {
+			"title": "Você não tem permissão para visualizar usuários",
+			"description": "Você ainda pode criar novos usuários usando o botão acima."
+		},
+		"table": {
+			"columnUsername": "Usuário",
+			"columnFullName": "Nome Completo",
+			"columnRole": "Função",
+			"columnCreated": "Criado em",
+			"pwdResetBadge": "senha redefinida",
+			"youBadge": "você",
+			"noFullName": "—",
+			"resetPasswordAction": "Redefinir senha",
+			"editAction": "Editar usuário",
+			"deleteAction": "Excluir usuário"
+		},
+		"formDialog": {
+			"createdTitle": "Usuário criado",
+			"createdDescriptionSuffix": "foi criado. Compartilhe a senha temporária abaixo — será solicitado ao usuário que a altere no primeiro login.",
+			"temporaryPasswordLabel": "Senha temporária",
+			"hidePassword": "Ocultar senha",
+			"showPassword": "Mostrar senha",
+			"copyPassword": "Copiar senha",
+			"passwordNotShownAgain": "Esta senha não será exibida novamente. Certifique-se de copiá-la agora.",
+			"done": "Concluído",
+			"editTitle": "Editar Usuário",
+			"createTitle": "Criar Usuário",
+			"editDescription": "Atualize o nome de exibição e a atribuição de função do usuário.",
+			"createDescription": "Uma senha temporária segura será gerada automaticamente. Será solicitado ao usuário que a altere no primeiro login.",
+			"usernameLabel": "Usuário",
+			"usernamePlaceholder": "ex.: joao.silva",
+			"fullNameLabel": "Nome Completo",
+			"fullNamePlaceholder": "ex.: João Silva",
+			"roleLabel": "Função",
+			"roleOptionalHint": "(opcional — o padrão é USER)",
+			"rolePlaceholder": "Selecione uma função…",
+			"cancel": "Cancelar",
+			"saving": "Salvando…",
+			"creating": "Criando…",
+			"saveChanges": "Salvar alterações",
+			"createUser": "Criar usuário",
+			"errors": {
+				"fullNameRequired": "O nome completo é obrigatório.",
+				"usernameTaken": "Este nome de usuário já está em uso.",
+				"userNotFound": "Usuário não encontrado. Ele pode já ter sido excluído.",
+				"forbidden": "Você não tem permissão para executar esta ação.",
+				"internalError": "Algo deu errado no servidor. Tente novamente.",
+				"generic": "Algo deu errado."
+			}
+		},
+		"resetPasswordDialog": {
+			"title": "Redefinir senha",
+			"descriptionSuccessPrefix": "A senha de",
+			"descriptionSuccessSuffix": "foi redefinida. Compartilhe a senha temporária abaixo — ela não será exibida novamente.",
+			"descriptionConfirmPrefix": "Uma senha temporária forte será gerada e atribuída a",
+			"descriptionConfirmSuffix": "Será solicitado a ele que a altere no próximo login.",
+			"temporaryPasswordLabel": "Senha Temporária",
+			"hidePassword": "Ocultar senha",
+			"showPassword": "Mostrar senha",
+			"copyPassword": "Copiar senha",
+			"notShownAgain": "⚠ Esta senha não será exibida novamente após o fechamento.",
+			"done": "Concluído",
+			"cancel": "Cancelar",
+			"resetting": "Redefinindo…",
+			"resetButton": "Redefinir senha",
+			"errors": {
+				"userNotFound": "Este usuário não existe mais.",
+				"forbidden": "Você não tem permissão para redefinir a senha deste usuário.",
+				"internalError": "Algo deu errado. Tente novamente.",
+				"generic": "Algo deu errado."
+			}
+		},
+		"deleteDialog": {
+			"title": "Excluir usuário",
+			"confirmTextPrefix": "Tem certeza de que deseja excluir",
+			"confirmTextSuffix": "? A conta dele será removida permanentemente.",
+			"cannotBeUndone": "Esta ação não pode ser desfeita.",
+			"cancel": "Cancelar",
+			"deleting": "Excluindo…",
+			"confirmButton": "Excluir usuário",
+			"errors": {
+				"userNotFound": "Este usuário não existe mais.",
+				"forbidden": "Você não tem permissão para excluir este usuário.",
+				"internalError": "Algo deu errado. Tente novamente.",
+				"generic": "Algo deu errado."
+			}
+		}
+	},
+	"globalRoles": {
+		"header": {
+			"title": "Funções Globais",
+			"description": "Gerencie funções de todo o sistema e as permissões que elas concedem aos usuários.",
+			"newRole": "Nova Função"
+		},
+		"stats": {
+			"roleCount_one": "{{count}} função",
+			"roleCount_other": "{{count}} funções",
+			"defined": "definidas",
+			"permissionGrants": "concessões de permissão em todas as funções"
+		},
+		"empty": {
+			"title": "Nenhuma função definida ainda",
+			"description": "Crie sua primeira função para começar a gerenciar as permissões dos usuários.",
+			"createRole": "Criar função"
+		},
+		"errors": {
+			"loadFailed": "Falha ao carregar funções",
+			"tryAgain": "Atualize a página e tente novamente."
+		},
+		"noPermission": {
+			"title": "Você não tem permissão para visualizar funções",
+			"description": "Você ainda pode criar novas funções usando o botão acima."
+		},
+		"table": {
+			"columnName": "Nome",
+			"columnPermissions": "Permissões",
+			"columnCreated": "Criado em",
+			"noPermissionsAssigned": "Nenhuma permissão atribuída",
+			"editAction": "Editar função",
+			"deleteAction": "Excluir função"
+		},
+		"formDialog": {
+			"editTitle": "Editar Função",
+			"createTitle": "Criar Função",
+			"editDescription": "Atualize o nome da função e suas concessões de permissão.",
+			"createDescription": "Defina uma nova função de todo o sistema e configure suas permissões.",
+			"roleNameLabel": "Nome da Função",
+			"roleNamePlaceholder": "ex.: SECURITY_ADMIN",
+			"permissionsLabel": "Permissões",
+			"enabledCount_one": "{{count}} ativada",
+			"enabledCount_other": "{{count}} ativadas",
+			"cancel": "Cancelar",
+			"saving": "Salvando…",
+			"saveChanges": "Salvar alterações",
+			"createRole": "Criar função",
+			"errors": {
+				"roleNameRequired": "O nome da função é obrigatório.",
+				"nameTaken": "Já existe uma função com este nome.",
+				"nameInvalid": "O nome da função deve conter apenas letras maiúsculas, números e sublinhados.",
+				"roleNotFound": "Esta função não existe mais. Ela pode já ter sido excluída.",
+				"forbidden": "Você não tem permissão para executar esta ação.",
+				"internalError": "Algo deu errado no servidor. Tente novamente.",
+				"generic": "Algo deu errado."
+			}
+		},
+		"deleteDialog": {
+			"title": "Excluir função",
+			"confirmTextPrefix": "Tem certeza de que deseja excluir",
+			"confirmTextSuffix": "? Isso também removerá todas as atribuições de usuários para esta função.",
+			"cannotBeUndone": "Esta ação não pode ser desfeita.",
+			"cancel": "Cancelar",
+			"deleting": "Excluindo…",
+			"confirmButton": "Excluir função",
+			"errors": {
+				"roleNotFound": "Esta função não existe mais.",
+				"hasUsersWarning": "Esta função não pode ser excluída porque ainda está atribuída a um ou mais usuários.",
+				"forbidden": "Você não tem permissão para excluir esta função.",
+				"internalError": "Algo deu errado. Tente novamente.",
+				"generic": "Algo deu errado."
+			}
+		},
+		"permissions": {
+			"globalRolesRead": {
+				"label": "Ler Funções Globais",
+				"description": "Visualizar definições de funções globais"
+			},
+			"globalRolesWrite": {
+				"label": "Escrever Funções Globais",
+				"description": "Criar e atualizar definições de funções globais"
+			},
+			"globalRolesAssign": {
+				"label": "Atribuir Funções Globais",
+				"description": "Atribuir funções globais a usuários"
+			},
+			"usersRead": {
+				"label": "Ler Usuários",
+				"description": "Visualizar perfis e lista de usuários"
+			},
+			"usersWrite": {
+				"label": "Escrever Usuários",
+				"description": "Criar e atualizar contas de usuários"
+			},
+			"usersDelete": {
+				"label": "Excluir Usuários",
+				"description": "Remover contas de usuários"
+			},
+			"projectsRead": {
+				"label": "Ler Todos os Projetos",
+				"description": "Visualizar todos os projetos no workspace"
+			},
+			"projectsCreate": {
+				"label": "Criar Projetos",
+				"description": "Criar novos projetos"
+			},
+			"projectsWrite": {
+				"label": "Escrever Projetos",
+				"description": "Atualizar detalhes do projeto"
+			},
+			"projectsDelete": {
+				"label": "Excluir Projetos",
+				"description": "Excluir projetos permanentemente"
+			},
+			"projectMembersRead": {
+				"label": "Ler Membros do Projeto",
+				"description": "Visualizar membros de qualquer projeto"
+			},
+			"projectMembersWrite": {
+				"label": "Escrever Membros do Projeto",
+				"description": "Adicionar, remover e atualizar membros em qualquer projeto"
+			},
+			"projectRolesRead": {
+				"label": "Ler Funções do Projeto",
+				"description": "Visualizar funções definidas em qualquer projeto"
+			},
+			"projectRolesWrite": {
+				"label": "Escrever Funções do Projeto",
+				"description": "Criar e atualizar funções em qualquer projeto"
+			}
+		},
+		"permissionGroups": {
+			"globalRoles": "Funções Globais",
+			"users": "Usuários",
+			"projects": "Projetos"
+		}
+	},
+	"plugins": {
+		"title": "Configurações de Plugins",
+		"description": "Gerencie a ordenação e a visibilidade dos painéis de plugins de todo o sistema para todos os usuários.",
+		"tabs": {
+			"marketplace": "Marketplace",
+			"layout": "Layout de Pontos de Extensão"
+		},
+		"marketplace": {
+			"title": "Marketplace",
+			"description": "Instale ou desinstale plugins do catálogo público paca-plugins."
+		},
+		"layout": {
+			"title": "Layout de Pontos de Extensão",
+			"description": "Arraste para reordenar os painéis de plugins dentro de cada ponto de extensão. Alterne a visibilidade para mostrar ou ocultar painéis para todos os usuários."
+		}
+	}
+}

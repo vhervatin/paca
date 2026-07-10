@@ -1,0 +1,71 @@
+{
+	"language": {
+		"label": "Idioma",
+		"toggleTooltip": "Idioma: {{language}} — clique para alterar"
+	},
+	"brand": {
+		"logoAlt": "Logo Paca"
+	},
+	"theme": {
+		"label": "Tema",
+		"light": "Claro",
+		"dark": "Escuro",
+		"auto": "Automático",
+		"cycleTooltip": "Tema: {{mode}} — clique para alternar",
+		"modeAutoTooltip": "Modo do tema: automático (sistema). Clique para mudar para o modo claro.",
+		"modeTooltip": "Modo do tema: {{mode}}. Clique para mudar de modo."
+	},
+	"nav": {
+		"home": "Início",
+		"administration": "Administração",
+		"globalRoles": "Funções Globais",
+		"users": "Usuários",
+		"plugins": "Plugins",
+		"allProjects": "Todos os Projetos",
+		"project": "Projeto",
+		"agents": "Agentes",
+		"automation": "Automação",
+		"team": "Equipe",
+		"settings": "Configurações"
+	},
+	"projectSwitcher": {
+		"projects": "Projetos",
+		"yourProjects": "Seus Projetos",
+		"noProjectsYet": "Nenhum projeto ainda",
+		"newProject": "Novo projeto"
+	},
+	"interactions": {
+		"title": "Interações",
+		"timeline": "Linha do tempo",
+		"productBacklog": "Backlog do Produto"
+	},
+	"docs": {
+		"documentation": "Documentação",
+		"noDocumentsYet": "Nenhum documento ainda",
+		"emptyFolder": "Pasta vazia",
+		"add": "Adicionar",
+		"newDocument": "Novo Documento",
+		"newFolder": "Nova Pasta",
+		"newFolderDefaultName": "Nova Pasta",
+		"newSubfolder": "Nova Subpasta",
+		"rename": "Renomear",
+		"delete": "Excluir",
+		"untitled": "Sem título"
+	},
+	"notifications": {
+		"title": "Notificações",
+		"empty": "Nenhuma notificação ainda",
+		"markAllAsRead": "Marcar todas como lidas",
+		"text": {
+			"assigned": "{{actor}} atribuiu você à tarefa #{{taskNumber}} — {{taskTitle}}",
+			"mentioned": "{{actor}} mencionou você em #{{taskNumber}} — {{taskTitle}}"
+		}
+	},
+	"userMenu": {
+		"signIn": "Entrar",
+		"myProfile": "Meu Perfil",
+		"apiKeys": "Chaves de API",
+		"logOut": "Sair",
+		"loggingOut": "Saindo…"
+	}
+}

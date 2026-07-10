@@ -1,0 +1,1193 @@
+{
+	"project": {
+		"notFound": "Projeto não encontrado ou acesso negado.",
+		"settingsPage": {
+			"title": "Configurações",
+			"subtitle": "Configure as opções, papéis e permissões do projeto",
+			"nav": {
+				"general": "Geral",
+				"roles": "Papéis",
+				"taskStatuses": "Status de tarefas",
+				"taskTypes": "Tipos de tarefa",
+				"customFields": "Campos personalizados",
+				"dangerZone": "Zona de perigo",
+				"plugins": "Plugins"
+			}
+		}
+	},
+	"agents": {
+		"createDialog": {
+			"title": "Criar agente",
+			"step1Description": "Defina a identidade e o papel do seu agente",
+			"step2Description": "Configure o modelo de IA que alimenta seu agente",
+			"stepIndicator": "{{step}} / 2",
+			"startFromPreset": "Começar a partir de um preset",
+			"nameLabel": "Nome",
+			"handleLabel": "Identificador",
+			"handleHint": "Derivado automaticamente do nome. Usado para @menções em comentários.",
+			"projectRoleLabel": "Papel no projeto",
+			"projectRolePlaceholder": "Selecione um papel no projeto…",
+			"projectRoleHint": "Controla o que o agente pode ler e modificar neste projeto.",
+			"modelSection": "Modelo",
+			"providerLabel": "Provedor",
+			"modelLabel": "Modelo",
+			"customOption": "Personalizado…",
+			"apiKeyLabel": "Chave de API",
+			"hideApiKey": "Ocultar chave de API",
+			"showApiKey": "Mostrar chave de API",
+			"apiKeyHint": "Armazenada de forma criptografada — nunca exposta nas respostas da API.",
+			"baseUrlLabel": "URL base",
+			"systemPromptLabel": "Prompt de sistema",
+			"optional": "(opcional)",
+			"charsCount": "{{count}} caracteres",
+			"createFailed": "Falha ao criar o agente. Tente novamente.",
+			"cancel": "Cancelar",
+			"continue": "Continuar",
+			"back": "Voltar",
+			"creating": "Criando…",
+			"createAgent": "Criar agente",
+			"namePlaceholder": "Dev Bot",
+			"systemPromptPlaceholder": "Você é um engenheiro de software sênior…"
+		},
+		"card": {
+			"configure": "Configurar",
+			"delete": "Excluir",
+			"deleteDialog": {
+				"title": "Excluir {{name}}?",
+				"description": "Isso exclui permanentemente o agente e o remove do projeto. As conversas em andamento serão interrompidas.",
+				"cancel": "Cancelar",
+				"delete": "Excluir"
+			}
+		},
+		"page": {
+			"title": "Agentes de IA",
+			"subtitle": "Agentes autônomos que trabalham em tarefas e conversam com sua equipe",
+			"newAgent": "Novo agente",
+			"empty": {
+				"title": "Nenhum agente ainda",
+				"description": "Adicione um agente de IA para automatizar tarefas, revisar código, escrever documentação e muito mais.",
+				"createFirstAgent": "Crie seu primeiro agente"
+			}
+		},
+		"detail": {
+			"tabs": {
+				"overview": "Visão geral",
+				"mcpServers": "Servidores MCP",
+				"skills": "Skills",
+				"envVars": "Ambiente",
+				"conversations": "Conversas"
+			},
+			"overview": {
+				"nameLabel": "Nome",
+				"llmConfiguration": "Configuração do LLM",
+				"providerLabel": "Provedor",
+				"modelLabel": "Modelo",
+				"customOption": "Personalizado…",
+				"apiKeyUpdateLabel": "Atualizar chave de API",
+				"apiKeyUpdateHint": "(deixe em branco para manter a atual)",
+				"baseUrlLabel": "URL base",
+				"gitCommitterIdentity": "Identidade de committer do Git",
+				"gitCommitterHint": "Nome e e-mail usados nos commits feitos por este agente.",
+				"committerNameLabel": "Nome do committer",
+				"committerEmailLabel": "E-mail do committer",
+				"saveChanges": "Salvar alterações",
+				"saved": "Salvo",
+				"saveFailed": "Falha ao salvar. Tente novamente.",
+				"systemPromptLabel": "Prompt de sistema"
+			},
+			"mcp": {
+				"serverCount_one": "{{count}} servidor configurado",
+				"serverCount_other": "{{count}} servidores configurados",
+				"addServer": "Adicionar servidor",
+				"empty": {
+					"title": "Nenhum servidor MCP adicionado",
+					"addFirstServer": "Adicione seu primeiro servidor"
+				},
+				"addDialog": {
+					"title": "Adicionar servidor MCP",
+					"description": "Conecte um servidor MCP para ampliar as capacidades do agente.",
+					"serverNameLabel": "Nome do servidor",
+					"transportLabel": "Transporte",
+					"commandLabel": "Comando",
+					"argsLabel": "Argumentos",
+					"argsHint": "(separados por espaço)",
+					"urlLabel": "URL",
+					"cancel": "Cancelar",
+					"addServer": "Adicionar servidor"
+				}
+			},
+			"envVars": {
+				"count_one": "{{count}} variável configurada",
+				"count_other": "{{count}} variáveis configuradas",
+				"addVariable": "Adicionar variável",
+				"empty": {
+					"title": "Nenhuma variável de ambiente adicionada",
+					"addFirst": "Adicione sua primeira variável"
+				},
+				"addDialog": {
+					"title": "Adicionar variável de ambiente",
+					"description": "Valores secretos são criptografados em repouso e injetados no sandbox do agente em tempo de execução. Depois de salvo, um valor nunca mais pode ser visualizado.",
+					"keyLabel": "Chave",
+					"keyPlaceholder": "GITHUB_TOKEN",
+					"keyHint": "(letras, dígitos, underscores — deve começar com uma letra ou underscore)",
+					"valueLabel": "Valor",
+					"cancel": "Cancelar",
+					"addVariable": "Adicionar variável"
+				}
+			},
+			"skills": {
+				"skillCount_one": "{{count}} skill anexada",
+				"skillCount_other": "{{count}} skills anexadas",
+				"addSkill": "Adicionar skill",
+				"empty": {
+					"title": "Nenhuma skill ainda",
+					"addFirstSkill": "Adicionar primeira skill"
+				},
+				"addDialog": {
+					"title": "Adicionar skill",
+					"description": "Dê ao agente instruções ou capacidades especializadas.",
+					"skillNameLabel": "Nome da skill",
+					"sourceLabel": "Origem",
+					"sourceInline": "Inline (escreva o conteúdo aqui)",
+					"sourceMarketplace": "Marketplace",
+					"sourceGithubUrl": "URL do GitHub",
+					"skillContentLabel": "Conteúdo da skill (Markdown)",
+					"urlLabel": "URL",
+					"cancel": "Cancelar",
+					"addSkill": "Adicionar skill"
+				}
+			},
+			"conversations": {
+				"triggerChat": "Chat",
+				"triggerWriteDescription": "Escrever descrição",
+				"triggerTask": "Tarefa",
+				"iterations_one": "{{count}} iteração",
+				"iterations_other": "{{count}} iterações",
+				"prOpened": "PR aberto",
+				"empty": {
+					"title": "Nenhuma conversa ainda",
+					"description": "As conversas começam quando uma tarefa é atribuída a este agente ou quando alguém envia uma mensagem a ele."
+				}
+			}
+		},
+		"conversationView": {
+			"stop": "Parar",
+			"notFound": "Conversa não encontrada",
+			"chatSession": "Sessão de chat",
+			"taskSession": "Sessão de tarefa",
+			"pr": "PR",
+			"conversationEnded": "Esta conversa foi encerrada.",
+			"textOnlyMessage": "Apenas mensagens de texto são suportadas.",
+			"failed": "A conversa falhou",
+			"noOutput": "O agente não produziu nenhuma saída."
+		},
+		"thread": {
+			"composerPlaceholder": "Enviar mensagem ao agente…",
+			"welcomeHeading": "Como posso ajudar você hoje?",
+			"messageInputAriaLabel": "Campo de mensagem",
+			"voiceInput": "Entrada de voz",
+			"startVoiceInputAriaLabel": "Iniciar entrada de voz",
+			"stopDictation": "Parar ditado",
+			"stopVoiceInputAriaLabel": "Parar entrada de voz",
+			"sendMessage": "Enviar mensagem",
+			"stopGeneratingAriaLabel": "Parar geração",
+			"assistantWorkingAriaLabel": "O assistente está trabalhando",
+			"copy": "Copiar",
+			"refresh": "Atualizar",
+			"more": "Mais",
+			"edit": "Editar",
+			"previous": "Anterior",
+			"next": "Próximo",
+			"exportAsMarkdown": "Exportar como Markdown",
+			"scrollToBottom": "Rolar até o fim",
+			"cancel": "Cancelar",
+			"update": "Atualizar",
+			"reasoning": "Raciocínio",
+			"reasoningWithDuration": "Raciocínio ({{duration}}s)",
+			"toolCallCount_one": "{{count}} chamada de ferramenta",
+			"toolCallCount_other": "{{count}} chamadas de ferramenta",
+			"usedTool": "Ferramenta usada",
+			"cancelledTool": "Ferramenta cancelada",
+			"resultLabel": "Resultado:",
+			"errorLabel": "Erro:",
+			"cancelledReasonLabel": "Motivo do cancelamento:",
+			"approvedByUser": "Aprovado pelo usuário",
+			"deniedByUser": "O usuário negou a execução da ferramenta",
+			"allow": "Permitir",
+			"alwaysAllow": "Permitir sempre",
+			"deny": "Negar",
+			"alwaysDeny": "Negar sempre",
+			"confirm": "Confirmar",
+			"back": "Voltar",
+			"attachmentPreview": "Visualização do anexo",
+			"attachmentTypeImage": "Imagem",
+			"attachmentTypeDocument": "Documento",
+			"attachmentTypeFile": "Arquivo",
+			"removeFile": "Remover arquivo",
+			"imageAttachmentPreviewTitle": "Visualização do anexo de imagem",
+			"attachmentAriaLabel": "Anexo {{type}}",
+			"attachmentAriaLabelError": "Anexo {{type}}, falha no upload",
+			"attachmentAriaLabelUploading": "Anexo {{type}}, enviando"
+		}
+	},
+	"docs": {
+		"editorPage": {
+			"notFound": {
+				"title": "Documento não encontrado",
+				"description": "Este documento pode ter sido excluído ou o link é inválido."
+			},
+			"unsaved": "Não salvo",
+			"saving": "Salvando…",
+			"saved": "Salvo",
+			"commentsAndActivity": "Comentários e atividade"
+		},
+		"activity": {
+			"created": "criou este documento",
+			"updated": "atualizou o documento",
+			"updatedFields": "atualizou {{fields}}",
+			"deleted": "excluiu o documento",
+			"moved": "moveu o documento",
+			"contentChangeDiff": "Diferença de alteração de conteúdo"
+		}
+	},
+	"roles": {
+		"deleteDialog": {
+			"title": "Excluir papel",
+			"confirmTextPrefix": "Tem certeza de que deseja excluir",
+			"confirmTextSuffix": "? Todos os membros atualmente atribuídos a este papel perderão o acesso. Esta ação não pode ser desfeita.",
+			"cancel": "Cancelar",
+			"deleteRole": "Excluir papel",
+			"errors": {
+				"notFound": "Este papel não existe mais.",
+				"hasMembers": "Este papel não pode ser excluído porque ainda está atribuído a um ou mais membros.",
+				"forbidden": "Você não tem permissão para excluir este papel.",
+				"internalError": "Algo deu errado. Tente novamente.",
+				"generic": "Algo deu errado."
+			}
+		},
+		"formDialog": {
+			"editTitle": "Editar papel",
+			"createTitle": "Novo papel",
+			"editDescription": "Atualize o nome do papel e configure suas permissões concedidas.",
+			"createDescription": "Defina um novo papel de projeto e configure quais permissões ele concede aos membros.",
+			"roleNameLabel": "Nome do papel",
+			"roleNamePlaceholder": "ex.: PROJECT_REVIEWER",
+			"permissionsLabel": "Permissões",
+			"enabledCount_one": "{{count}} ativada",
+			"enabledCount_other": "{{count}} ativadas",
+			"cancel": "Cancelar",
+			"saveChanges": "Salvar alterações",
+			"createRole": "Criar papel",
+			"errors": {
+				"nameTaken": "Já existe um papel com este nome.",
+				"nameInvalid": "O nome do papel deve usar letras maiúsculas, números e underscores.",
+				"notFound": "Este papel não existe mais. Ele pode já ter sido excluído.",
+				"forbidden": "Você não tem permissão para realizar esta ação.",
+				"internalError": "Algo deu errado no servidor. Tente novamente.",
+				"generic": "Algo deu errado."
+			}
+		},
+		"permissions": {
+			"projectsRead": {
+				"label": "Ler projeto",
+				"description": "Ver detalhes e configurações do projeto"
+			},
+			"projectsWrite": {
+				"label": "Editar projeto",
+				"description": "Atualizar nome, descrição e configurações do projeto"
+			},
+			"projectsDelete": {
+				"label": "Excluir projeto",
+				"description": "Excluir permanentemente este projeto"
+			},
+			"membersRead": {
+				"label": "Ver membros",
+				"description": "Listar e visualizar os membros do projeto"
+			},
+			"membersWrite": {
+				"label": "Gerenciar membros",
+				"description": "Adicionar, remover e reatribuir membros do projeto"
+			},
+			"rolesRead": {
+				"label": "Ver papéis",
+				"description": "Listar e visualizar as definições de papéis do projeto"
+			},
+			"rolesWrite": {
+				"label": "Gerenciar papéis",
+				"description": "Criar, editar e excluir papéis do projeto"
+			},
+			"tasksRead": {
+				"label": "Ver tarefas",
+				"description": "Navegar e ler as tarefas do projeto"
+			},
+			"tasksWrite": {
+				"label": "Editar tarefas",
+				"description": "Criar, atualizar e mover tarefas"
+			},
+			"sprintsRead": {
+				"label": "Ver sprints",
+				"description": "Navegar pelos quadros de sprint e backlogs"
+			},
+			"sprintsWrite": {
+				"label": "Gerenciar sprints",
+				"description": "Criar, atualizar e encerrar sprints"
+			},
+			"docsRead": {
+				"label": "Ver documentos",
+				"description": "Navegar e ler os documentos do projeto"
+			},
+			"docsWrite": {
+				"label": "Editar documentos",
+				"description": "Criar, atualizar e excluir documentos e pastas"
+			},
+			"agentsRead": {
+				"label": "Ver agentes",
+				"description": "Navegar pelos agentes de IA e ver suas configurações"
+			},
+			"agentsWrite": {
+				"label": "Gerenciar agentes",
+				"description": "Criar, configurar e excluir agentes de IA"
+			},
+			"workflowsRead": {
+				"label": "Ver workflows",
+				"description": "Navegar pelos workflows de automação e suas configurações"
+			},
+			"workflowsWrite": {
+				"label": "Gerenciar workflows",
+				"description": "Criar, editar, ativar e excluir workflows de automação"
+			}
+		},
+		"permissionGroups": {
+			"project": "Projeto",
+			"members": "Membros",
+			"roles": "Papéis",
+			"tasks": "Tarefas",
+			"sprints": "Sprints",
+			"documents": "Documentos",
+			"aiAgents": "Agentes de IA",
+			"workflows": "Automação"
+		}
+	},
+	"settings": {
+		"general": {
+			"title": "Geral",
+			"projectNameLabel": "Nome do projeto",
+			"projectNamePlaceholder": "Meu projeto incrível",
+			"taskIdPrefixLabel": "Prefixo de ID de tarefa",
+			"taskIdPrefixHint": "ex.: PACA → PACA-1, PACA-2…",
+			"taskIdPrefixPlaceholder": "PROJ",
+			"descriptionLabel": "Descrição",
+			"descriptionPlaceholder": "Descreva sobre o que é este projeto…",
+			"publicProjectLabel": "Projeto público",
+			"publicProjectHintPublic": "Qualquer pessoa com o link pode visualizar este projeto. Usuários anônimos têm acesso somente leitura.",
+			"publicProjectHintPrivate": "Apenas membros da equipe podem acessar este projeto.",
+			"saveChanges": "Salvar alterações",
+			"saved": "Salvo ✓",
+			"noPermission": "Você não tem permissão para editar este projeto.",
+			"errors": {
+				"nameTaken": "Já existe um projeto com este nome.",
+				"nameInvalid": "O nome do projeto está vazio ou inválido.",
+				"prefixInvalid": "O prefixo deve ter de 1 a 10 letras/dígitos maiúsculos (ex.: PACA).",
+				"updateFailed": "Falha ao atualizar o projeto. Tente novamente."
+			}
+		},
+		"roles": {
+			"title": "Papéis do projeto",
+			"description": "Gerencie os papéis e permissões dos membros deste projeto.",
+			"newRole": "Novo papel",
+			"noPermissionsAssigned": "Nenhuma permissão atribuída",
+			"editRole": "Editar papel",
+			"deleteRole": "Excluir papel",
+			"rolesDefined_one": "papel definido",
+			"rolesDefined_other": "papéis definidos",
+			"permissionGrants": "permissões concedidas em todos os papéis",
+			"empty": {
+				"title": "Nenhum papel definido ainda",
+				"description": "Crie seu primeiro papel para começar a atribuir permissões aos membros.",
+				"createRole": "Criar papel"
+			},
+			"table": {
+				"name": "Nome",
+				"permissions": "Permissões",
+				"created": "Criado em"
+			},
+			"systemRolesNote": "Papéis de sistema são modelos compartilhados e não podem ser editados ou excluídos."
+		},
+		"taskStatuses": {
+			"title": "Status de tarefas",
+			"description": "Defina os status de fluxo de trabalho pelos quais as tarefas passam neste projeto.",
+			"newStatus": "Novo status",
+			"reorderFailed": "Falha ao salvar a nova ordem. Tente novamente.",
+			"empty": {
+				"title": "Nenhum status definido",
+				"description": "Crie status para definir o fluxo de trabalho das tarefas neste projeto.",
+				"createStatus": "Criar status"
+			},
+			"table": {
+				"name": "Nome",
+				"category": "Categoria",
+				"default": "Padrão"
+			},
+			"default": "Padrão",
+			"setAsDefault": "Definir como status padrão",
+			"editStatus": "Editar status",
+			"deleteStatus": "Excluir status"
+		},
+		"taskTypes": {
+			"title": "Tipos de tarefa",
+			"description": "Categorize tarefas com tipos personalizados (ex.: Bug, Funcionalidade, História).",
+			"newType": "Novo tipo",
+			"empty": {
+				"title": "Nenhum tipo de tarefa definido",
+				"description": "Crie tipos para categorizar tarefas por natureza — ex.: Bug, Funcionalidade, História.",
+				"createType": "Criar tipo"
+			},
+			"table": {
+				"icon": "Ícone",
+				"name": "Nome",
+				"description": "Descrição",
+				"default": "Padrão"
+			},
+			"default": "Padrão",
+			"setAsDefault": "Definir como tipo padrão",
+			"editType": "Editar tipo",
+			"deleteType": "Excluir tipo"
+		},
+		"customFields": {
+			"title": "Campos personalizados",
+			"description": "Defina campos de tarefa personalizados no nível do projeto que estendem as tarefas com dados adicionais específicos do seu fluxo de trabalho.",
+			"newField": "Novo campo personalizado",
+			"empty": {
+				"title": "Nenhum campo personalizado ainda",
+				"description": "Campos personalizados permitem capturar dados específicos do seu fluxo de trabalho — sprints, níveis de severidade, tags de release e muito mais.",
+				"createFirstField": "Criar primeiro campo"
+			},
+			"table": {
+				"displayName": "Nome de exibição",
+				"fieldKey": "Chave do campo",
+				"type": "Tipo",
+				"required": "Obrigatório"
+			},
+			"yes": "Sim",
+			"no": "Não",
+			"editField": "Editar campo",
+			"deleteField": "Excluir campo",
+			"cancel": "Cancelar",
+			"saveChanges": "Salvar alterações",
+			"displayNameLabel": "Nome de exibição",
+			"displayNamePlaceholder": "ex.: Tag de release",
+			"fieldKeyLabel": "Chave do campo",
+			"fieldKeyHint": "Usada como identificador na API e nas exportações de dados.",
+			"fieldKeyImmutableHint": "A chave do campo não pode ser alterada após a criação.",
+			"fieldTypeLabel": "Tipo de campo",
+			"fieldTypeImmutableHint": "O tipo de campo não pode ser alterado após a criação.",
+			"optionsLabel": "Opções",
+			"addOptionPlaceholder": "Adicionar opção…",
+			"addOption": "Adicionar",
+			"requiredLabel": "Obrigatório",
+			"requiredHint": "Os usuários devem preencher este campo ao criar ou editar uma tarefa.",
+			"fieldTypes": {
+				"text": "Texto",
+				"number": "Número",
+				"date": "Data",
+				"checkbox": "Caixa de seleção",
+				"select": "Seleção",
+				"multiSelect": "Seleção múltipla",
+				"url": "URL"
+			},
+			"createDialog": {
+				"title": "Criar campo personalizado",
+				"description": "Defina um novo campo para capturar dados adicionais nas tarefas deste projeto.",
+				"createField": "Criar campo",
+				"errors": {
+					"keyTaken": "Já existe um campo com esta chave no projeto.",
+					"keyInvalid": "A chave do campo está vazia ou inválida.",
+					"nameInvalid": "O nome de exibição está vazio ou inválido.",
+					"createFailed": "Falha ao criar o campo. Tente novamente."
+				}
+			},
+			"editDialog": {
+				"title": "Editar campo personalizado",
+				"description": "Atualize as configurações do campo.",
+				"errors": {
+					"nameInvalid": "O nome de exibição está vazio ou inválido.",
+					"saveFailed": "Falha ao salvar as alterações. Tente novamente."
+				}
+			},
+			"deleteDialog": {
+				"title": "Excluir campo personalizado",
+				"confirmTextPrefix": "Excluir",
+				"confirmTextSuffix": "? Os dados de tarefa armazenados neste campo serão perdidos. Esta ação não pode ser desfeita.",
+				"deleteFailed": "Falha ao excluir o campo. Tente novamente.",
+				"deleteField": "Excluir campo"
+			}
+		},
+		"dangerZone": {
+			"title": "Zona de perigo",
+			"deleteProjectTitle": "Excluir este projeto",
+			"deleteProjectDescription": "Exclua permanentemente o projeto e todos os seus dados. Esta ação não pode ser desfeita.",
+			"deleteProjectButton": "Excluir projeto",
+			"deleteDialog": {
+				"title": "Excluir projeto",
+				"confirmTextPrefix": "Isso excluirá permanentemente",
+				"confirmTextSuffix": "e todos os seus dados, incluindo membros, papéis e interações. Esta ação não pode ser desfeita.",
+				"typeToConfirmPrefix": "Digite",
+				"typeToConfirmSuffix": "para confirmar",
+				"deleteFailed": "Falha ao excluir o projeto. Tente novamente.",
+				"cancel": "Cancelar",
+				"deletePermanently": "Excluir permanentemente"
+			}
+		}
+	},
+	"taskStatuses": {
+		"deleteDialog": {
+			"title": "Excluir status",
+			"confirmTextPrefix": "Excluir",
+			"confirmTextSuffix": "? As tarefas que usam este status perderão seu status. Esta ação não pode ser desfeita.",
+			"deleteFailed": "Falha ao excluir o status. Tente novamente.",
+			"cancel": "Cancelar",
+			"deleteStatus": "Excluir status"
+		},
+		"formDialog": {
+			"editTitle": "Editar status",
+			"createTitle": "Criar status",
+			"editDescription": "Atualize este status de fluxo de trabalho.",
+			"createDescription": "Adicione um novo status ao fluxo de trabalho do projeto.",
+			"nameLabel": "Nome",
+			"namePlaceholder": "ex.: Em revisão",
+			"categoryLabel": "Categoria",
+			"colorLabel": "Cor",
+			"customColorTitle": "Cor personalizada",
+			"cancel": "Cancelar",
+			"saveChanges": "Salvar alterações",
+			"createStatus": "Criar status",
+			"errors": {
+				"nameInvalid": "O nome do status está vazio ou inválido.",
+				"categoryInvalid": "Categoria selecionada inválida.",
+				"saveFailed": "Falha ao salvar o status. Tente novamente."
+			}
+		}
+	},
+	"team": {
+		"title": "Equipe",
+		"subtitle": "Gerencie os membros e papéis do projeto",
+		"addMember": "Adicionar membro",
+		"memberCount_one": "{{count}} membro",
+		"memberCount_other": "{{count}} membros",
+		"empty": {
+			"title": "Nenhum membro ainda",
+			"description": "Adicione colegas de equipe ou agentes de IA a este projeto para começar.",
+			"addFirstMember": "Adicionar primeiro membro"
+		},
+		"addMemberDialog": {
+			"title": "Adicionar membro",
+			"description": "Selecione um usuário e atribua um papel a ele neste projeto.",
+			"userLabel": "Usuário",
+			"change": "Alterar",
+			"searchPlaceholder": "Buscar por nome ou usuário…",
+			"noUsersMatch": "Nenhum usuário corresponde à sua busca.",
+			"noUsersAvailable": "Nenhum usuário disponível para adicionar.",
+			"roleLabel": "Papel",
+			"rolePlaceholder": "Selecione um papel…",
+			"cancel": "Cancelar",
+			"addMember": "Adicionar membro",
+			"errors": {
+				"addFailed": "Falha ao adicionar o membro. Tente novamente."
+			}
+		},
+		"roleChip": {
+			"changeRole": "Alterar papel",
+			"changeFailed": "Falha ao alterar o papel."
+		},
+		"memberRow": {
+			"removeMember": "Remover membro"
+		},
+		"removeDialog": {
+			"title": "Remover membro",
+			"removePrefix": "Remover",
+			"fromInfix": "de",
+			"confirmSuffix": "? Ele perderá o acesso imediatamente.",
+			"removeFailed": "Falha ao remover o membro. Tente novamente.",
+			"cancel": "Cancelar",
+			"remove": "Remover"
+		}
+	},
+	"aiChat": {
+		"chatWithAgent": "Conversar com o agente de IA",
+		"newConversation": "Nova conversa",
+		"agentLabel": "Agente",
+		"noAgentsConfigured": "Nenhum agente configurado para este projeto.",
+		"selectAgentPlaceholder": "Selecione um agente…",
+		"selectAgentFirst": "Selecione um agente primeiro."
+	},
+	"taskTypes": {
+		"deleteDialog": {
+			"title": "Excluir tipo de tarefa",
+			"confirmTextPrefix": "Excluir",
+			"confirmTextSuffix": "? As tarefas que usam este tipo perderão sua atribuição de tipo. Esta ação não pode ser desfeita.",
+			"deleteFailed": "Falha ao excluir o tipo de tarefa. Tente novamente.",
+			"cancel": "Cancelar",
+			"deleteType": "Excluir tipo"
+		},
+		"formDialog": {
+			"editTitle": "Editar tipo de tarefa",
+			"createTitle": "Criar tipo de tarefa",
+			"editDescription": "Atualize este tipo de tarefa.",
+			"createDescription": "Adicione um novo tipo para categorizar tarefas neste projeto.",
+			"nameLabel": "Nome",
+			"namePlaceholder": "ex.: Bug, Funcionalidade, História",
+			"iconLabel": "Ícone",
+			"optional": "(opcional)",
+			"clear": "Limpar",
+			"colorLabel": "Cor",
+			"customColorTitle": "Cor personalizada",
+			"descriptionLabel": "Descrição",
+			"descriptionPlaceholder": "Descreva quando usar este tipo…",
+			"cancel": "Cancelar",
+			"saveChanges": "Salvar alterações",
+			"createType": "Criar tipo",
+			"errors": {
+				"nameInvalid": "O nome do tipo está vazio ou inválido.",
+				"saveFailed": "Falha ao salvar o tipo de tarefa. Tente novamente."
+			}
+		}
+	},
+	"taskDetail": {
+		"common": {
+			"empty": "Vazio",
+			"dash": "—",
+			"unassigned": "Sem responsável"
+		},
+		"notFound": {
+			"title": "Tarefa não encontrada",
+			"description": "Esta tarefa pode ter sido excluída ou o link é inválido.",
+			"ariaLabel": "Detalhe da tarefa",
+			"backToProject": "Voltar ao projeto",
+			"projectFallback": "Projeto"
+		},
+		"header": {
+			"created": "Criada em {{date}}",
+			"copied": "Copiado!",
+			"share": "Compartilhar",
+			"taskActions": "Ações da tarefa",
+			"delete": "Excluir",
+			"closeTaskDetail": "Fechar detalhe da tarefa",
+			"deleteDialog": {
+				"title": "Excluir tarefa?",
+				"description": "Isso exclui permanentemente \"{{title}}\" e todos os seus dados. Esta ação não pode ser desfeita.",
+				"cancel": "Cancelar",
+				"delete": "Excluir"
+			}
+		},
+		"properties": {
+			"title": "Propriedades",
+			"status": "Status",
+			"dates": "Datas",
+			"trackTime": "Registrar tempo",
+			"addTime": "Adicionar tempo",
+			"type": "Tipo",
+			"relationships": "Relacionamentos",
+			"assignees": "Responsáveis",
+			"importance": "Importância",
+			"none": "Nenhum",
+			"storyPoints": "Story Points",
+			"tags": "Tags",
+			"reporter": "Relator",
+			"sprint": "Sprint",
+			"productBacklog": "Backlog do produto",
+			"epic": "Épico",
+			"viewEpic": "Ver épico",
+			"removeEpic": "Remover épico",
+			"parent": "Pai",
+			"viewParent": "Ver pai",
+			"removeParent": "Remover pai",
+			"addFields": "Adicionar campos"
+		},
+		"description": {
+			"title": "Descrição",
+			"writeWithAI": "Escrever com IA",
+			"writeWithAIDialog": {
+				"title": "Escrever com IA",
+				"description": "Selecione um agente para escrever a descrição da tarefa.",
+				"noAgents": "Nenhum agente configurado para este projeto.",
+				"cancel": "Cancelar",
+				"starting": "Iniciando...",
+				"writeButton": "Escrever descrição"
+			}
+		},
+		"subtasks": {
+			"title": "Subtarefas",
+			"addButton": "Adicionar subtarefa",
+			"titlePlaceholder": "Título da subtarefa…",
+			"empty": "Nenhuma subtarefa ainda"
+		},
+		"links": {
+			"title": "Tarefas vinculadas",
+			"addButton": "Adicionar vínculo",
+			"openTask": "Abrir tarefa",
+			"removeLink": "Remover vínculo",
+			"empty": "Nenhuma tarefa vinculada"
+		},
+		"workflows": {
+			"title": "Workflows",
+			"open": "Abrir workflow",
+			"empty": "Nenhum workflow ainda"
+		},
+		"attachments": {
+			"title": "Anexos",
+			"uploadLabel": "Enviar anexo",
+			"dropZoneTitle": "Solte seus arquivos aqui para enviar",
+			"dropZoneSubtitle": "ou clique para navegar",
+			"previewLabel": "Visualizar {{fileName}}",
+			"downloadLabel": "Baixar {{fileName}}",
+			"deleteLabel": "Excluir {{fileName}}",
+			"unitBytes_one": "{{count}} B",
+			"unitBytes_other": "{{count}} B",
+			"unitKilobytes": "{{value}} KB",
+			"unitMegabytes": "{{value}} MB"
+		},
+		"addFieldDialog": {
+			"title": "Criar campo personalizado",
+			"displayNameLabel": "Nome de exibição",
+			"displayNamePlaceholder": "ex.: Tag de release",
+			"fieldKeyLabel": "Chave do campo",
+			"fieldKeyPlaceholder": "release_tag",
+			"fieldTypeLabel": "Tipo de campo",
+			"requiredLabel": "Obrigatório",
+			"cancel": "Cancelar",
+			"creating": "Criando…",
+			"createField": "Criar campo",
+			"fieldTypes": {
+				"text": "Texto",
+				"number": "Número",
+				"date": "Data",
+				"checkbox": "Caixa de seleção",
+				"select": "Seleção",
+				"multiSelect": "Seleção múltipla",
+				"url": "URL"
+			}
+		},
+		"addTaskLinkModal": {
+			"title": "Vincular tarefa",
+			"relationship": "Relacionamento",
+			"searchPlaceholder": "Buscar tarefas por título ou número...",
+			"loadingTasks": "Carregando tarefas…",
+			"noTasksFound": "Nenhuma tarefa encontrada",
+			"linkTypes": {
+				"blocks": {
+					"label": "Bloqueia",
+					"description": "Esta tarefa deve ser concluída antes da outra"
+				},
+				"isBlockedBy": {
+					"label": "É bloqueada por",
+					"description": "Esta tarefa não pode começar até que a outra seja concluída"
+				},
+				"relatesTo": {
+					"label": "Relaciona-se com",
+					"description": "Estas tarefas são relacionadas, mas não dependentes"
+				},
+				"duplicates": {
+					"label": "Duplica",
+					"description": "Esta tarefa é uma duplicata da outra"
+				}
+			}
+		},
+		"propertyField": {
+			"dateEditor": {
+				"datePlaceholder": "Data",
+				"clearDate": "Limpar data",
+				"startDate": "Data de início",
+				"dueDate": "Data de entrega"
+			},
+			"storyPointsEditor": {
+				"decrease": "Diminuir story points",
+				"increase": "Aumentar story points"
+			},
+			"tagsEditor": {
+				"addTag": "Adicionar tag",
+				"addTagPlaceholder": "Adicionar tag..."
+			},
+			"multiSelectEditor": {
+				"addOption": "Adicionar opção"
+			}
+		},
+		"panel": {
+			"priority": "Prioridade",
+			"assignee": "Responsável",
+			"assigned": "Atribuída",
+			"sprint": "Sprint",
+			"created": "Criada",
+			"updated": "Atualizada"
+		},
+		"activity": {
+			"none": "nenhum",
+			"system": "Sistema",
+			"created": "criou esta tarefa",
+			"deleted": "excluiu esta tarefa",
+			"updated": "atualizou esta tarefa",
+			"changedStatus": "alterou o status de \"{{oldVal}}\" para \"{{newVal}}\"",
+			"setStatus": "definiu o status como \"{{newVal}}\"",
+			"clearedStatus": "limpou o status",
+			"changedType": "alterou o tipo de \"{{oldVal}}\" para \"{{newVal}}\"",
+			"setType": "definiu o tipo como \"{{newVal}}\"",
+			"clearedType": "limpou o tipo",
+			"renamed": "renomeou de \"{{oldVal}}\" para \"{{newVal}}\"",
+			"setTitle": "definiu o título como \"{{newVal}}\"",
+			"changedPriority": "alterou a prioridade de {{oldVal}} para {{newVal}}",
+			"setPriority": "definiu a prioridade como {{newVal}}",
+			"changedAssignee": "alterou o responsável de {{oldName}} para {{newName}}",
+			"assignedTo": "atribuída a {{newName}}",
+			"removedAssignee": "removeu o responsável {{oldName}}",
+			"changedReporter": "alterou o relator de {{oldName}} para {{newName}}",
+			"setReporter": "definiu o relator como {{newName}}",
+			"removedReporter": "removeu o relator {{oldName}}",
+			"movedSprint": "moveu do sprint \"{{oldSprint}}\" para \"{{newSprint}}\"",
+			"addedToSprint": "adicionada ao sprint \"{{newSprint}}\"",
+			"removedFromSprint": "removida do sprint \"{{oldSprint}}\"",
+			"setParentTask": "definiu a tarefa pai",
+			"removedParentTask": "removeu a tarefa pai",
+			"changedDueDate": "alterou a data de entrega de {{oldVal}} para {{newVal}}",
+			"setDueDate": "definiu a data de entrega como {{newVal}}",
+			"removedDueDate": "removeu a data de entrega",
+			"changedStartDate": "alterou a data de início de {{oldVal}} para {{newVal}}",
+			"setStartDate": "definiu a data de início como {{newVal}}",
+			"removedStartDate": "removeu a data de início",
+			"updatedDescription": "atualizou a descrição",
+			"updatedTags": "atualizou as tags",
+			"updatedCustomFields": "atualizou os campos personalizados",
+			"updatedField": "atualizou {{field}}",
+			"addedAttachment": "adicionou um anexo",
+			"addedAttachmentNamed": "adicionou anexo: {{fileName}}",
+			"removedAttachment": "removeu um anexo",
+			"removedAttachmentNamed": "removeu anexo: {{fileName}}",
+			"linkTypeBlocks": "bloqueia",
+			"linkTypeRelatedTo": "relacionada a",
+			"linkTypeDuplicates": "duplica",
+			"addedTaskLink": "adicionou vínculo de tarefa ({{linkType}})",
+			"removedTaskLink": "removeu vínculo de tarefa",
+			"startedAiSession": "iniciou uma sessão de IA",
+			"watchSession": "Assistir sessão",
+			"madeChange": "fez uma alteração",
+			"descriptionChangeDiff": "Diferença de alteração da descrição"
+		}
+	},
+	"board": {
+		"common": {
+			"none": "Nenhum"
+		},
+		"view": {
+			"noTasks": "Nenhuma tarefa",
+			"loading": "Carregando…",
+			"viewMore": "Ver mais",
+			"expandColumn": "Expandir coluna",
+			"collapseColumn": "Recolher coluna"
+		},
+		"taskCard": {
+			"unassigned": "Sem responsável",
+			"priorityLabel": "Prioridade",
+			"reporterTitle": "Relator",
+			"epicLabel": "Épico",
+			"noEpic": "Sem épico",
+			"storyPointsTitle": "Story Points"
+		},
+		"listGroup": {
+			"columnHeaders": {
+				"id": "ID",
+				"title": "Título"
+			},
+			"loading": "Carregando…",
+			"viewMore": "Ver mais",
+			"startSprint": "Iniciar sprint",
+			"newSprint": "Novo sprint",
+			"noTasks": "Nenhuma tarefa"
+		},
+		"taskRow": {
+			"columnHeaders": {
+				"type": "Tipo",
+				"importance": "Importância",
+				"storyPoints": "SP",
+				"status": "Status",
+				"assignee": "Responsável",
+				"reporter": "Relator",
+				"startDate": "Data de início",
+				"dueDate": "Data de entrega",
+				"epic": "Épico",
+				"created": "Criada"
+			},
+			"unassigned": "Sem responsável",
+			"noEpic": "Sem épico"
+		},
+		"addTaskRow": {
+			"addTask": "Adicionar tarefa",
+			"placeholder": "Título da tarefa…",
+			"cancel": "Cancelar",
+			"create": "Criar"
+		},
+		"taskTypeSelector": {
+			"noType": "—"
+		},
+		"backlog": {
+			"title": "Backlog do produto",
+			"description": "Todos os itens de trabalho não atribuídos a um sprint."
+		}
+	},
+	"layout": {
+		"shell": {
+			"newSprint": "Novo sprint",
+			"renameView": "Renomear visão",
+			"deleteView": "Excluir visão",
+			"searchTasksPlaceholder": "Buscar tarefas…",
+			"pluginNotAvailable": "Plugin não disponível"
+		},
+		"viewSettings": {
+			"viewSettingsAriaLabel": "Configurações da visão",
+			"title": "Configurações da visão",
+			"chooseFields": "Escolher campos",
+			"back": "← Voltar",
+			"clearFilters": "Limpar filtros",
+			"display": "Exibição",
+			"filters": "Filtros",
+			"noSelection": "—",
+			"titleField": "Título",
+			"fieldsLabel": "Campos",
+			"columnByLabel": "Coluna por",
+			"swimlanesLabel": "Raias",
+			"sortByLabel": "Ordenar por",
+			"fieldSumLabel": "Soma de campo",
+			"initialSizeLabel": "Tamanho inicial",
+			"perPageLabel": "Por página",
+			"sprintsLabel": "Sprints",
+			"statusesLabel": "Status",
+			"assigneesLabel": "Responsáveis",
+			"taskTypesLabel": "Tipos de tarefa",
+			"reset": "Redefinir",
+			"saving": "Salvando…",
+			"save": "Salvar",
+			"sprintFilter": {
+				"noSprints": "Nenhum sprint",
+				"allSprints": "Todos os sprints"
+			},
+			"statusFilter": {
+				"noStatuses": "Nenhum status",
+				"allStatuses": "Todos os status",
+				"clear": "Limpar",
+				"all": "Todos"
+			},
+			"assigneeFilter": {
+				"allAssignees": "Todos os responsáveis",
+				"noMembers": "Nenhum membro",
+				"unassigned": "Sem responsável"
+			},
+			"taskTypeFilter": {
+				"normalTypes": "Tipos normais",
+				"allNormalTypesDynamic": "Todos os tipos normais (dinâmico)",
+				"systemTypes": "Tipos de sistema",
+				"noTaskTypes": "Nenhum tipo de tarefa"
+			}
+		},
+		"roadmap": {
+			"taskColumnLabel": "Tarefa",
+			"noTasksToDisplay": "Nenhuma tarefa para exibir",
+			"noDatesSet": "Nenhuma data definida",
+			"dateRangeTooltip": "{{start}} → {{end}}",
+			"startDateTooltip": "Início: {{date}}",
+			"dueDateTooltip": "Entrega: {{date}}",
+			"loading": "Carregando…",
+			"viewMore": "Ver mais"
+		},
+		"newViewPopover": {
+			"addView": "Adicionar visão",
+			"addViewAriaLabel": "Adicionar visão",
+			"title": "Nova visão",
+			"viewNameLabel": "Nome da visão",
+			"defaultName": "Novo {{layout}}",
+			"layoutLabel": "Layout",
+			"creating": "Criando…",
+			"createView": "Criar visão",
+			"layouts": {
+				"board": "Quadro",
+				"table": "Tabela",
+				"roadmap": "Roadmap",
+				"plugin": "Plugin"
+			}
+		},
+		"renameViewDialog": {
+			"title": "Renomear visão",
+			"cancel": "Cancelar",
+			"renaming": "Renomeando…",
+			"rename": "Renomear"
+		},
+		"startSprintModal": {
+			"title": "Iniciar sprint",
+			"nameLabel": "Nome",
+			"goalLabel": "Objetivo",
+			"optional": "(opcional)",
+			"goalPlaceholder": "O que este sprint deve alcançar?",
+			"startDateLabel": "Data de início",
+			"endDateLabel": "Data de término",
+			"cancel": "Cancelar",
+			"starting": "Iniciando…",
+			"startSprint": "Iniciar sprint"
+		},
+		"timeline": {
+			"title": "Linha do tempo",
+			"description": "Épicos e planejamento de longo prazo em um roadmap."
+		},
+		"sprintDetail": {
+			"notFound": "Sprint não encontrado ou acesso negado.",
+			"statusActive": "Ativo",
+			"statusPlanned": "Planejado",
+			"statusCompleted": "Concluído",
+			"description": "Sprint {{status}}",
+			"descriptionWithStartDate": "Sprint {{status}} · iniciado em {{date}}",
+			"completeSprint": "Concluir sprint",
+			"completeSprintModal": {
+				"title": "Concluir sprint",
+				"willBeMovedTo_one": "{{count}} tarefa incompleta será movida para:",
+				"willBeMovedTo_other": "{{count}} tarefas incompletas serão movidas para:",
+				"noIncompleteTasks": "Não há tarefas incompletas neste sprint.",
+				"productBacklog": "Backlog do produto",
+				"unassignedHint": "As tarefas serão desatribuídas de qualquer sprint",
+				"cancel": "Cancelar",
+				"completing": "Concluindo…",
+				"completeSprint": "Concluir sprint"
+			}
+		},
+		"conversation": {
+			"agentsFallback": "Agentes"
+		}
+	},
+	"priority": {
+		"none": "Nenhuma",
+		"low": "Baixa",
+		"medium": "Média",
+		"high": "Alta",
+		"critical": "Crítica"
+	},
+	"viewUtils": {
+		"groups": {
+			"backlog": "Backlog",
+			"unassigned": "Sem responsável",
+			"noReporter": "Sem relator",
+			"noType": "Sem tipo",
+			"none": "Nenhum",
+			"yes": "Sim",
+			"no": "Não"
+		},
+		"columnBy": {
+			"status": "Status",
+			"sprint": "Sprint",
+			"assignee": "Responsável",
+			"importance": "Importância",
+			"type": "Tipo",
+			"reporter": "Relator"
+		},
+		"sortBy": {
+			"manual": "Manual",
+			"importance": "Importância",
+			"storyPoints": "Story Points",
+			"title": "Título",
+			"created": "Criada",
+			"startDate": "Data de início",
+			"dueDate": "Data de entrega"
+		},
+		"swimlanes": {
+			"none": "Nenhuma",
+			"assignee": "Responsável",
+			"importance": "Importância",
+			"type": "Tipo"
+		},
+		"fieldSum": {
+			"count": "Contagem",
+			"storyPoints": "Story Points"
+		},
+		"fields": {
+			"assignee": "Responsável",
+			"status": "Status",
+			"importance": "Importância",
+			"storyPoints": "Story Points",
+			"type": "Tipo",
+			"epic": "Épico",
+			"reporter": "Relator",
+			"startDate": "Data de início",
+			"dueDate": "Data de entrega",
+			"created": "Criada"
+		}
+	},
+	"automation": {
+		"list": {
+			"title": "Automação",
+			"subtitle": "Automatize repasses de tarefas conforme o trabalho avança pelo seu projeto",
+			"newWorkflow": "Novo workflow",
+			"empty": {
+				"title": "Nenhum workflow ainda",
+				"description": "Crie um workflow para automatizar repasses de tarefas conforme o trabalho avança pelo seu projeto.",
+				"createFirstWorkflow": "Crie seu primeiro workflow"
+			},
+			"noDescription": "Sem descrição",
+			"updated": "Atualizado {{time}}"
+		},
+		"status": {
+			"draft": "Rascunho",
+			"active": "Ativo",
+			"archived": "Arquivado"
+		},
+		"createDialog": {
+			"title": "Novo workflow de automação",
+			"nameLabel": "Nome",
+			"namePlaceholder": "ex.: Pipeline de release",
+			"descriptionLabel": "Descrição",
+			"descriptionPlaceholder": "Detalhes opcionais sobre este workflow…",
+			"cancel": "Cancelar",
+			"create": "Criar"
+		},
+		"deleteDialog": {
+			"title": "Excluir workflow",
+			"body": "Tem certeza de que deseja excluir \"{{name}}\"? Isso não pode ser desfeito.",
+			"cancel": "Cancelar",
+			"confirm": "Excluir"
+		},
+		"builder": {
+			"addTask": "Adicionar tarefa",
+			"activate": "Ativar",
+			"archive": "Arquivar",
+			"deactivate": "Desativar",
+			"readOnlyNoticeArchived": "Este workflow está arquivado e é somente leitura — workflows arquivados não podem ser editados.",
+			"genericError": "Algo deu errado. Tente novamente.",
+			"collapseSidebar": "Recolher barra lateral",
+			"expandSidebar": "Expandir barra lateral"
+		},
+		"canvas": {
+			"unknownTask": "Tarefa desconhecida",
+			"deleteEdge": "Excluir conexão"
+		},
+		"addNodeModal": {
+			"title": "Adicionar tarefa ao workflow",
+			"searchPlaceholder": "Buscar tarefas...",
+			"loadingTasks": "Carregando tarefas...",
+			"noTasksFound": "Nenhuma tarefa encontrada"
+		},
+		"nodePanel": {
+			"title": "Tarefa",
+			"removeNode": "Remover do workflow",
+			"removeConfirmTitle": "Remover tarefa do workflow",
+			"removeConfirmBody": "Isso remove a tarefa do grafo do workflow, junto com todas as suas conexões. A tarefa em si não é afetada.",
+			"cancel": "Cancelar",
+			"removeConfirmAction": "Remover"
+		},
+		"statusRules": {
+			"title": "Regras de status → responsável",
+			"hint": "Atribua automaticamente uma tarefa a um membro sempre que ela mudar para um destes status. Isso se aplica a qualquer tarefa neste workflow — quando alguém altera o status de uma tarefa diretamente, ou quando uma tarefa predecessora é concluída e uma tarefa subsequente é reavaliada no seu status atual.",
+			"noRules": "Nenhuma regra ainda",
+			"statusPlaceholder": "Status",
+			"memberPlaceholder": "Responsável"
+		},
+		"statusTransitions": {
+			"title": "Fluxo de status",
+			"hint": "Defina qual status vem em seguida assim que o trabalho em cada status é concluído. Isso desbloqueia tarefas subsequentes e informa a um agente de IA responsável exatamente qual status definir a seguir, em vez de adivinhar. Uma cadeia padrão é gerada automaticamente a partir dos status do seu projeto quando o workflow é criado.",
+			"nextStatusLabel": "Próximo status",
+			"terminalOption": "__END__",
+			"ambiguousWarning": "Exatamente um status não deve ter próximo status (este se torna o status __END__ do workflow). Atualmente: {{count}} configurados."
+		}
+	}
+}

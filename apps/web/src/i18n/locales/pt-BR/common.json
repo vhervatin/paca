@@ -1,0 +1,31 @@
+{
+	"dialog": {
+		"closeLabel": "Fechar",
+		"closeButton": "Fechar"
+	},
+	"sidebar": {
+		"title": "Barra lateral",
+		"description": "Exibe a barra lateral no celular.",
+		"toggleLabel": "Alternar barra lateral"
+	},
+	"validation": {
+		"usernameRequired": "O nome de usuário é obrigatório.",
+		"usernameMinLength": "O nome de usuário deve ter pelo menos {{min}} caracteres.",
+		"passwordRequired": "A senha é obrigatória.",
+		"passwordMinLength": "A senha deve ter pelo menos {{min}} caracteres.",
+		"newPasswordRequired": "A nova senha é obrigatória.",
+		"newPasswordMinLength": "A nova senha deve ter pelo menos {{min}} caracteres.",
+		"newPasswordMustDiffer": "A nova senha deve ser diferente da senha atual.",
+		"confirmPasswordRequired": "Confirme sua nova senha.",
+		"passwordsDoNotMatch": "As senhas não coincidem."
+	},
+	"timeAgo": {
+		"justNow": "agora mesmo",
+		"minutes_one": "há {{count}}min",
+		"minutes_other": "há {{count}}min",
+		"hours_one": "há {{count}}h",
+		"hours_other": "há {{count}}h",
+		"days_one": "há {{count}}d",
+		"days_other": "há {{count}}d"
+	}
+}

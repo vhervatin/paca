@@ -1,0 +1,38 @@
+{
+	"marketplace": {
+		"loading": "Carregando marketplace...",
+		"searchPlaceholder": "Buscar plugins",
+		"empty": "Nenhum plugin do marketplace encontrado.",
+		"card": {
+			"installed": "Instalado",
+			"updateAvailable": "Atualização disponível",
+			"source": "Origem",
+			"upgrading": "Atualizando...",
+			"upgradeTo": "Atualizar para {{version}}",
+			"uninstalling": "Desinstalando...",
+			"uninstall": "Desinstalar",
+			"installing": "Instalando...",
+			"install": "Instalar",
+			"features": {
+				"backend": "Backend",
+				"frontend": "Frontend",
+				"migrations": "Migrações",
+				"mcp": "MCP"
+			}
+		}
+	},
+	"preferences": {
+		"empty": "Nenhum plugin com pontos de extensão está instalado.",
+		"actions": {
+			"show": "Mostrar",
+			"hide": "Ocultar"
+		},
+		"extensionPoints": {
+			"sidebarGeneral": "Barra lateral — Geral",
+			"sidebarProject": "Barra lateral — Projeto",
+			"taskDetail": "Detalhes da tarefa",
+			"projectSettingsTab": "Aba de configurações do projeto",
+			"customView": "Visualização personalizada"
+		}
+	}
+}

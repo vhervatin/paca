@@ -1316,6 +1316,15 @@ export function AppSidebar() {
 					<span className="font-[Syne] font-bold text-base tracking-tight text-sidebar-foreground group-data-[collapsible=icon]:hidden">
 						paca
 					</span>
+					<span
+						aria-hidden
+						className="h-4 w-px bg-sidebar-border group-data-[collapsible=icon]:hidden"
+					/>
+					<img
+						src="/evup-logo.png"
+						alt="EVUP"
+						className="h-4 w-auto shrink-0 group-data-[collapsible=icon]:hidden"
+					/>
 				</div>
 				<div className="group-data-[collapsible=icon]:hidden">
 					<ProjectSwitcher
