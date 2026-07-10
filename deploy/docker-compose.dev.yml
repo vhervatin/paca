@@ -152,6 +152,12 @@ services:
       PLUGINS_WASM_DIR: /plugins
       PLUGINS_FRONTEND_DIR: /plugins-frontend
       PLUGINS_MCP_DIR: /plugins-mcp
+      # Version check (home "new version" banner). PACA_VERSION defaults to an
+      # older tag in dev so the banner is demonstrable; set it to the real build
+      # tag in production. RELEASE_FORK_REPO enables the fork check.
+      PACA_VERSION: ${PACA_VERSION:-v0.9.0}
+      RELEASE_UPSTREAM_REPO: ${RELEASE_UPSTREAM_REPO:-Paca-AI/paca}
+      RELEASE_FORK_REPO: ${RELEASE_FORK_REPO:-vhervatin/paca}
     volumes:
       - ../services/api:/workspace
       # Backend plugin store — WASM binaries and SQL migrations.

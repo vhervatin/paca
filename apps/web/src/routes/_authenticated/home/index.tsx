@@ -34,6 +34,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { UpdateBanner } from "@/components/home/UpdateBanner";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
 import { currentUserQueryOptions } from "@/lib/auth-api";
@@ -464,6 +465,7 @@ function HomePage() {
 
 	return (
 		<div className="flex flex-col">
+			<UpdateBanner />
 			{/* Hero banner */}
 			<div className="relative overflow-hidden border-b border-border/50">
 				<div
