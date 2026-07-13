@@ -1,46 +1,60 @@
 # Deploy do fork EVUP no EasyPanel
 
 Guia para publicar este fork do Paca numa VPS com [EasyPanel](https://easypanel.io).
-A ideia: o GitHub builda as imagens (GHCR), o EasyPanel só as baixa e roda o
-stack via **Compose**, com o Caddy do Paca como gateway atrás do proxy do
-EasyPanel (que cuida do domínio + HTTPS).
+Fluxo: o **GitHub Actions** builda as imagens e publica no **GHCR** (privado); o
+EasyPanel baixa (autenticado) e roda o stack via **Compose**, com o Caddy do
+Paca como gateway atrás do proxy do EasyPanel (que cuida do domínio + HTTPS).
 
-> Substitua `paca.SEU-DOMINIO.com.br` pelo seu domínio real e `vhervatin`
-> pelo dono do seu fork, se for diferente.
+Repositório privado: `vhervatin/paca-evup` (branch `evup`).
+Imagens: `ghcr.io/vhervatin/paca-{api,web,realtime}`.
+
+> Substitua `paca.SEU-DOMINIO.com.br` pelo seu domínio real.
 
 ---
 
 ## Pré-requisitos
 
 - VPS com **EasyPanel** instalado.
-- Um **domínio** (ou subdomínio) com o registro DNS **A** apontando para o IP da VPS.
-- Este fork no GitHub com o workflow `.github/workflows/evup-release.yml` presente.
+- Um **domínio** (ou subdomínio) com registro DNS **A** apontando para o IP da VPS.
 
 ---
 
-## Etapa 1 — Publicar as imagens (GitHub → GHCR)
+## Etapa 1 — Publicar as imagens (já feito na 1ª vez)
 
-As imagens são construídas pelo GitHub Actions, não pela VPS.
+As imagens são construídas pelo GitHub Actions, não pela VPS. Para publicar uma
+versão, crie e envie uma tag na branch `evup`:
 
-1. Na branch `evup`, crie e envie uma tag de versão:
-   ```bash
-   git tag v0.9.4-evup.1
-   git push origin v0.9.4-evup.1
-   ```
-   Isso dispara o workflow **evup-release**, que publica:
-   - `ghcr.io/vhervatin/paca-api:0.9.4-evup.1`
-   - `ghcr.io/vhervatin/paca-web:0.9.4-evup.1`
-   - `ghcr.io/vhervatin/paca-realtime:0.9.4-evup.1`
+```bash
+git tag v0.9.4-evup.1
+git push personal v0.9.4-evup.1
+```
 
-2. Acompanhe em **GitHub → Actions**. Ao terminar, torne cada pacote **público**
-   (uma vez só): GitHub → seu perfil → **Packages** → `paca-api` → *Package
-   settings* → *Change visibility* → **Public**. Repita para `paca-web` e
-   `paca-realtime`. (Público = o EasyPanel puxa sem senha. Se preferir privado,
-   configure uma credencial do GHCR no EasyPanel.)
+Isso dispara o workflow **evup-release** (`.github/workflows/evup-release.yml`),
+que publica:
+- `ghcr.io/vhervatin/paca-api:0.9.4-evup.1`
+- `ghcr.io/vhervatin/paca-web:0.9.4-evup.1`
+- `ghcr.io/vhervatin/paca-realtime:0.9.4-evup.1`
+
+As imagens ficam **privadas** por padrão (ver Etapa 2 para o acesso).
 
 ---
 
-## Etapa 2 — Gerar os segredos
+## Etapa 2 — Credencial do GHCR (imagens privadas)
+
+Como as imagens são privadas, o EasyPanel precisa autenticar no `ghcr.io`.
+
+1. Gere um **Personal Access Token (classic)** no GitHub:
+   Settings → Developer settings → Personal access tokens → **Tokens (classic)**
+   → Generate new token → marque **apenas** o escopo **`read:packages`** → copie.
+2. No EasyPanel, cadastre a credencial do registry (em *Settings → Registry* ou
+   no campo de credencial da imagem, conforme a versão do painel):
+   - **Registry:** `ghcr.io`
+   - **Username:** `vhervatin`
+   - **Password:** o token gerado acima
+
+---
+
+## Etapa 3 — Gerar os segredos da aplicação
 
 Rode localmente e guarde os valores:
 ```bash
@@ -54,16 +68,15 @@ STORAGE_SECRET_ACCESS_KEY=$(openssl rand -hex 24)
 
 ---
 
-## Etapa 3 — Criar o serviço no EasyPanel
+## Etapa 4 — Criar o serviço no EasyPanel
 
 1. **Crie um projeto** (ex.: `paca`).
 2. Adicione um serviço **Compose** (*Services → Compose (Beta)*).
 3. Em **Content**, cole o conteúdo de [`deploy/docker-compose.prod.yml`](./docker-compose.prod.yml)
-   deste repositório (ele já sobe postgres, valkey, minio, api, web, realtime e
-   o gateway Caddy).
+   (já sobe postgres, valkey, minio, api, web, realtime e o gateway Caddy).
 4. Em **Environment** (o `.env` do compose), preencha:
    ```env
-   # Imagens do fork (GHCR)
+   # Imagens privadas do fork (GHCR)
    PACA_API_IMAGE=ghcr.io/vhervatin/paca-api:0.9.4-evup.1
    PACA_WEB_IMAGE=ghcr.io/vhervatin/paca-web:0.9.4-evup.1
    PACA_REALTIME_IMAGE=ghcr.io/vhervatin/paca-realtime:0.9.4-evup.1
@@ -72,8 +85,9 @@ STORAGE_SECRET_ACCESS_KEY=$(openssl rand -hex 24)
    PUBLIC_URL=https://paca.SEU-DOMINIO.com.br
    COOKIE_SECURE=true
    CORS_ORIGINS=https://paca.SEU-DOMINIO.com.br
+   STORAGE_PUBLIC_URL=https://paca.SEU-DOMINIO.com.br/storage
 
-   # Segredos (da Etapa 2)
+   # Segredos (da Etapa 3)
    POSTGRES_PASSWORD=...
    JWT_SECRET=...
    ENCRYPTION_KEY=...
@@ -81,14 +95,13 @@ STORAGE_SECRET_ACCESS_KEY=$(openssl rand -hex 24)
    ADMIN_PASSWORD=...
    STORAGE_ACCESS_KEY_ID=...
    STORAGE_SECRET_ACCESS_KEY=...
-   STORAGE_PUBLIC_URL=https://paca.SEU-DOMINIO.com.br/storage
 
    # Aviso de nova versão na home
    PACA_VERSION=v0.9.4-evup.1
    RELEASE_UPSTREAM_REPO=Paca-AI/paca
-   RELEASE_FORK_REPO=vhervatin/paca
-
-   # Sem AI agent por enquanto (ver Notas)
+   # fork privado não é consultável pela API pública do GitHub; deixe vazio
+   # (o aviso mostra só as novidades do upstream Paca-AI/paca).
+   RELEASE_FORK_REPO=
    ```
 5. **Domínio + HTTPS**: aponte o domínio para o serviço **gateway** na **porta 80**
    (é o Caddy, a porta de entrada única do Paca). O EasyPanel provisiona o
@@ -97,12 +110,12 @@ STORAGE_SECRET_ACCESS_KEY=$(openssl rand -hex 24)
 6. **Deploy**. Acompanhe os logs até o `api` mostrar `starting server` e o
    `gateway` ficar de pé.
 
-> O `db-backup` e o `ai-agent` do compose podem ser removidos/ignorados neste
-> primeiro deploy (veja Notas).
+> `db-backup` e `ai-agent` do compose podem ser removidos/ignorados neste
+> primeiro deploy (ver Notas).
 
 ---
 
-## Etapa 4 — Primeiro acesso
+## Etapa 5 — Primeiro acesso
 
 Abra `https://paca.SEU-DOMINIO.com.br` e entre com `ADMIN_USERNAME` /
 `ADMIN_PASSWORD`. As migrações do banco rodam sozinhas no start do `api`.
@@ -111,9 +124,9 @@ Abra `https://paca.SEU-DOMINIO.com.br` e entre com `ADMIN_USERNAME` /
 
 ## Atualizações (subir uma versão nova)
 
-1. Faça as mudanças na branch `evup`, incorpore o upstream se quiser
-   (`git fetch upstream --tags && git merge upstream/master`).
-2. Nova tag + push: `git tag v0.9.5-evup.1 && git push origin v0.9.5-evup.1`
+1. Faça as mudanças na branch `evup` (e incorpore o upstream se quiser:
+   `git fetch upstream --tags && git merge upstream/master`).
+2. Nova tag + push: `git tag v0.9.5-evup.1 && git push personal v0.9.5-evup.1`
    → o Actions publica as novas imagens.
 3. No EasyPanel, atualize as tags `PACA_*_IMAGE` e `PACA_VERSION` no ambiente e
    **Deploy** de novo.
@@ -123,14 +136,12 @@ Abra `https://paca.SEU-DOMINIO.com.br` e entre com `ADMIN_USERNAME` /
 ## Notas
 
 - **AI agent**: fica de fora por padrão. Ele precisa de acesso ao **socket do
-  Docker** do host para criar sandboxes, o que é sensível num painel
-  compartilhado como o EasyPanel — melhor tratar à parte quando for necessário.
+  Docker** do host para criar sandboxes, o que é sensível num painel como o
+  EasyPanel — tratar à parte quando necessário.
 - **Storage**: o MinIO sobe junto (dados persistem no volume do EasyPanel).
   Para usar AWS S3, defina `STORAGE_PROVIDER=s3` + credenciais e remova o MinIO.
-- **Arquitetura de CPU**: o workflow builda para `linux/amd64` (VPS x86 comum).
-  Se sua VPS for ARM (Ampere/Graviton), adicione `linux/arm64` em
-  `platforms:` no `.github/workflows/evup-release.yml`.
-- **Plano B (sem Compose)**: se preferir serviços nativos do EasyPanel, dá para
-  criar `postgres` e `redis` pelos *templates*, e `api`/`web`/`realtime` como
-  *Apps* — mas aí o Caddyfile precisa ser adaptado aos hostnames internos do
-  EasyPanel. O caminho via Compose acima evita isso.
+- **Arquitetura de CPU**: o workflow builda para `linux/amd64`. Se a VPS for ARM,
+  adicione `linux/arm64` em `platforms:` no `.github/workflows/evup-release.yml`.
+- **Remotes git**: `personal` = `vhervatin/paca-evup` (privado, deploy);
+  `origin` = `vhervatin/paca` (fork público, PR de tradução); `upstream` =
+  `Paca-AI/paca` (fonte das evoluções).
