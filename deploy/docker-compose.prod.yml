@@ -204,6 +204,11 @@ services:
       PLUGINS_MCP_DIR: /plugins-mcp
       # Pre-shared key matching PACA_API_KEY in the ai-agent service.
       AGENT_API_KEY: ${AGENT_API_KEY:-}
+      # Version check (home "new version" banner). Set PACA_VERSION to the
+      # build tag in production so the banner compares correctly.
+      PACA_VERSION: ${PACA_VERSION:-dev}
+      RELEASE_UPSTREAM_REPO: ${RELEASE_UPSTREAM_REPO:-Paca-AI/paca}
+      RELEASE_FORK_REPO: ${RELEASE_FORK_REPO:-}
     depends_on:
       postgres:
         condition: service_healthy
