@@ -7,6 +7,10 @@ dist-ssr
 .env
 .env.production
 .env.dev
+.env.producao
+.env.*-prod
+# Pasta local de deploy EVUP (contém segredos gerados) — nunca versionar
+paca-evup-deploy/
 .nitro
 .tanstack
 .wrangler
