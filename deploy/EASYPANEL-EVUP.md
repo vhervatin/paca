@@ -15,7 +15,27 @@ Imagens: `ghcr.io/vhervatin/paca-{api,web,realtime}`.
 ## Pré-requisitos
 
 - VPS com **EasyPanel** instalado.
-- Um **domínio** (ou subdomínio) com registro DNS **A** apontando para o IP da VPS.
+- Um **domínio** (ou subdomínio) gerenciado (ex.: na Cloudflare).
+
+---
+
+## Etapa 0 — DNS (faça PRIMEIRO)
+
+O HTTPS do EasyPanel é emitido pelo Let's Encrypt, que valida o domínio na
+hora — o registro DNS precisa existir **antes** do Passo 4 (domínio no gateway),
+senão o certificado falha.
+
+1. Descubra o **IP público da VPS** onde o EasyPanel roda.
+2. Na **Cloudflare** (DNS do `evup.com.br`), crie um registro:
+   - **Type:** A · **Name:** `paca` · **Content:** `<IP da VPS>`
+   - **Proxy status:** **DNS only** (nuvem **cinza**) — não Proxied.
+3. ⚠️ Mantenha "DNS only" **até o certificado ser emitido** no EasyPanel. O
+   proxy laranja da Cloudflare intercepta o desafio do Let's Encrypt e quebra a
+   emissão. Depois que o site estiver no ar por HTTPS, se quiser o proxy da
+   Cloudflare (CDN/WAF/esconder IP), ligue a nuvem laranja **e** troque o
+   SSL/TLS da Cloudflare para **Full (strict)**.
+
+Os passos 1–3 abaixo não dependem do DNS; só o Passo 4 exige.
 
 ---
 
