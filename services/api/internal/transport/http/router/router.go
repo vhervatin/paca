@@ -61,6 +61,7 @@ func New(deps Deps) http.Handler {
 			// Version / update check — public, no auth required.
 			if deps.Version != nil {
 				r.Get("/version", deps.Version.Check)
+				r.Get("/releases", deps.Version.ListReleases)
 			}
 
 			// Auth

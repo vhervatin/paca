@@ -141,6 +141,120 @@ func (h *VersionHandler) latestRelease(ctx context.Context, repo string) (tag, u
 	return payload.TagName, payload.HTMLURL, nil
 }
 
+// releaseItem is one changelog entry returned to the web app.
+type releaseItem struct {
+	Tag         string `json:"tag"`
+	Name        string `json:"name"`
+	URL         string `json:"url"`
+	PublishedAt string `json:"publishedAt"`
+	Body        string `json:"body"`
+	IsCurrent   bool   `json:"isCurrent"`
+}
+
+type releasesResponse struct {
+	Current  string        `json:"current"`
+	Repo     string        `json:"repo"`
+	Releases []releaseItem `json:"releases"`
+}
+
+// githubReleaseFull is the subset of the GitHub releases-list payload we use.
+type githubReleaseFull struct {
+	TagName     string `json:"tag_name"`
+	Name        string `json:"name"`
+	HTMLURL     string `json:"html_url"`
+	Body        string `json:"body"`
+	PublishedAt string `json:"published_at"`
+	Prerelease  bool   `json:"prerelease"`
+	Draft       bool   `json:"draft"`
+}
+
+// ListReleases returns the recent stable releases of the upstream repo as a
+// changelog, flagging the one that matches the running build. Best-effort: on
+// any error it returns an empty list instead of failing the request.
+func (h *VersionHandler) ListReleases(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	repo := h.upstreamRepo
+	resp := releasesResponse{Current: h.current, Repo: repo, Releases: []releaseItem{}}
+	if repo == "" {
+		presenter.OK(w, r, resp)
+		return
+	}
+
+	releases, err := h.fetchReleases(ctx, repo)
+	if err != nil {
+		h.log.Warn("release list failed", "repo", repo, "error", err)
+		presenter.OK(w, r, resp)
+		return
+	}
+
+	curCore, curOK := parseVersion(h.current)
+	for _, gr := range releases {
+		if gr.Draft || gr.Prerelease {
+			continue
+		}
+		name := gr.Name
+		if name == "" {
+			name = gr.TagName
+		}
+		item := releaseItem{
+			Tag:         gr.TagName,
+			Name:        name,
+			URL:         gr.HTMLURL,
+			PublishedAt: gr.PublishedAt,
+			Body:        gr.Body,
+		}
+		if curOK {
+			if rc, ok := parseVersion(gr.TagName); ok && rc == curCore {
+				item.IsCurrent = true
+			}
+		}
+		resp.Releases = append(resp.Releases, item)
+	}
+
+	presenter.OK(w, r, resp)
+}
+
+// fetchReleases returns up to 20 recent releases for repo, cached for h.ttl.
+func (h *VersionHandler) fetchReleases(ctx context.Context, repo string) ([]githubReleaseFull, error) {
+	cacheKey := "releases:" + repo
+
+	if h.cache != nil {
+		var cached []githubReleaseFull
+		if hit, _ := h.cache.Get(ctx, cacheKey, &cached); hit {
+			return cached, nil
+		}
+	}
+
+	endpoint := "https://api.github.com/repos/" + repo + "/releases?per_page=20"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "paca-release-check")
+
+	res, err := h.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = res.Body.Close() }()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("github: unexpected status %d for %s", res.StatusCode, repo)
+	}
+
+	var payload []githubReleaseFull
+	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+
+	if h.cache != nil {
+		_ = h.cache.Set(ctx, cacheKey, payload, h.ttl)
+	}
+
+	return payload, nil
+}
+
 // isNewer reports whether latest is a strictly higher version than current
 // using a lenient semver comparison: a leading "v" and any pre-release/build
 // suffix (e.g. "-evup.1", "-rc.2") are ignored. Unparseable versions such as
