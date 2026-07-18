@@ -137,6 +137,14 @@
 				"prefixInvalid": "O prefixo deve ter de 1 a 10 letras maiúsculas/dígitos (ex.: PACA).",
 				"generic": "Algo deu errado. Tente novamente."
 			}
+		},
+		"updateBanner": {
+			"title": "Atualização disponível",
+			"upstream": "O Paca lançou a versão {{version}}.",
+			"fork": "Sua versão {{version}} está disponível.",
+			"current": "Você está na {{version}}.",
+			"viewRelease": "Ver release",
+			"dismiss": "Dispensar"
 		}
 	}
 }
