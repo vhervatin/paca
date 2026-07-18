@@ -4,6 +4,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,6 +12,7 @@ import (
 
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
 	taskdom "github.com/Paca-AI/api/internal/domain/task"
+	userdom "github.com/Paca-AI/api/internal/domain/user"
 	"github.com/Paca-AI/api/internal/events"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -196,8 +198,18 @@ func (c *ActivityConsumer) handle(msg redis.XMessage) {
 				if mErr == nil {
 					a.ActorID = &member.ID
 				} else {
+					// actorID is userdom.SystemActorUserID for requests
+					// authenticated with the shared agent API key but no
+					// X-Agent-ID header — that identity is never itself a
+					// project member by design, so ErrMemberNotFound is
+					// expected there, not a bug; only warn when a genuine
+					// actor can't be resolved to a member, or when the
+					// lookup failed for some other (unexpected) reason.
+					expected := userdom.IsUnidentifiedSystemActor(actorID, agentID) && errors.Is(mErr, projectdom.ErrMemberNotFound)
+					if !expected {
+						c.log.Warn("activity consumer: could not resolve member for actor", "actor_id", a.ActorID, "agent_id", p.ActorAgentID, "project_id", projectID, "err", mErr)
+					}
 					// Member may have been removed; store nil rather than a stale UUID.
-					c.log.Warn("activity consumer: could not resolve member for actor", "actor_id", a.ActorID, "agent_id", p.ActorAgentID, "project_id", projectID, "err", mErr)
 					a.ActorID = nil
 				}
 			}

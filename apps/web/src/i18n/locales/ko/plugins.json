@@ -32,7 +32,9 @@
 			"sidebarProject": "사이드바 — 프로젝트",
 			"taskDetail": "작업 상세",
 			"projectSettingsTab": "프로젝트 설정 탭",
-			"customView": "커스텀 뷰"
+			"customView": "커스텀 뷰",
+			"projectPage": "프로젝트 페이지",
+			"adminPage": "관리자 페이지"
 		}
 	}
 }

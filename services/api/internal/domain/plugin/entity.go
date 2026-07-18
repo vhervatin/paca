@@ -6,6 +6,8 @@ package plugindom
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -43,6 +45,63 @@ type PluginManifest struct {
 	MCP *MCPManifest `json:"mcp,omitempty"`
 	// Permissions lists the host function scopes the plugin requires.
 	Permissions []string `json:"permissions,omitempty"`
+	// CustomPermissions lists project/global-scoped permission keys the
+	// plugin declares. Declared keys become checkable via requirePermissions
+	// and appear in the project/global role editor UI so admins can grant
+	// them to specific roles (e.g. "time_logging.manage_all").
+	CustomPermissions []CustomPermission `json:"customPermissions,omitempty"`
+}
+
+// CustomPermission describes a permission key a plugin declares beyond the
+// host's built-in permission set. The host stores grants for these keys in
+// the same JSONB permission map as built-in permissions (e.g.
+// project_roles.permissions), so no schema change is needed to persist them
+// — only to know they exist so the role editor can expose them and plugin
+// route/backend checks can reference them by name.
+type CustomPermission struct {
+	// Key is the permission's stable identifier, e.g. "time_logging.manage_all".
+	// Must be namespaced under the plugin's domain to avoid collisions with
+	// built-in permissions and other plugins.
+	Key string `json:"key"`
+	// Label is the human-readable name shown in the role editor.
+	Label string `json:"label"`
+	// Description explains what the permission grants.
+	Description string `json:"description,omitempty"`
+	// Scope determines which role editor the permission appears in:
+	// "project" (per-project roles) or "global" (global roles). Defaults to
+	// "project" when omitted.
+	Scope string `json:"scope,omitempty"`
+}
+
+// pluginKeyNamespace derives the required custom-permission key prefix from a
+// plugin's reverse-DNS ID: its last dot-separated segment, snake_cased (e.g.
+// "com.paca.time-logging" -> "time_logging").
+func pluginKeyNamespace(pluginID string) string {
+	parts := strings.Split(pluginID, ".")
+	last := parts[len(parts)-1]
+	return strings.ReplaceAll(last, "-", "_")
+}
+
+// Validate checks manifest invariants that can't be expressed in the JSON
+// schema alone. In particular, it enforces that every declared custom
+// permission key is namespaced under the plugin's own ID, so a plugin cannot
+// declare a key (e.g. "users.write") that collides with a built-in
+// permission or another plugin's custom permission.
+func (m PluginManifest) Validate() error {
+	namespace := pluginKeyNamespace(m.ID)
+	prefix := namespace + "."
+	for _, perm := range m.CustomPermissions {
+		if perm.Key == "" {
+			return fmt.Errorf("customPermissions: key is required")
+		}
+		if !strings.HasPrefix(perm.Key, prefix) {
+			return fmt.Errorf("customPermissions: key %q must be namespaced under %q (expected prefix %q)", perm.Key, m.ID, prefix)
+		}
+		if perm.Scope != "" && perm.Scope != "project" && perm.Scope != "global" {
+			return fmt.Errorf("customPermissions: key %q has invalid scope %q", perm.Key, perm.Scope)
+		}
+	}
+	return nil
 }
 
 // MCPManifest describes the MCP (Model Context Protocol) side of the plugin.
@@ -80,6 +139,40 @@ type FrontendManifest struct {
 	RemoteEntryURL string `json:"remoteEntryUrl,omitempty"`
 	// ExtensionPoints is the list of extension points the plugin registers into.
 	ExtensionPoints []ExtensionPointRegistration `json:"extensionPoints,omitempty"`
+	// NavItems is the list of sidebar nav items the plugin registers. Each nav
+	// item routes to a full-page component registered at the "project.page" or
+	// "admin.page" extension point (see NavItem.Point).
+	NavItems []NavItem `json:"navItems,omitempty"`
+}
+
+// NavItem describes a sidebar navigation entry contributed by the plugin. It
+// routes to a full-page plugin component instead of an embedded fragment.
+type NavItem struct {
+	// Scope determines which sidebar section the item appears in:
+	// "project" (per-project sidebar) or "admin" (admin sidebar).
+	Scope string `json:"scope"`
+	// Slug is the URL segment identifying this page, unique per plugin+scope,
+	// e.g. "time-tracking". Combined with the plugin ID to form the route:
+	// /projects/:projectId/plugins/:pluginId/:slug or
+	// /admin/plugins/:pluginId/:slug.
+	Slug string `json:"slug"`
+	// Label is the human-readable sidebar link text.
+	Label string `json:"label"`
+	// Icon is a lucide-react icon name (PascalCase), e.g. "Clock".
+	Icon string `json:"icon,omitempty"`
+	// Component is the exported React component name from the remote entry,
+	// registered at the "project.page" or "admin.page" extension point.
+	Component string `json:"component"`
+	// Order is the default display order within the sidebar section.
+	Order int `json:"order,omitempty"`
+	// RequiredPermission is the permission key (built-in or a key from this
+	// plugin's own CustomPermissions) the caller must hold to see and access
+	// this nav item's page. Checked with the same dot-wildcard semantics as
+	// requirePermissions, against the caller's global permission map for
+	// Scope "admin" or their project permission map for Scope "project". If
+	// omitted, the page is reachable by anyone who can already reach the
+	// enclosing sidebar section (all project members, or all admins).
+	RequiredPermission string `json:"requiredPermission,omitempty"`
 }
 
 // PluginRoute defines a single HTTP route exposed by the plugin backend.

@@ -28,6 +28,11 @@
 			"projectRoleLabel": "Vai trò dự án",
 			"projectRolePlaceholder": "Chọn một vai trò dự án…",
 			"projectRoleHint": "Kiểm soát những gì agent có thể đọc và sửa đổi trong dự án này.",
+			"agentTypeLabel": "Loại agent",
+			"agentTypeLLM": "LLM (khóa API)",
+			"agentTypeLLMHint": "Paca gọi trực tiếp API của mô hình và chạy agent trong sandbox trên cloud.",
+			"agentTypeACP": "ACP (CLI cục bộ)",
+			"agentTypeACPHint": "Ủy quyền cho một CLI lập trình mà bạn tự chạy — Claude Code, Codex, Gemini CLI hoặc máy chủ ACP tùy chỉnh.",
 			"modelSection": "Mô hình",
 			"providerLabel": "Nhà cung cấp",
 			"modelLabel": "Mô hình",
@@ -37,6 +42,16 @@
 			"showApiKey": "Hiện khóa API",
 			"apiKeyHint": "Được lưu trữ mã hóa — không bao giờ lộ ra trong phản hồi API.",
 			"baseUrlLabel": "URL cơ sở",
+			"acpSection": "Máy chủ ACP",
+			"acpProviderLabel": "Nhà cung cấp",
+			"acpProviderClaudeCode": "Claude Code",
+			"acpProviderCodex": "Codex",
+			"acpProviderGeminiCli": "Gemini CLI",
+			"acpProviderCustom": "Tùy chỉnh…",
+			"acpCommandLabel": "Lệnh",
+			"acpCommandPlaceholder": "npx -y my-acp-server",
+			"acpCommandHint": "Lệnh cách nhau bằng dấu cách, dùng để khởi chạy máy chủ ACP của bạn.",
+			"acpGuidance": "Công cụ, máy chủ MCP và skill không được cấu hình ở đây — chúng đến từ cấu hình cục bộ của chính client ACP của bạn, chạy với thông tin đăng nhập git/gh của riêng bạn (clone, push và mở PR đều hoạt động gốc). Sau khi tạo agent này, chúng tôi sẽ hướng dẫn bạn kết nối bridge cục bộ, cài đặt skill Paca và thiết lập máy chủ MCP.",
 			"systemPromptLabel": "System Prompt",
 			"optional": "(tùy chọn)",
 			"charsCount": "{{count}} ký tự",
@@ -52,6 +67,8 @@
 		"card": {
 			"configure": "Cấu hình",
 			"delete": "Xóa",
+			"acpStatusConnected": "Trực tuyến",
+			"acpStatusDisconnected": "Ngoại tuyến",
 			"deleteDialog": {
 				"title": "Xóa {{name}}?",
 				"description": "Thao tác này sẽ xóa vĩnh viễn agent và loại bỏ nó khỏi dự án. Các cuộc trò chuyện đang chạy sẽ bị dừng.",
@@ -69,13 +86,42 @@
 				"createFirstAgent": "Tạo agent đầu tiên của bạn"
 			}
 		},
+		"acpSetup": {
+			"dialogTitle": "Kết nối ACP bridge cục bộ của bạn",
+			"dialogDescription": "{{name}} đã sẵn sàng — hoàn thành các bước sau trên máy của bạn để đưa nó vào trạng thái trực tuyến.",
+			"panelTitle": "Bridge cục bộ",
+			"panelDescription": "Chạy máy chủ ACP của agent này trên máy của bạn và kết nối tại đây.",
+			"statusConnected": "Đã kết nối",
+			"statusDisconnected": "Chưa kết nối",
+			"step1Title": "Cài đặt ACP bridge",
+			"step1Description": "Yêu cầu Python 3.12+. Cài đặt daemon một lần bằng uv pip (hoặc bỏ qua bước này — lệnh chạy bên dưới dùng uvx, tự động tải về).",
+			"step2Title": "Chạy bridge cục bộ",
+			"step2Description": "Tạo một token, sau đó chạy lệnh này trong thư mục dự án của bạn.",
+			"noTokenYet": "Tạo một token để hiển thị lệnh chạy.",
+			"generateToken": "Tạo token",
+			"regenerateToken": "Tạo lại token",
+			"generating": "Đang tạo…",
+			"generateFailed": "Không thể tạo token. Vui lòng thử lại.",
+			"tokenWarning": "Hãy sao chép ngay bây giờ — nó sẽ không hiển thị lại lần nữa.",
+			"copy": "Sao chép",
+			"copied": "Đã sao chép!",
+			"step3Title": "Cài đặt skill Paca",
+			"step3Description": "Cho phép CLI của bạn định tuyến yêu cầu qua các công cụ MCP của Paca — được thêm vào mỗi prompt qua /paca theo mặc định.",
+			"step3NotAvailable": "Cài đặt tự động chỉ khả dụng cho Claude Code. {{provider}} chưa có trình cài đặt prompt tùy chỉnh nào được biết đến — các công cụ MCP của Paca bên dưới vẫn hoạt động mà không cần nó.",
+			"step3ViewContent": "Xem hướng dẫn skill",
+			"step4Title": "Kết nối máy chủ MCP",
+			"step4Description": "Sử dụng khóa API cá nhân để CLI có thể gọi trực tiếp các công cụ của Paca.",
+			"step4ApiKeyLink": "Lấy khóa API",
+			"step4GenericHint": "Các bước chính xác để đăng ký máy chủ MCP khác nhau tùy theo CLI — {{provider}} thường đọc thông tin này từ tệp cấu hình riêng. Hãy dùng lệnh này để tham khảo:",
+			"customProviderLabel": "máy chủ ACP tùy chỉnh của bạn",
+			"done": "Xong"
+		},
 		"detail": {
 			"tabs": {
 				"overview": "Tổng quan",
 				"mcpServers": "Máy chủ MCP",
 				"skills": "Skill",
-				"envVars": "Môi trường",
-				"conversations": "Hội thoại"
+				"envVars": "Môi trường"
 			},
 			"overview": {
 				"nameLabel": "Tên",
@@ -93,7 +139,16 @@
 				"saveChanges": "Lưu thay đổi",
 				"saved": "Đã lưu",
 				"saveFailed": "Lưu thất bại. Vui lòng thử lại.",
-				"systemPromptLabel": "System Prompt"
+				"systemPromptLabel": "System Prompt",
+				"acpConfiguration": "Cấu hình ACP",
+				"acpProviderLabel": "Nhà cung cấp",
+				"acpProviderClaudeCode": "Claude Code",
+				"acpProviderCodex": "Codex",
+				"acpProviderGeminiCli": "Gemini CLI",
+				"acpProviderCustom": "Tùy chỉnh…",
+				"acpCommandLabel": "Lệnh",
+				"acpCommandHint": "Lệnh cách nhau bằng dấu cách, dùng để khởi chạy máy chủ ACP của bạn.",
+				"acpGuidanceBanner": "Công cụ, máy chủ MCP và skill của agent này được cấu hình trong client ACP cục bộ của bạn, chạy với thông tin đăng nhập git/gh của riêng bạn — không phải trong Paca."
 			},
 			"mcp": {
 				"serverCount_one": "{{count}} máy chủ đã cấu hình",
@@ -155,18 +210,6 @@
 					"urlLabel": "URL",
 					"cancel": "Hủy",
 					"addSkill": "Thêm skill"
-				}
-			},
-			"conversations": {
-				"triggerChat": "Trò chuyện",
-				"triggerWriteDescription": "Viết mô tả",
-				"triggerTask": "Nhiệm vụ",
-				"iterations_one": "{{count}} lượt lặp",
-				"iterations_other": "{{count}} lượt lặp",
-				"prOpened": "PR đã mở",
-				"empty": {
-					"title": "Chưa có hội thoại nào",
-					"description": "Hội thoại bắt đầu khi một nhiệm vụ được giao cho agent này hoặc khi có ai đó nhắn tin cho nó."
 				}
 			}
 		},
@@ -365,7 +408,8 @@
 			"sprints": "Sprint",
 			"documents": "Tài liệu",
 			"aiAgents": "AI Agent",
-			"workflows": "Tự động hóa"
+			"workflows": "Tự động hóa",
+			"plugins": "Plugin"
 		}
 	},
 	"settings": {
@@ -683,10 +727,7 @@
 			"title": "Thuộc tính",
 			"status": "Trạng thái",
 			"dates": "Ngày tháng",
-			"trackTime": "Theo dõi thời gian",
-			"addTime": "Thêm thời gian",
 			"type": "Loại",
-			"relationships": "Liên kết",
 			"assignees": "Người được giao",
 			"importance": "Mức độ quan trọng",
 			"none": "Không có",
@@ -931,6 +972,27 @@
 			"description": "Tất cả công việc chưa được gán vào sprint nào."
 		}
 	},
+	"conversationsPage": {
+		"title": "Hội thoại",
+		"triggerChat": "Trò chuyện",
+		"triggerWriteDescription": "Viết mô tả",
+		"triggerTask": "Nhiệm vụ",
+		"iterations_one": "{{count}} lượt lặp",
+		"iterations_other": "{{count}} lượt lặp",
+		"prOpened": "PR đã mở",
+		"list": {
+			"empty": {
+				"title": "Chưa có hội thoại nào",
+				"description": "Hội thoại bắt đầu khi một nhiệm vụ được giao cho agent hoặc khi có ai đó nhắn tin cho agent đó."
+			}
+		},
+		"detail": {
+			"empty": {
+				"title": "Chưa chọn hội thoại nào",
+				"description": "Chọn một hội thoại từ danh sách để xem."
+			}
+		}
+	},
 	"layout": {
 		"shell": {
 			"newSprint": "Sprint mới",
@@ -960,6 +1022,11 @@
 			"statusesLabel": "Trạng thái",
 			"assigneesLabel": "Người được giao",
 			"taskTypesLabel": "Loại nhiệm vụ",
+			"startDateLabel": "Ngày bắt đầu",
+			"dueDateLabel": "Ngày đến hạn",
+			"importanceLabel": "Mức độ quan trọng",
+			"storyPointsLabel": "Story Points",
+			"tagsLabel": "Thẻ",
 			"reset": "Đặt lại",
 			"saving": "Đang lưu…",
 			"save": "Lưu",
@@ -983,6 +1050,20 @@
 				"allNormalTypesDynamic": "Tất cả loại thông thường (động)",
 				"systemTypes": "Loại hệ thống",
 				"noTaskTypes": "Không có loại nhiệm vụ"
+			},
+			"customFieldFilter": {
+				"allValues": "Tất cả giá trị",
+				"noOptions": "Không có tùy chọn",
+				"min": "Tối thiểu",
+				"max": "Tối đa",
+				"containsPlaceholder": "Chứa…"
+			},
+			"importanceFilter": {
+				"allLevels": "Tất cả mức độ"
+			},
+			"tagsFilter": {
+				"addTag": "Thêm thẻ",
+				"addTagPlaceholder": "Thêm thẻ..."
 			}
 		},
 		"roadmap": {

@@ -117,7 +117,6 @@ Table tasks {
   description jsonb [null, note: 'BlockNote rich-text document stored as a JSON array of block objects. null means no description. Each block object follows the BlockNote schema: { id, type, props, content, children }.']
   importance integer [not null, default: 0, note: 'unsigned; higher = more important']
   story_points integer [null, note: 'Story point estimate; must be >= 0 if set']
-  assignee_id uuid [ref: > project_members.id]
   reporter_id uuid [ref: > project_members.id]
   custom_fields jsonb [not null, default: '{}']
   start_date date [null]
@@ -228,6 +227,19 @@ Table task_attachments {
 
   indexes {
     (task_id, file_id) [unique]
+  }
+}
+
+// A task can have multiple assignees; task_assignees is the join table.
+// member_id cascades on delete, so removing a member drops just their one
+// join row rather than clearing the whole task.
+Table task_assignees {
+  task_id uuid [not null, ref: > tasks.id]
+  member_id uuid [not null, ref: > project_members.id]
+  assigned_at timestamp [not null]
+
+  indexes {
+    (task_id, member_id) [pk]
   }
 }
 

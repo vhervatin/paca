@@ -19,6 +19,7 @@ import (
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
 	sprintdom "github.com/Paca-AI/api/internal/domain/sprint"
 	taskdom "github.com/Paca-AI/api/internal/domain/task"
+	userdom "github.com/Paca-AI/api/internal/domain/user"
 	"github.com/Paca-AI/api/internal/platform/authz"
 	jwttoken "github.com/Paca-AI/api/internal/platform/token"
 	authsvc "github.com/Paca-AI/api/internal/service/auth"
@@ -283,7 +284,7 @@ func (r *fakeTaskRepo) ListTasks(_ context.Context, projectID uuid.UUID, filter 
 		if filter.StatusID != nil && (t.StatusID == nil || *t.StatusID != *filter.StatusID) {
 			continue
 		}
-		if filter.AssigneeID != nil && (t.AssigneeID == nil || *t.AssigneeID != *filter.AssigneeID) {
+		if filter.AssigneeID != nil && !slices.Contains(t.AssigneeIDs, *filter.AssigneeID) {
 			continue
 		}
 		if !taskMatchesSearch(t, filter) {
@@ -350,7 +351,7 @@ func (r *fakeTaskRepo) CountTasks(_ context.Context, projectID uuid.UUID, filter
 		if filter.StatusID != nil && (t.StatusID == nil || *t.StatusID != *filter.StatusID) {
 			continue
 		}
-		if filter.AssigneeID != nil && (t.AssigneeID == nil || *t.AssigneeID != *filter.AssigneeID) {
+		if filter.AssigneeID != nil && !slices.Contains(t.AssigneeIDs, *filter.AssigneeID) {
 			continue
 		}
 		if !taskMatchesSearch(t, filter) {
@@ -686,11 +687,18 @@ func (r *fakeTaskActivityRepo) DeleteActivity(_ context.Context, id uuid.UUID) e
 // actor to a synthetic ProjectMember using the agent ID (when present) or the
 // user UUID as the member UUID. This lets comment operations in integration
 // tests pass actor-resolution without a real project_members store.
+//
+// The one deliberate exception mirrors production: userdom.SystemActorUserID
+// with no agentID (the shared agent API key used without X-Agent-ID) never
+// resolves, since that identity is never itself a project member.
 type fakeActivityMemberRepo struct{}
 
 func (r *fakeActivityMemberRepo) FindMemberByActor(_ context.Context, _, actorID uuid.UUID, agentID *uuid.UUID) (*projectdom.ProjectMember, error) {
 	if agentID != nil {
 		return &projectdom.ProjectMember{ID: *agentID}, nil
+	}
+	if actorID == userdom.SystemActorUserID {
+		return nil, projectdom.ErrMemberNotFound
 	}
 	return &projectdom.ProjectMember{ID: actorID}, nil
 }

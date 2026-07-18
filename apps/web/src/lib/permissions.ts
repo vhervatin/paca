@@ -28,6 +28,18 @@ export function hasAnyPermission(
 	);
 }
 
+/** The part of a permission key before its last dot, e.g. "time_logging" for
+ * "time_logging.view_all". This is the namespace a `.write`-style wildcard
+ * grant actually covers — NOT `PermissionDefinition.domain`, which is only a
+ * UI-grouping label. For built-in permissions the two happen to coincide,
+ * but plugin-declared permissions all share the synthetic "plugins" domain
+ * while each has its own real key prefix, so domain-based wildcard checks
+ * silently fail for them. */
+function keyPrefix(key: string): string {
+	const lastDotIndex = key.lastIndexOf(".");
+	return lastDotIndex === -1 ? key : key.slice(0, lastDotIndex);
+}
+
 export function expandWildcardPermissions(
 	source: PermissionMap | undefined,
 	knownPermissions: PermissionDefinition[],
@@ -38,10 +50,10 @@ export function expandWildcardPermissions(
 	const hasGlobalWildcard = source["*"] === true;
 
 	for (const permission of knownPermissions) {
-		const domainWildcard = `${permission.domain}.*`;
+		const prefixWildcard = `${keyPrefix(permission.key)}.*`;
 		expanded[permission.key] =
 			hasGlobalWildcard ||
-			source[domainWildcard] === true ||
+			source[prefixWildcard] === true ||
 			source[permission.key] === true;
 	}
 
@@ -56,22 +68,28 @@ export function normalizePermissionsToWildcards(
 		return { "*": true };
 	}
 
-	const permissionsByDomain = new Map<string, PermissionDefinition[]>();
+	// Group by each permission's own key prefix (see `keyPrefix`), NOT by
+	// `domain` — collapsing by the UI-grouping label would produce a bogus
+	// "plugins.*" key that (a) doesn't match any real permission check
+	// (hasPermission only understands `${realPrefix}.*`) and (b) would
+	// over-grant every other plugin's permissions sharing that UI group.
+	const permissionsByPrefix = new Map<string, PermissionDefinition[]>();
 	for (const permission of knownPermissions) {
-		const existing = permissionsByDomain.get(permission.domain) ?? [];
+		const prefix = keyPrefix(permission.key);
+		const existing = permissionsByPrefix.get(prefix) ?? [];
 		existing.push(permission);
-		permissionsByDomain.set(permission.domain, existing);
+		permissionsByPrefix.set(prefix, existing);
 	}
 
 	const normalized: PermissionMap = {};
-	for (const [domain, domainPermissions] of permissionsByDomain) {
-		const enabledPermissions = domainPermissions.filter(
+	for (const [prefix, prefixPermissions] of permissionsByPrefix) {
+		const enabledPermissions = prefixPermissions.filter(
 			(permission) => source[permission.key] === true,
 		);
 		if (enabledPermissions.length === 0) continue;
 
-		if (enabledPermissions.length === domainPermissions.length) {
-			normalized[`${domain}.*`] = true;
+		if (enabledPermissions.length === prefixPermissions.length) {
+			normalized[`${prefix}.*`] = true;
 			continue;
 		}
 

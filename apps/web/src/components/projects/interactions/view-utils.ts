@@ -209,7 +209,7 @@ export function getTaskColumnKeys(
 		return [task.sprint_id ?? "__backlog"];
 	}
 	if (columnBy === "assignee") {
-		return [task.assignee_id ?? "__unassigned"];
+		return [task.assignee_ids?.[0] ?? "__unassigned"];
 	}
 	if (columnBy === "reporter") {
 		return [task.reporter_id ?? "__none"];
@@ -442,7 +442,7 @@ export function buildAllFieldOptions(
 
 export type TaskFieldUpdate = Partial<{
 	status_id: string | null;
-	assignee_id: string | null;
+	assignee_ids: string[];
 	importance: number;
 	story_points: number | null;
 	task_type_id: string | null;
@@ -467,7 +467,9 @@ export function buildColumnDropUpdate(
 		return { sprint_id: (columnFieldValue as string | null) ?? null };
 	}
 	if (columnBy === "assignee") {
-		return { assignee_id: (columnFieldValue as string | null) ?? null };
+		return {
+			assignee_ids: columnFieldValue ? [columnFieldValue as string] : [],
+		};
 	}
 	if (columnBy === "importance") {
 		return { importance: Number(columnFieldValue) || 0 };

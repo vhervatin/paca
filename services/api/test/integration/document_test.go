@@ -13,6 +13,7 @@ import (
 
 	docdom "github.com/Paca-AI/api/internal/domain/doc"
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
+	userdom "github.com/Paca-AI/api/internal/domain/user"
 	"github.com/Paca-AI/api/internal/platform/authz"
 	jwttoken "github.com/Paca-AI/api/internal/platform/token"
 	authsvc "github.com/Paca-AI/api/internal/service/auth"
@@ -284,11 +285,17 @@ func (r *fakeDocRepoIT) DeleteActivity(_ context.Context, id uuid.UUID) error {
 // is the agent ID (when present) or the user UUID.
 // ---------------------------------------------------------------------------
 
+// The one deliberate exception mirrors production: userdom.SystemActorUserID
+// with no agentID (the shared agent API key used without X-Agent-ID) never
+// resolves, since that identity is never itself a project member.
 type fakeDocMemberLookup struct{}
 
 func (f *fakeDocMemberLookup) FindMemberByActor(_ context.Context, _, actorID uuid.UUID, agentID *uuid.UUID) (*projectdom.ProjectMember, error) {
 	if agentID != nil {
 		return &projectdom.ProjectMember{ID: *agentID}, nil
+	}
+	if actorID == userdom.SystemActorUserID {
+		return nil, projectdom.ErrMemberNotFound
 	}
 	return &projectdom.ProjectMember{ID: actorID}, nil
 }

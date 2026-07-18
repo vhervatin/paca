@@ -91,7 +91,7 @@ describe("formatTask", () => {
 		const result = formatTask(baseTask);
 		expect(result).toContain("Status: None");
 		expect(result).toContain("Sprint: None");
-		expect(result).toContain("Assignee: Unassigned");
+		expect(result).toContain("Assignees: Unassigned");
 		expect(result).toContain("Parent Task: None");
 		expect(result).toContain("Story Points: None");
 		expect(result).toContain("Tags: None");
@@ -403,12 +403,12 @@ describe("formatTaskDetail", () => {
 			role_name: "Developer",
 		};
 		const result = formatTaskDetail(
-			{ ...baseTask, assignee_id: "u1" },
+			{ ...baseTask, assignee_ids: ["u1"] },
 			undefined,
 			undefined,
 			undefined,
 			undefined,
-			assignee,
+			[assignee],
 		);
 		expect(result).toContain("Alice Smith");
 		expect(result).toContain("@alice");

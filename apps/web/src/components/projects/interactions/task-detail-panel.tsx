@@ -112,7 +112,7 @@ export function TaskDetailPanel({
 											<User className="size-3.5 opacity-70" />
 											{t("taskDetail.panel.assignee")}
 										</span>
-										{task.assignee_id ? (
+										{task.assignee_ids && task.assignee_ids.length > 0 ? (
 											<div className="flex items-center gap-2">
 												<div className="flex size-6 items-center justify-center rounded-full bg-linear-to-br from-primary/20 to-primary/10 text-primary text-xs font-bold ring-1 ring-primary/20">
 													<User className="size-3" />

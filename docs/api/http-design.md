@@ -1052,7 +1052,7 @@ Creates a new task in a project. The `description` field is a **JSON array of Bl
   "sprint_id": "uuid-or-null",
   "status_id": "uuid-or-null",
   "task_type_id": "uuid-or-null",
-  "assignee_id": "uuid-or-null",
+  "assignee_ids": ["uuid"],
   "tags": ["backend", "auth"]
 }
 ```
@@ -1086,7 +1086,7 @@ Success response: `200 OK`
     "sprint_id": null,
     "status_id": null,
     "task_type_id": null,
-    "assignee_id": null,
+    "assignee_ids": [],
     "reporter_id": null,
     "tags": [],
     "custom_fields": {},

@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { apiClient } from "./api-client";
 import type { SuccessEnvelope } from "./api-error";
 
@@ -108,15 +108,22 @@ export interface AgentEnvVar {
 	created_at: string;
 }
 
+export type AgentType = "llm" | "acp";
+export type ACPProvider = "claude-code" | "codex" | "gemini-cli" | "custom";
+
 export interface Agent {
 	id: string;
 	project_id: string;
 	name: string;
 	handle: string;
 	avatar_url?: string | null;
+	agent_type: AgentType;
 	llm_provider: string;
 	llm_model: string;
 	llm_base_url: string;
+	acp_provider?: ACPProvider | null;
+	acp_command?: string[];
+	has_acp_bridge_token: boolean;
 	system_prompt: string;
 	git_committer_name: string;
 	git_committer_email: string;
@@ -205,10 +212,13 @@ export async function createAgent(
 	payload: {
 		name: string;
 		handle: string;
-		llm_provider: string;
-		llm_model: string;
-		llm_api_key: string;
-		llm_base_url: string;
+		agent_type?: AgentType;
+		llm_provider?: string;
+		llm_model?: string;
+		llm_api_key?: string;
+		llm_base_url?: string;
+		acp_provider?: ACPProvider;
+		acp_command?: string[];
 		system_prompt?: string;
 		git_committer_name?: string;
 		git_committer_email?: string;
@@ -232,6 +242,8 @@ export async function updateAgent(
 		llm_model?: string;
 		llm_api_key?: string;
 		llm_base_url?: string | null;
+		acp_provider?: ACPProvider;
+		acp_command?: string[];
 		system_prompt?: string;
 		git_committer_name?: string;
 		git_committer_email?: string;
@@ -242,6 +254,40 @@ export async function updateAgent(
 		payload,
 	);
 	return data.data;
+}
+
+// ── ACP Local Bridge ─────────────────────────────────────────────────────────
+
+export interface AcpBridgeToken {
+	token: string;
+	run_command: string;
+}
+
+export async function generateAcpBridgeToken(
+	projectId: string,
+	agentId: string,
+): Promise<AcpBridgeToken> {
+	const { data } = await apiClient.instance.post<
+		SuccessEnvelope<AcpBridgeToken>
+	>(`/projects/${projectId}/agents/${agentId}/acp-bridge-token`);
+	return data.data;
+}
+
+export interface AcpBridgeStatus {
+	connected: boolean;
+}
+
+export async function getAcpBridgeStatus(
+	projectId: string,
+	agentId: string,
+): Promise<AcpBridgeStatus> {
+	// Unlike most endpoints, this one proxies ai-agent's response verbatim
+	// (no SuccessEnvelope wrapping) — same pass-through pattern as
+	// listLLMModels below.
+	const { data } = await apiClient.instance.get<AcpBridgeStatus>(
+		`/projects/${projectId}/agents/${agentId}/acp-bridge-status`,
+	);
+	return data;
 }
 
 export async function writeTaskDescriptionWithAI(
@@ -430,15 +476,25 @@ export async function deleteEnvVar(
 
 // ── Conversations ─────────────────────────────────────────────────────────────
 
+export interface ConversationListResult {
+	items: AgentConversation[];
+	page_size: number;
+	next_cursor: string | null;
+}
+
+export const CONVERSATIONS_PAGE_SIZE = 20;
+
 export async function listConversations(
 	projectId: string,
-	agentId?: string,
-): Promise<AgentConversation[]> {
-	const params = agentId ? { agent_id: agentId } : undefined;
+	options?: { agentId?: string; cursor?: string; pageSize?: number },
+): Promise<ConversationListResult> {
+	const { agentId, cursor, pageSize = CONVERSATIONS_PAGE_SIZE } = options ?? {};
 	const { data } = await apiClient.instance.get<
-		SuccessEnvelope<{ items: AgentConversation[] }>
-	>(`/projects/${projectId}/conversations`, { params });
-	return data.data.items;
+		SuccessEnvelope<ConversationListResult>
+	>(`/projects/${projectId}/conversations`, {
+		params: { agent_id: agentId, cursor, page_size: pageSize },
+	});
+	return data.data;
 }
 
 export async function getConversation(
@@ -579,16 +635,39 @@ export const agentEnvVarsQueryOptions = (projectId: string, agentId: string) =>
 		queryFn: () => listEnvVars(projectId, agentId),
 	});
 
+// Fetched once (no polling) — kept live afterward via useProjectRealtime's
+// direct cache update on "agent.acp_bridge.status" events (published by
+// services/ai-agent's acp_bridge.py on every bridge connect/disconnect).
+export const acpBridgeStatusQueryOptions = (
+	projectId: string,
+	agentId: string,
+	options?: { enabled?: boolean },
+) =>
+	queryOptions({
+		queryKey: ["projects", projectId, "agents", agentId, "acp-bridge-status"],
+		queryFn: () => getAcpBridgeStatus(projectId, agentId),
+		enabled: options?.enabled ?? true,
+	});
+
 // No refetchInterval: kept live via useProjectRealtime's socket-driven
 // invalidation of the ["projects", projectId, "conversations"] prefix on
-// every "agent.*" event instead of polling.
+// every "agent.*" event instead of polling. Cursor-paginated — each page
+// carries the opaque cursor to resume after its last item, so fetchNextPage
+// just forwards the backend's next_cursor until it comes back null.
 export const conversationsQueryOptions = (
 	projectId: string,
 	agentId?: string,
 ) =>
-	queryOptions({
+	infiniteQueryOptions({
 		queryKey: ["projects", projectId, "conversations", { agentId }],
-		queryFn: () => listConversations(projectId, agentId),
+		queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
+			listConversations(projectId, {
+				agentId,
+				cursor: pageParam,
+				pageSize: CONVERSATIONS_PAGE_SIZE,
+			}),
+		initialPageParam: undefined as string | undefined,
+		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
 	});
 
 export const conversationQueryOptions = (

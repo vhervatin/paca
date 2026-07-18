@@ -103,7 +103,7 @@ export function TaskDetailModal({
 	const status = statuses.find((s) => s.id === task?.status_id);
 	const taskType = taskTypes.find((t) => t.id === task?.task_type_id);
 	const priority = getPriority(task?.importance ?? 0);
-	const assignee = members.find((m) => m.id === task?.assignee_id);
+	const assignees = members.filter((m) => task?.assignee_ids?.includes(m.id));
 	const reporter = members.find((m) => m.id === task?.reporter_id);
 
 	// ── Task role detection ────────────────────────────────────────────────────
@@ -169,6 +169,14 @@ export function TaskDetailModal({
 					const bStr = b ? [...b].sort().join(",") : "";
 					if (aStr !== bStr) {
 						filtered.tags = a;
+					}
+				} else if (key === "assignee_ids") {
+					const a = newValue as string[] | undefined;
+					const b = oldValue as string[] | undefined;
+					const aStr = a ? [...a].sort().join(",") : "";
+					const bStr = b ? [...b].sort().join(",") : "";
+					if (aStr !== bStr) {
+						filtered.assignee_ids = a;
 					}
 				} else if (key === "custom_fields") {
 					const a = newValue as Record<string, unknown> | undefined;
@@ -263,7 +271,7 @@ export function TaskDetailModal({
 			{/* ── Body: stacks on mobile, side-by-side on lg+ ── */}
 			<div className="flex flex-col lg:flex-row flex-1 min-w-0 min-h-0 overflow-y-auto lg:overflow-hidden">
 				{/* Main content area: no own scroll on mobile (body scrolls), scrollable on lg+ */}
-				<div className="lg:flex-1 lg:overflow-y-auto [scrollbar-gutter:stable] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/60 [&::-webkit-scrollbar-thumb]:hover:bg-border">
+				<div className="lg:flex-1 lg:overflow-y-auto [scrollbar-gutter:stable]">
 					<div className="px-4 lg:px-8 py-5 lg:py-7 space-y-6 lg:space-y-8 max-w-3xl mx-auto">
 						{/* Type badge + Status chip + Title */}
 						<div className="space-y-4">
@@ -359,7 +367,7 @@ export function TaskDetailModal({
 								status={status}
 								taskType={taskType}
 								priority={priority}
-								assignee={assignee}
+								assignees={assignees}
 								reporter={reporter}
 								statuses={statuses}
 								taskTypes={taskTypes}

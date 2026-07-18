@@ -28,6 +28,11 @@
 			"projectRoleLabel": "プロジェクトロール",
 			"projectRolePlaceholder": "プロジェクトロールを選択…",
 			"projectRoleHint": "このプロジェクト内でエージェントが読み取り・変更できる範囲を制御します。",
+			"agentTypeLabel": "エージェントタイプ",
+			"agentTypeLLM": "LLM（APIキー）",
+			"agentTypeLLMHint": "Pacaがモデル API を直接呼び出し、クラウドサンドボックスでエージェントを実行します。",
+			"agentTypeACP": "ACP（ローカルCLI）",
+			"agentTypeACPHint": "自分で実行するコーディングCLI（Claude Code、Codex、Gemini CLI、またはカスタムACPサーバー）に処理を委任します。",
 			"modelSection": "モデル",
 			"providerLabel": "プロバイダー",
 			"modelLabel": "モデル",
@@ -37,6 +42,16 @@
 			"showApiKey": "APIキーを表示",
 			"apiKeyHint": "暗号化して保存されます — APIレスポンスに表示されることはありません。",
 			"baseUrlLabel": "ベースURL",
+			"acpSection": "ACPサーバー",
+			"acpProviderLabel": "プロバイダー",
+			"acpProviderClaudeCode": "Claude Code",
+			"acpProviderCodex": "Codex",
+			"acpProviderGeminiCli": "Gemini CLI",
+			"acpProviderCustom": "カスタム…",
+			"acpCommandLabel": "コマンド",
+			"acpCommandPlaceholder": "npx -y my-acp-server",
+			"acpCommandHint": "ACPサーバーの起動に使用する、スペース区切りのコマンドです。",
+			"acpGuidance": "ツール、MCPサーバー、スキルはここでは設定しません — これらはACPクライアント自身のローカル設定から取得され、あなた自身のgit/gh認証情報で実行されます（クローン、push、PRの作成もすべてネイティブに動作します）。このエージェントを作成すると、ローカルブリッジの接続、Pacaスキルのインストール、MCPサーバーの設定を順を追ってご案内します。",
 			"systemPromptLabel": "システムプロンプト",
 			"optional": "（任意）",
 			"charsCount": "{{count}}文字",
@@ -52,6 +67,8 @@
 		"card": {
 			"configure": "設定",
 			"delete": "削除",
+			"acpStatusConnected": "オンライン",
+			"acpStatusDisconnected": "オフライン",
 			"deleteDialog": {
 				"title": "{{name}}を削除しますか？",
 				"description": "このエージェントを完全に削除し、プロジェクトから除外します。実行中の会話は停止されます。",
@@ -69,13 +86,42 @@
 				"createFirstAgent": "最初のエージェントを作成"
 			}
 		},
+		"acpSetup": {
+			"dialogTitle": "ローカルACPブリッジを接続",
+			"dialogDescription": "{{name}}の準備ができました — 自分のマシンで以下の手順を完了してオンラインにしてください。",
+			"panelTitle": "ローカルブリッジ",
+			"panelDescription": "このエージェントのACPサーバーを自分のマシンで実行し、ここに接続します。",
+			"statusConnected": "接続済み",
+			"statusDisconnected": "未接続",
+			"step1Title": "ACPブリッジをインストール",
+			"step1Description": "Python 3.12以上が必要です。uv pipでデーモンを一度インストールします（またはこの手順をスキップしても構いません — 下記の実行コマンドはuvxを使用し、自動的に取得されます）。",
+			"step2Title": "ローカルブリッジを実行",
+			"step2Description": "トークンを生成し、プロジェクトフォルダでこれを実行します。",
+			"noTokenYet": "トークンを生成すると実行コマンドが表示されます。",
+			"generateToken": "トークンを生成",
+			"regenerateToken": "トークンを再生成",
+			"generating": "生成中…",
+			"generateFailed": "トークンを生成できませんでした。もう一度お試しください。",
+			"tokenWarning": "今すぐコピーしてください — 二度と表示されません。",
+			"copy": "コピー",
+			"copied": "コピーしました！",
+			"step3Title": "Pacaスキルをインストール",
+			"step3Description": "CLIがPacaのMCPツール経由でリクエストをルーティングできるようにします — デフォルトで /paca が全プロンプトに追加されます。",
+			"step3NotAvailable": "自動インストールはClaude Codeのみで利用できます。{{provider}}には既知のカスタムプロンプトインストーラーがまだありません — 下記のPacaのMCPツールはこれがなくても機能します。",
+			"step3ViewContent": "スキルの内容を見る",
+			"step4Title": "MCPサーバーを接続",
+			"step4Description": "個人のAPIキーを使用して、CLIがPacaのツールを直接呼び出せるようにします。",
+			"step4ApiKeyLink": "APIキーを取得",
+			"step4GenericHint": "MCPサーバーの登録手順はCLIによって異なります — {{provider}}は通常、独自の設定ファイルから読み込みます。参考としてこのコマンドを使用してください:",
+			"customProviderLabel": "お使いのカスタムACPサーバー",
+			"done": "完了"
+		},
 		"detail": {
 			"tabs": {
 				"overview": "概要",
 				"mcpServers": "MCPサーバー",
 				"skills": "スキル",
-				"envVars": "環境変数",
-				"conversations": "会話"
+				"envVars": "環境変数"
 			},
 			"overview": {
 				"nameLabel": "名前",
@@ -93,7 +139,16 @@
 				"saveChanges": "変更を保存",
 				"saved": "保存しました",
 				"saveFailed": "保存に失敗しました。もう一度お試しください。",
-				"systemPromptLabel": "システムプロンプト"
+				"systemPromptLabel": "システムプロンプト",
+				"acpConfiguration": "ACP設定",
+				"acpProviderLabel": "プロバイダー",
+				"acpProviderClaudeCode": "Claude Code",
+				"acpProviderCodex": "Codex",
+				"acpProviderGeminiCli": "Gemini CLI",
+				"acpProviderCustom": "カスタム…",
+				"acpCommandLabel": "コマンド",
+				"acpCommandHint": "ACPサーバーの起動に使用する、スペース区切りのコマンドです。",
+				"acpGuidanceBanner": "このエージェントのツール、MCPサーバー、スキルはPacaではなく、あなた自身のgit/gh認証情報で動作するローカルACPクライアントで設定されます。"
 			},
 			"mcp": {
 				"serverCount_one": "{{count}}件のサーバーを設定済み",
@@ -155,18 +210,6 @@
 					"urlLabel": "URL",
 					"cancel": "キャンセル",
 					"addSkill": "スキルを追加"
-				}
-			},
-			"conversations": {
-				"triggerChat": "チャット",
-				"triggerWriteDescription": "説明の作成",
-				"triggerTask": "タスク",
-				"iterations_one": "{{count}}回の反復",
-				"iterations_other": "{{count}}回の反復",
-				"prOpened": "PRを作成しました",
-				"empty": {
-					"title": "会話はまだありません",
-					"description": "タスクがこのエージェントに割り当てられるか、誰かがメッセージを送ると会話が始まります。"
 				}
 			}
 		},
@@ -365,7 +408,8 @@
 			"sprints": "スプリント",
 			"documents": "ドキュメント",
 			"aiAgents": "AIエージェント",
-			"workflows": "自動化"
+			"workflows": "自動化",
+			"plugins": "プラグイン"
 		}
 	},
 	"settings": {
@@ -683,10 +727,7 @@
 			"title": "プロパティ",
 			"status": "ステータス",
 			"dates": "日付",
-			"trackTime": "作業時間を記録",
-			"addTime": "時間を追加",
 			"type": "タイプ",
-			"relationships": "関連付け",
 			"assignees": "担当者",
 			"importance": "重要度",
 			"none": "なし",
@@ -931,6 +972,27 @@
 			"description": "スプリントに割り当てられていないすべての作業項目です。"
 		}
 	},
+	"conversationsPage": {
+		"title": "会話",
+		"triggerChat": "チャット",
+		"triggerWriteDescription": "説明の作成",
+		"triggerTask": "タスク",
+		"iterations_one": "{{count}}回の反復",
+		"iterations_other": "{{count}}回の反復",
+		"prOpened": "PRを作成しました",
+		"list": {
+			"empty": {
+				"title": "会話はまだありません",
+				"description": "タスクがエージェントに割り当てられるか、誰かがメッセージを送ると会話が始まります。"
+			}
+		},
+		"detail": {
+			"empty": {
+				"title": "会話が選択されていません",
+				"description": "リストから会話を選択すると表示されます。"
+			}
+		}
+	},
 	"layout": {
 		"shell": {
 			"newSprint": "新規スプリント",
@@ -960,6 +1022,11 @@
 			"statusesLabel": "ステータス",
 			"assigneesLabel": "担当者",
 			"taskTypesLabel": "タスクタイプ",
+			"startDateLabel": "開始日",
+			"dueDateLabel": "期日",
+			"importanceLabel": "重要度",
+			"storyPointsLabel": "ストーリーポイント",
+			"tagsLabel": "タグ",
 			"reset": "リセット",
 			"saving": "保存中…",
 			"save": "保存",
@@ -983,6 +1050,20 @@
 				"allNormalTypesDynamic": "すべての通常タイプ（動的）",
 				"systemTypes": "システムタイプ",
 				"noTaskTypes": "タスクタイプはありません"
+			},
+			"customFieldFilter": {
+				"allValues": "すべての値",
+				"noOptions": "オプションはありません",
+				"min": "最小",
+				"max": "最大",
+				"containsPlaceholder": "を含む…"
+			},
+			"importanceFilter": {
+				"allLevels": "すべてのレベル"
+			},
+			"tagsFilter": {
+				"addTag": "タグを追加",
+				"addTagPlaceholder": "タグを追加..."
 			}
 		},
 		"roadmap": {

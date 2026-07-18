@@ -193,8 +193,9 @@ export function TaskActivityPane({
 						if (typeof oldVal === "number") payload.importance = oldVal;
 						break;
 					case "assignee":
-						payload.assignee_id =
-							typeof oldVal === "string" && oldVal ? oldVal : null;
+						payload.assignee_ids = Array.isArray(oldVal)
+							? oldVal.filter((v): v is string => typeof v === "string")
+							: [];
 						break;
 					case "reporter":
 						payload.reporter_id =

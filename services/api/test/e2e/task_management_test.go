@@ -1210,6 +1210,166 @@ func TestE2ETaskManagement_DatesAndTags(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Multiple assignees
+// ---------------------------------------------------------------------------
+
+func TestE2ETaskManagement_MultipleAssignees(t *testing.T) {
+	env := newE2EEnv(t)
+	ownerUsername := "multi-assignee-owner-" + uuid.NewString()
+	seedTaskMemberUser(t, env, ownerUsername, "multiassigneeowner1")
+	client, token := taskMemberLogin(t, env, ownerUsername, "multiassigneeowner1")
+	projID := createProjectForTasksViaAPI(t, env, client, token)
+
+	memberA := addProjectMemberWithWorkflowPerms(t, env, client, token, projID, "multi-assignee-a-"+uuid.NewString(), "multiassigneea1")
+	memberB := addProjectMemberWithWorkflowPerms(t, env, client, token, projID, "multi-assignee-b-"+uuid.NewString(), "multiassigneeb1")
+	memberC := addProjectMemberWithWorkflowPerms(t, env, client, token, projID, "multi-assignee-c-"+uuid.NewString(), "multiassigneec1")
+
+	var taskID string
+
+	assigneeIDs := func(data map[string]any) []string {
+		raw, _ := data["assignee_ids"].([]any)
+		out := make([]string, len(raw))
+		for i, v := range raw {
+			out[i], _ = v.(string)
+		}
+		return out
+	}
+	containsAll := func(got []string, want ...string) bool {
+		set := make(map[string]bool, len(got))
+		for _, g := range got {
+			set[g] = true
+		}
+		for _, w := range want {
+			if !set[w] {
+				return false
+			}
+		}
+		return true
+	}
+
+	t.Run("create_task_with_multiple_assignees", func(t *testing.T) {
+		body := jsonBody(t, map[string]any{
+			"title":        "Task with multiple assignees",
+			"assignee_ids": []string{memberA, memberB},
+		})
+		req := mustRequest(env.ctx, t, http.MethodPost,
+			fmt.Sprintf("%s/api/v1/projects/%s/tasks", env.base, projID), body)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp := mustDo(t, client, req)
+		defer func() { _ = resp.Body.Close() }()
+		assertStatus(t, resp, http.StatusCreated)
+		var env2 envelope
+		decodeJSON(t, resp, &env2)
+		data := assertDataMap(t, env2)
+		taskID, _ = data["id"].(string)
+		if taskID == "" {
+			t.Fatal("expected non-empty task id")
+		}
+		got := assigneeIDs(data)
+		if len(got) != 2 || !containsAll(got, memberA, memberB) {
+			t.Fatalf("expected assignee_ids=[%s,%s], got %v", memberA, memberB, got)
+		}
+	})
+
+	t.Run("get_task_returns_both_assignees", func(t *testing.T) {
+		req := mustRequest(env.ctx, t, http.MethodGet,
+			fmt.Sprintf("%s/api/v1/projects/%s/tasks/%s", env.base, projID, taskID), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp := mustDo(t, client, req)
+		defer func() { _ = resp.Body.Close() }()
+		assertStatus(t, resp, http.StatusOK)
+		var env2 envelope
+		decodeJSON(t, resp, &env2)
+		data := assertDataMap(t, env2)
+		got := assigneeIDs(data)
+		if len(got) != 2 || !containsAll(got, memberA, memberB) {
+			t.Fatalf("expected assignee_ids=[%s,%s], got %v", memberA, memberB, got)
+		}
+	})
+
+	t.Run("filter_by_assignee_ids_matches_any_assignee", func(t *testing.T) {
+		// Filtering by memberB alone should still surface the task since it
+		// matches ANY of its assignees, not all of them.
+		req := mustRequest(env.ctx, t, http.MethodGet,
+			fmt.Sprintf("%s/api/v1/projects/%s/tasks?assignee_ids=%s", env.base, projID, memberB), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp := mustDo(t, client, req)
+		defer func() { _ = resp.Body.Close() }()
+		assertStatus(t, resp, http.StatusOK)
+		var env2 envelope
+		decodeJSON(t, resp, &env2)
+		data := assertDataMap(t, env2)
+		items, _ := data["items"].([]any)
+		found := false
+		for _, item := range items {
+			m, _ := item.(map[string]any)
+			if id, _ := m["id"].(string); id == taskID {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("expected task %s to be included when filtering by assignee_ids=%s", taskID, memberB)
+		}
+	})
+
+	t.Run("filter_by_unrelated_assignee_excludes_task", func(t *testing.T) {
+		req := mustRequest(env.ctx, t, http.MethodGet,
+			fmt.Sprintf("%s/api/v1/projects/%s/tasks?assignee_ids=%s", env.base, projID, memberC), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp := mustDo(t, client, req)
+		defer func() { _ = resp.Body.Close() }()
+		assertStatus(t, resp, http.StatusOK)
+		var env2 envelope
+		decodeJSON(t, resp, &env2)
+		data := assertDataMap(t, env2)
+		items, _ := data["items"].([]any)
+		for _, item := range items {
+			m, _ := item.(map[string]any)
+			if id, _ := m["id"].(string); id == taskID {
+				t.Errorf("did not expect task %s when filtering by unrelated assignee_ids=%s", taskID, memberC)
+			}
+		}
+	})
+
+	t.Run("update_task_removes_one_and_adds_another", func(t *testing.T) {
+		body := jsonBody(t, map[string]any{"assignee_ids": []string{memberB, memberC}})
+		req := mustRequest(env.ctx, t, http.MethodPatch,
+			fmt.Sprintf("%s/api/v1/projects/%s/tasks/%s", env.base, projID, taskID), body)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp := mustDo(t, client, req)
+		defer func() { _ = resp.Body.Close() }()
+		assertStatus(t, resp, http.StatusOK)
+		var env2 envelope
+		decodeJSON(t, resp, &env2)
+		data := assertDataMap(t, env2)
+		got := assigneeIDs(data)
+		if len(got) != 2 || !containsAll(got, memberB, memberC) {
+			t.Fatalf("expected assignee_ids=[%s,%s], got %v", memberB, memberC, got)
+		}
+	})
+
+	t.Run("update_task_clears_all_assignees", func(t *testing.T) {
+		body := jsonBody(t, map[string]any{"assignee_ids": []string{}})
+		req := mustRequest(env.ctx, t, http.MethodPatch,
+			fmt.Sprintf("%s/api/v1/projects/%s/tasks/%s", env.base, projID, taskID), body)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp := mustDo(t, client, req)
+		defer func() { _ = resp.Body.Close() }()
+		assertStatus(t, resp, http.StatusOK)
+		var env2 envelope
+		decodeJSON(t, resp, &env2)
+		data := assertDataMap(t, env2)
+		got := assigneeIDs(data)
+		if len(got) != 0 {
+			t.Fatalf("expected no assignees after clearing, got %v", got)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
 // Custom field definition helpers
 // ---------------------------------------------------------------------------
 

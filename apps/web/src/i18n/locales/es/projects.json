@@ -28,6 +28,11 @@
 			"projectRoleLabel": "Rol del proyecto",
 			"projectRolePlaceholder": "Selecciona un rol del proyecto…",
 			"projectRoleHint": "Controla lo que el agente puede leer y modificar en este proyecto.",
+			"agentTypeLabel": "Tipo de agente",
+			"agentTypeLLM": "LLM (clave de API)",
+			"agentTypeLLMHint": "Paca llama directamente a la API de un modelo y ejecuta el agente en un sandbox en la nube.",
+			"agentTypeACP": "ACP (CLI local)",
+			"agentTypeACPHint": "Delega en una CLI de código que tú mismo ejecutas — Claude Code, Codex, Gemini CLI o un servidor ACP personalizado.",
 			"modelSection": "Modelo",
 			"providerLabel": "Proveedor",
 			"modelLabel": "Modelo",
@@ -37,6 +42,16 @@
 			"showApiKey": "Mostrar clave de API",
 			"apiKeyHint": "Se almacena cifrada — nunca se expone en las respuestas de la API.",
 			"baseUrlLabel": "URL base",
+			"acpSection": "Servidor ACP",
+			"acpProviderLabel": "Proveedor",
+			"acpProviderClaudeCode": "Claude Code",
+			"acpProviderCodex": "Codex",
+			"acpProviderGeminiCli": "Gemini CLI",
+			"acpProviderCustom": "Personalizado…",
+			"acpCommandLabel": "Comando",
+			"acpCommandPlaceholder": "npx -y my-acp-server",
+			"acpCommandHint": "Comando separado por espacios usado para iniciar tu servidor ACP.",
+			"acpGuidance": "Las herramientas, servidores MCP y skills no se configuran aquí — provienen de la configuración local de tu cliente ACP, que se ejecuta con tus propias credenciales de git/gh (clonar, hacer push y abrir PRs funcionan de forma nativa). Después de crear este agente, te guiaremos para conectar el bridge local, instalar la skill de Paca y configurar el servidor MCP.",
 			"systemPromptLabel": "Prompt del sistema",
 			"optional": "(opcional)",
 			"charsCount": "{{count}} caracteres",
@@ -52,6 +67,8 @@
 		"card": {
 			"configure": "Configurar",
 			"delete": "Eliminar",
+			"acpStatusConnected": "En línea",
+			"acpStatusDisconnected": "Desconectado",
 			"deleteDialog": {
 				"title": "¿Eliminar {{name}}?",
 				"description": "Esto elimina permanentemente al agente y lo retira del proyecto. Las conversaciones en curso se detendrán.",
@@ -69,13 +86,42 @@
 				"createFirstAgent": "Crea tu primer agente"
 			}
 		},
+		"acpSetup": {
+			"dialogTitle": "Conecta tu bridge ACP local",
+			"dialogDescription": "{{name}} está listo — completa estos pasos en tu propia máquina para ponerlo en línea.",
+			"panelTitle": "Bridge local",
+			"panelDescription": "Ejecuta el servidor ACP de este agente en tu propia máquina y conéctalo aquí.",
+			"statusConnected": "Conectado",
+			"statusDisconnected": "No conectado",
+			"step1Title": "Instala el bridge ACP",
+			"step1Description": "Requiere Python 3.12+. Instala el daemon una vez con uv pip (o omite este paso — el comando de ejecución de abajo usa uvx, que lo obtiene automáticamente).",
+			"step2Title": "Ejecuta el bridge local",
+			"step2Description": "Genera un token y luego ejecuta esto en la carpeta de tu proyecto.",
+			"noTokenYet": "Genera un token para revelar el comando de ejecución.",
+			"generateToken": "Generar token",
+			"regenerateToken": "Regenerar token",
+			"generating": "Generando…",
+			"generateFailed": "No se pudo generar el token. Inténtalo de nuevo.",
+			"tokenWarning": "Cópialo ahora — no volverá a mostrarse.",
+			"copy": "Copiar",
+			"copied": "¡Copiado!",
+			"step3Title": "Instala la skill de Paca",
+			"step3Description": "Permite que tu CLI enrute las solicitudes a través de las herramientas MCP de Paca — se añade a cada prompt mediante /paca de forma predeterminada.",
+			"step3NotAvailable": "La instalación automática solo está disponible para Claude Code. {{provider}} aún no tiene un instalador de prompts personalizados conocido — las herramientas MCP de Paca de abajo funcionan igualmente sin ella.",
+			"step3ViewContent": "Ver instrucciones de la skill",
+			"step4Title": "Conecta el servidor MCP",
+			"step4Description": "Usa una clave de API personal para que la CLI pueda llamar directamente a las herramientas de Paca.",
+			"step4ApiKeyLink": "Obtener una clave de API",
+			"step4GenericHint": "Los pasos exactos para registrar un servidor MCP varían según la CLI — {{provider}} normalmente lo lee desde su propio archivo de configuración. Usa este comando como referencia:",
+			"customProviderLabel": "tu servidor ACP personalizado",
+			"done": "Listo"
+		},
 		"detail": {
 			"tabs": {
 				"overview": "Resumen",
 				"mcpServers": "Servidores MCP",
 				"skills": "Skills",
-				"envVars": "Entorno",
-				"conversations": "Conversaciones"
+				"envVars": "Entorno"
 			},
 			"overview": {
 				"nameLabel": "Nombre",
@@ -93,7 +139,16 @@
 				"saveChanges": "Guardar cambios",
 				"saved": "Guardado",
 				"saveFailed": "Error al guardar. Inténtalo de nuevo.",
-				"systemPromptLabel": "Prompt del sistema"
+				"systemPromptLabel": "Prompt del sistema",
+				"acpConfiguration": "Configuración de ACP",
+				"acpProviderLabel": "Proveedor",
+				"acpProviderClaudeCode": "Claude Code",
+				"acpProviderCodex": "Codex",
+				"acpProviderGeminiCli": "Gemini CLI",
+				"acpProviderCustom": "Personalizado…",
+				"acpCommandLabel": "Comando",
+				"acpCommandHint": "Comando separado por espacios usado para iniciar tu servidor ACP.",
+				"acpGuidanceBanner": "Las herramientas, servidores MCP y skills de este agente se configuran en tu cliente ACP local, que se ejecuta con tus propias credenciales de git/gh — no en Paca."
 			},
 			"mcp": {
 				"serverCount_one": "{{count}} servidor configurado",
@@ -155,18 +210,6 @@
 					"urlLabel": "URL",
 					"cancel": "Cancelar",
 					"addSkill": "Añadir skill"
-				}
-			},
-			"conversations": {
-				"triggerChat": "Chat",
-				"triggerWriteDescription": "Redactar descripción",
-				"triggerTask": "Tarea",
-				"iterations_one": "{{count}} iteración",
-				"iterations_other": "{{count}} iteraciones",
-				"prOpened": "PR abierto",
-				"empty": {
-					"title": "Aún no hay conversaciones",
-					"description": "Las conversaciones comienzan cuando se asigna una tarea a este agente o alguien le envía un mensaje."
 				}
 			}
 		},
@@ -365,7 +408,8 @@
 			"sprints": "Sprints",
 			"documents": "Documentos",
 			"aiAgents": "Agentes de IA",
-			"workflows": "Automatización"
+			"workflows": "Automatización",
+			"plugins": "Plugins"
 		}
 	},
 	"settings": {
@@ -683,10 +727,7 @@
 			"title": "Propiedades",
 			"status": "Estado",
 			"dates": "Fechas",
-			"trackTime": "Registrar tiempo",
-			"addTime": "Añadir tiempo",
 			"type": "Tipo",
-			"relationships": "Relaciones",
 			"assignees": "Asignados",
 			"importance": "Importancia",
 			"none": "Ninguno",
@@ -931,6 +972,27 @@
 			"description": "Todos los elementos de trabajo no asignados a un sprint."
 		}
 	},
+	"conversationsPage": {
+		"title": "Conversaciones",
+		"triggerChat": "Chat",
+		"triggerWriteDescription": "Redactar descripción",
+		"triggerTask": "Tarea",
+		"iterations_one": "{{count}} iteración",
+		"iterations_other": "{{count}} iteraciones",
+		"prOpened": "PR abierto",
+		"list": {
+			"empty": {
+				"title": "Aún no hay conversaciones",
+				"description": "Las conversaciones comienzan cuando se asigna una tarea a un agente o alguien le envía un mensaje."
+			}
+		},
+		"detail": {
+			"empty": {
+				"title": "Ninguna conversación seleccionada",
+				"description": "Selecciona una conversación de la lista para verla."
+			}
+		}
+	},
 	"layout": {
 		"shell": {
 			"newSprint": "Nuevo sprint",
@@ -960,6 +1022,11 @@
 			"statusesLabel": "Estados",
 			"assigneesLabel": "Asignados",
 			"taskTypesLabel": "Tipos de tarea",
+			"startDateLabel": "Fecha de inicio",
+			"dueDateLabel": "Fecha de vencimiento",
+			"importanceLabel": "Importancia",
+			"storyPointsLabel": "Puntos de historia",
+			"tagsLabel": "Etiquetas",
 			"reset": "Restablecer",
 			"saving": "Guardando…",
 			"save": "Guardar",
@@ -983,6 +1050,20 @@
 				"allNormalTypesDynamic": "Todos los tipos normales (dinámico)",
 				"systemTypes": "Tipos del sistema",
 				"noTaskTypes": "No hay tipos de tarea"
+			},
+			"customFieldFilter": {
+				"allValues": "Todos los valores",
+				"noOptions": "Sin opciones",
+				"min": "Mín",
+				"max": "Máx",
+				"containsPlaceholder": "Contiene…"
+			},
+			"importanceFilter": {
+				"allLevels": "Todos los niveles"
+			},
+			"tagsFilter": {
+				"addTag": "Agregar etiqueta",
+				"addTagPlaceholder": "Agregar etiqueta..."
 			}
 		},
 		"roadmap": {

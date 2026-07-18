@@ -66,14 +66,19 @@ export function describeTaskChange(
 				return t("taskDetail.activity.changedPriority", { oldVal, newVal });
 			return t("taskDetail.activity.setPriority", { newVal });
 		case "assignee": {
-			const oldName = resolveMember(change.old);
-			const newName = resolveMember(change.new);
-			if (hasOld && hasNew)
+			const oldIds = Array.isArray(change.old) ? change.old : [];
+			const newIds = Array.isArray(change.new) ? change.new : [];
+			const resolveMembers = (ids: unknown[]) =>
+				ids.map((id) => resolveMember(id)).join(", ");
+			const oldName = resolveMembers(oldIds);
+			const newName = resolveMembers(newIds);
+			if (oldIds.length > 0 && newIds.length > 0)
 				return t("taskDetail.activity.changedAssignee", {
 					oldName,
 					newName,
 				});
-			if (hasNew) return t("taskDetail.activity.assignedTo", { newName });
+			if (newIds.length > 0)
+				return t("taskDetail.activity.assignedTo", { newName });
 			return t("taskDetail.activity.removedAssignee", { oldName });
 		}
 		case "reporter": {

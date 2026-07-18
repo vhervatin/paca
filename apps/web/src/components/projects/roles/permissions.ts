@@ -4,18 +4,17 @@ import {
 	Layers,
 	ListTodo,
 	type LucideIcon,
+	Puzzle,
 	Settings,
 	Shield,
 	Users,
 	Workflow,
 } from "lucide-react";
 
-export interface KnownPermission {
-	key: string;
-	labelKey: string;
-	descriptionKey: string;
-	domain: string;
-}
+import type { PluginKnownPermission } from "@/lib/plugin-api";
+
+export { toPluginKnownPermissions } from "@/lib/plugin-api";
+export type KnownPermission = PluginKnownPermission;
 
 export const PROJECT_KNOWN_PERMISSIONS = [
 	// projects
@@ -168,5 +167,10 @@ export const PROJECT_PERMISSION_GROUPS = [
 		domain: "workflows",
 		labelKey: "roles.permissionGroups.workflows",
 		Icon: Workflow,
+	},
+	{
+		domain: "plugins",
+		labelKey: "roles.permissionGroups.plugins",
+		Icon: Puzzle,
 	},
 ] as const satisfies PermissionGroup[];

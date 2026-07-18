@@ -12,6 +12,7 @@ export const SUPPORTED_LANGUAGES = [
 	"ja",
 	"es",
 	"fr",
+	"ru",
 ] as const;
 
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
@@ -25,6 +26,7 @@ export const LOCALE_LABELS: Record<SupportedLanguage, string> = {
 	ja: "日本語",
 	es: "Español",
 	fr: "Français",
+	ru: "Русский",
 };
 
 export const LOCALE_STORAGE_KEY = "locale";

@@ -343,6 +343,36 @@ func TestE2EPluginRuntime_APICall_EchoesRequestBody(t *testing.T) {
 	}
 }
 
+// TestE2EPluginRuntime_APICall_QueryParamsPropagate is a regression test for
+// a bug where the host silently dropped the incoming request's URL query
+// string instead of forwarding it to the plugin: PluginHandler.ProxyRequest
+// built pluginrt.HTTPRequest without ever reading r.URL.Query(), so
+// req.QueryParam(...) inside every plugin always saw an empty map regardless
+// of what the caller sent. Query-string-driven filtering/pagination on any
+// plugin route was silently a no-op until this was fixed.
+func TestE2EPluginRuntime_APICall_QueryParamsPropagate(t *testing.T) {
+	p := newPluginRuntimeE2EEnv(t, pluginrt.DefaultResourceLimits())
+	token := p.issueAdminToken(t)
+
+	p.installAndLoad(t, token, "com.paca.rt-query", []map[string]any{
+		publicRoute(http.MethodGet, "/query"),
+	}, true)
+
+	resp := p.doPlugin(t, http.MethodGet,
+		"/api/v1/plugins/com.paca.rt-query/query?member_id=abc&date_from=2026-07-01", "", nil)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+
+	var got map[string]string
+	decodeJSON(t, resp, &got)
+	if got["member_id"] != "abc" {
+		t.Errorf("expected member_id=abc, got %v", got)
+	}
+	if got["date_from"] != "2026-07-01" {
+		t.Errorf("expected date_from=2026-07-01, got %v", got)
+	}
+}
+
 func TestE2EPluginRuntime_APICall_CallerIdentityPropagates(t *testing.T) {
 	p := newPluginRuntimeE2EEnv(t, pluginrt.DefaultResourceLimits())
 	adminToken := p.issueAdminToken(t)

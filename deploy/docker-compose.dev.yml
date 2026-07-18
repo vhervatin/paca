@@ -18,8 +18,6 @@ services:
       POSTGRES_USER: paca
       POSTGRES_PASSWORD: paca
       POSTGRES_DB: paca
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../services/api/migrations:/docker-entrypoint-initdb.d:ro
@@ -146,6 +144,10 @@ services:
       # without a database-stored API key.  Must match PACA_API_KEY in the
       # ai-agent service.
       AGENT_API_KEY: dev-agent-api-key-change-in-production
+      # Authenticates the reverse direction: API calling into ai-agent's
+      # internal-only routes (e.g. the ACP bridge status check). Must match
+      # INTERNAL_API_KEY in the ai-agent service.
+      AI_AGENT_INTERNAL_KEY: dev-internal-key-change-in-production
       # Public base URL used by plugins to generate callback/webhook URLs.
       PUBLIC_URL: ${PUBLIC_HOST:-http://localhost}
       # Plugin subsystem — load WASM binaries + migrations from the local plugin store.
@@ -302,6 +304,7 @@ services:
       DEV_MCP_PATH: /mcp/build/index.js
     volumes:
       - ../services/ai-agent:/app
+      - ai_agent_venv:/app/.venv
       - ../apps/mcp:/mcp:ro
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
@@ -322,3 +325,4 @@ volumes:
   bun_cache:
   minio_data:
   realtime_node_modules:
+  ai_agent_venv:

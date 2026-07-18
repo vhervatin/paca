@@ -1,11 +1,15 @@
-import { FolderKanban, type LucideIcon, Shield, Users } from "lucide-react";
+import {
+	FolderKanban,
+	type LucideIcon,
+	Puzzle,
+	Shield,
+	Users,
+} from "lucide-react";
 
-export interface KnownPermission {
-	key: string;
-	labelKey: string;
-	descriptionKey: string;
-	domain: string;
-}
+import type { PluginKnownPermission } from "@/lib/plugin-api";
+
+export { toPluginKnownPermissions } from "@/lib/plugin-api";
+export type KnownPermission = PluginKnownPermission;
 
 export const KNOWN_PERMISSIONS = [
 	{
@@ -115,5 +119,10 @@ export const PERMISSION_GROUPS = [
 		domain: "projects",
 		labelKey: "globalRoles.permissionGroups.projects",
 		Icon: FolderKanban,
+	},
+	{
+		domain: "plugins",
+		labelKey: "globalRoles.permissionGroups.plugins",
+		Icon: Puzzle,
 	},
 ] as const satisfies PermissionGroup[];

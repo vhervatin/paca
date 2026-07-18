@@ -2,11 +2,9 @@ import {
 	ArrowRight,
 	BookOpen,
 	Check,
-	Clock,
 	ExternalLink,
 	KanbanSquare,
 	Layers,
-	Link2,
 	Plus,
 	X,
 } from "lucide-react";
@@ -31,7 +29,7 @@ import {
 } from "../priority";
 import { TaskTypeSelector } from "../task-type-selector";
 import { AddFieldDialog } from "./add-field-dialog";
-import { FieldRow, FieldValue } from "./primitives";
+import { FieldRow } from "./primitives";
 import type { SelectOption, UserOption } from "./property-field";
 import { PropertyField } from "./property-field";
 import { NumberEditor } from "./property-field/number-editor";
@@ -41,7 +39,7 @@ import type { CustomFieldDef } from "./types";
 type UpdatePayload = Partial<{
 	status_id: string | null;
 	task_type_id: string | null;
-	assignee_id: string | null;
+	assignee_ids: string[];
 	reporter_id: string | null;
 	importance: number;
 	story_points: number | null;
@@ -58,7 +56,7 @@ interface PropertiesPanelProps {
 	status: TaskStatus | undefined;
 	taskType: TaskType | undefined;
 	priority: PriorityMeta;
-	assignee: ProjectMember | undefined;
+	assignees: ProjectMember[];
 	reporter: ProjectMember | undefined;
 	statuses?: TaskStatus[];
 	taskTypes?: TaskType[];
@@ -90,7 +88,7 @@ export function PropertiesPanel({
 	task,
 	status,
 	taskType,
-	assignee,
+	assignees,
 	reporter,
 	statuses = [],
 	taskTypes = [],
@@ -136,7 +134,7 @@ export function PropertiesPanel({
 	];
 
 	const memberUserOptions: UserOption[] = members.map(toUserOption);
-	const assigneeUserOption = assignee ? toUserOption(assignee) : null;
+	const assigneeUserOptions: UserOption[] = assignees.map(toUserOption);
 	const reporterUserOption = reporter ? toUserOption(reporter) : null;
 
 	return (
@@ -163,16 +161,6 @@ export function PropertiesPanel({
 					canEdit={canEdit}
 				/>
 
-				<FieldRow label={t("taskDetail.properties.trackTime")}>
-					<button
-						type="button"
-						className="inline-flex items-center gap-1.5 text-sm text-muted-foreground/70 hover:text-foreground transition-colors duration-150 font-medium"
-					>
-						<Clock className="size-3.5 opacity-70" />
-						{t("taskDetail.properties.addTime")}
-					</button>
-				</FieldRow>
-
 				{(taskType || (canEdit && taskTypes.length > 0)) && (
 					<FieldRow label={t("taskDetail.properties.type")}>
 						<TaskTypeSelector
@@ -184,24 +172,13 @@ export function PropertiesPanel({
 					</FieldRow>
 				)}
 
-				<FieldRow label={t("taskDetail.properties.relationships")}>
-					<button
-						type="button"
-						className="inline-flex items-center gap-1.5 text-sm text-muted-foreground/70 hover:text-foreground transition-colors duration-150 font-medium"
-					>
-						<Link2 className="size-3.5 opacity-70" />
-						<FieldValue empty />
-					</button>
-				</FieldRow>
-
 				<PropertyField
 					label={t("taskDetail.properties.assignees")}
-					mode="user"
-					userValue={assigneeUserOption}
+					mode="multi-user"
+					userValues={assigneeUserOptions}
 					users={memberUserOptions}
-					onUserChange={(v) => onUpdate?.({ assignee_id: v })}
+					onUsersChange={(v) => onUpdate?.({ assignee_ids: v })}
 					canEdit={canEdit && members.length > 0}
-					showUnassigned
 				/>
 
 				<FieldRow label={t("taskDetail.properties.importance")}>

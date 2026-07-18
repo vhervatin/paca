@@ -56,7 +56,7 @@ ID: ${task.id}
 Status: ${task.status_id || "None"}
 Type: ${task.task_type_id || "None"}
 Sprint: ${task.sprint_id || "None"}
-Assignee: ${task.assignee_id || "Unassigned"}
+Assignees: ${task.assignee_ids && task.assignee_ids.length > 0 ? task.assignee_ids.join(", ") : "Unassigned"}
 Parent Task: ${task.parent_task_id || "None"}
 Importance: ${task.importance}
 Story Points: ${task.story_points ?? "None"}
@@ -77,7 +77,7 @@ ${description}`;
  * @param status - The task status object (if available)
  * @param taskType - The task type object (if available)
  * @param sprint - The sprint object (if available)
- * @param assignee - The assignee member object (if available)
+ * @param assignees - The assignee member objects (if available)
  * @param reporter - The reporter member object (if available)
  * @param parentTask - The parent task object (if available)
  * @param subtasks - Array of subtasks (if available)
@@ -100,7 +100,7 @@ export function formatTaskDetail(
 	status?: TaskStatus,
 	taskType?: TaskType,
 	sprint?: Sprint,
-	assignee?: ProjectMember,
+	assignees?: ProjectMember[],
 	reporter?: ProjectMember,
 	parentTask?: Task,
 	subtasks?: Task[],
@@ -141,10 +141,14 @@ export function formatTaskDetail(
 		);
 	}
 
-	if (assignee || task.assignee_id) {
-		sections.push(
-			`**Assignee:** ${assignee ? `${assignee.full_name || assignee.username} (@${assignee.username})` : task.assignee_id || "Unassigned"}`,
-		);
+	if ((assignees && assignees.length > 0) || (task.assignee_ids && task.assignee_ids.length > 0)) {
+		const label =
+			assignees && assignees.length > 0
+				? assignees
+						.map((a) => `${a.full_name || a.username} (@${a.username})`)
+						.join(", ")
+				: (task.assignee_ids ?? []).join(", ") || "Unassigned";
+		sections.push(`**Assignees:** ${label}`);
 	}
 
 	if (reporter || task.reporter_id) {
@@ -200,7 +204,7 @@ export function formatTaskDetail(
 		sections.push("## Subtasks");
 		subtasks.forEach((subtask, index) => {
 			sections.push(
-				`${index + 1}. **${subtask.title}** (#${subtask.task_number}) - Status ID: ${subtask.status_id || "None"}, Type ID: ${subtask.task_type_id || "None"}, Assignee ID: ${subtask.assignee_id || "Unassigned"}`,
+				`${index + 1}. **${subtask.title}** (#${subtask.task_number}) - Status ID: ${subtask.status_id || "None"}, Type ID: ${subtask.task_type_id || "None"}, Assignee IDs: ${subtask.assignee_ids && subtask.assignee_ids.length > 0 ? subtask.assignee_ids.join(", ") : "Unassigned"}`,
 			);
 		});
 	}

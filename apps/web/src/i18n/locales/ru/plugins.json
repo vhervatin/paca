@@ -1,0 +1,40 @@
+{
+	"marketplace": {
+		"loading": "Загрузка маркетплейса...",
+		"searchPlaceholder": "Поиск плагинов",
+		"empty": "Плагины в маркетплейсе не найдены.",
+		"card": {
+			"installed": "Установлен",
+			"updateAvailable": "Доступно обновление",
+			"source": "Источник",
+			"upgrading": "Обновление...",
+			"upgradeTo": "Обновить до {{version}}",
+			"uninstalling": "Удаление...",
+			"uninstall": "Удалить",
+			"installing": "Установка...",
+			"install": "Установить",
+			"features": {
+				"backend": "Backend",
+				"frontend": "Frontend",
+				"migrations": "Миграции",
+				"mcp": "MCP"
+			}
+		}
+	},
+	"preferences": {
+		"empty": "Нет установленных плагинов с точками расширения.",
+		"actions": {
+			"show": "Показать",
+			"hide": "Скрыть"
+		},
+		"extensionPoints": {
+			"sidebarGeneral": "Боковая панель — общая",
+			"sidebarProject": "Боковая панель — проект",
+			"taskDetail": "Детали задачи",
+			"projectSettingsTab": "Вкладка настроек проекта",
+			"customView": "Пользовательское представление",
+			"projectPage": "Страница проекта",
+			"adminPage": "Страница администратора"
+		}
+	}
+}

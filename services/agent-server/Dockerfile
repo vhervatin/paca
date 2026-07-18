@@ -2,7 +2,7 @@
 # resolves from the local install instead of downloading the package on
 # every ephemeral sandbox container boot.
 #
-# Pinned to the commit tagged v1.30.0 upstream — NOT `:latest-python`. That
+# Pinned to the commit tagged v1.34.0 upstream — NOT `:latest-python`. That
 # floating tag tracks upstream's main branch continuously (built on every
 # commit), which runs ahead of their tagged PyPI releases: it was already
 # serving events with a `parent_id` field before openhands-sdk on PyPI even
@@ -13,7 +13,7 @@
 # When bumping openhands-sdk/openhands-tools in services/ai-agent's
 # pyproject.toml, bump this to the matching `<short-sha>-python` tag for that
 # same version's git tag in the same change — never independently.
-FROM ghcr.io/openhands/agent-server:d1595f7-python
+FROM ghcr.io/openhands/agent-server:2eff609-python
 
 # The base image runs as the unprivileged `openhands` user, which doesn't own
 # npm's global install dir — switch to root for the install, then drop back

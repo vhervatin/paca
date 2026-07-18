@@ -1,0 +1,1294 @@
+{
+	"project": {
+		"notFound": "Проект не найден или доступ запрещён.",
+		"settingsPage": {
+			"title": "Настройки",
+			"subtitle": "Настройте параметры проекта, роли и разрешения",
+			"nav": {
+				"general": "Общие",
+				"roles": "Роли",
+				"taskStatuses": "Статусы задач",
+				"taskTypes": "Типы задач",
+				"customFields": "Пользовательские поля",
+				"dangerZone": "Опасная зона",
+				"plugins": "Плагины"
+			}
+		}
+	},
+	"agents": {
+		"createDialog": {
+			"title": "Создать AI-агента",
+			"step1Description": "Настройте личность и роль агента",
+			"step2Description": "Настройте AI-модель, на которой работает агент",
+			"stepIndicator": "{{step}} / 2",
+			"startFromPreset": "Начать с пресета",
+			"nameLabel": "Имя",
+			"handleLabel": "Handle",
+			"handleHint": "Автоматически создаётся из имени. Используется для @упоминаний в комментариях.",
+			"projectRoleLabel": "Роль в проекте",
+			"projectRolePlaceholder": "Выберите роль проекта…",
+			"projectRoleHint": "Определяет, что агент может читать и изменять в этом проекте.",
+			"agentTypeLabel": "Тип агента",
+			"agentTypeLLM": "LLM (API-ключ)",
+			"agentTypeLLMHint": "Paca напрямую обращается к API модели и запускает агента в облачной песочнице.",
+			"agentTypeACP": "ACP (локальный CLI)",
+			"agentTypeACPHint": "Делегирует работу CLI для кода, который вы запускаете сами, — Claude Code, Codex, Gemini CLI или пользовательский ACP-сервер.",
+			"modelSection": "Модель",
+			"providerLabel": "Провайдер",
+			"modelLabel": "Модель",
+			"customOption": "Другая…",
+			"apiKeyLabel": "API-ключ",
+			"hideApiKey": "Скрыть API-ключ",
+			"showApiKey": "Показать API-ключ",
+			"apiKeyHint": "Хранится зашифрованным — никогда не возвращается в API-ответах.",
+			"baseUrlLabel": "Base URL",
+			"acpSection": "ACP-сервер",
+			"acpProviderLabel": "Провайдер",
+			"acpProviderClaudeCode": "Claude Code",
+			"acpProviderCodex": "Codex",
+			"acpProviderGeminiCli": "Gemini CLI",
+			"acpProviderCustom": "Другой…",
+			"acpCommandLabel": "Команда",
+			"acpCommandPlaceholder": "npx -y my-acp-server",
+			"acpCommandHint": "Команда через пробел, используемая для запуска вашего ACP-сервера.",
+			"acpGuidance": "Инструменты, MCP-серверы и навыки здесь не настраиваются — они берутся из локальных настроек вашего ACP-клиента, который работает с вашими собственными учётными данными git/gh (клонирование, push и открытие PR работают нативно). После создания агента мы проведём вас через подключение локального моста, установку навыка Paca и настройку MCP-сервера.",
+			"systemPromptLabel": "Системный промпт",
+			"optional": "(необязательно)",
+			"charsCount": "{{count}} символов",
+			"createFailed": "Не удалось создать агента. Попробуйте ещё раз.",
+			"cancel": "Отмена",
+			"continue": "Продолжить",
+			"back": "Назад",
+			"creating": "Создание…",
+			"createAgent": "Создать агента",
+			"namePlaceholder": "Dev Bot",
+			"systemPromptPlaceholder": "Вы — senior software engineer…"
+		},
+		"card": {
+			"configure": "Настроить",
+			"delete": "Удалить",
+			"acpStatusConnected": "В сети",
+			"acpStatusDisconnected": "Не в сети",
+			"deleteDialog": {
+				"title": "Удалить {{name}}?",
+				"description": "Агент будет удалён навсегда и убран из проекта. Запущенные диалоги будут остановлены.",
+				"cancel": "Отмена",
+				"delete": "Удалить"
+			}
+		},
+		"page": {
+			"title": "AI-агенты",
+			"subtitle": "Автономные агенты, которые работают над задачами и общаются с командой",
+			"newAgent": "Новый агент",
+			"empty": {
+				"title": "Агентов пока нет",
+				"description": "Добавьте AI-агента, чтобы автоматизировать задачи, ревью кода, написание документации и другое.",
+				"createFirstAgent": "Создать первого агента"
+			}
+		},
+		"acpSetup": {
+			"dialogTitle": "Подключите локальный ACP-мост",
+			"dialogDescription": "{{name}} готов — выполните эти шаги на своей машине, чтобы перевести агента в онлайн.",
+			"panelTitle": "Локальный мост",
+			"panelDescription": "Запустите ACP-сервер этого агента на своей машине и подключите его здесь.",
+			"statusConnected": "Подключено",
+			"statusDisconnected": "Не подключено",
+			"step1Title": "Установите ACP-мост",
+			"step1Description": "Требуется Python 3.12+. Установите демон один раз с помощью uv pip (или пропустите этот шаг — команда запуска ниже использует uvx, который получает его автоматически).",
+			"step2Title": "Запустите локальный мост",
+			"step2Description": "Создайте токен, затем выполните эту команду в папке вашего проекта.",
+			"noTokenYet": "Создайте токен, чтобы увидеть команду запуска.",
+			"generateToken": "Создать токен",
+			"regenerateToken": "Пересоздать токен",
+			"generating": "Создание…",
+			"generateFailed": "Не удалось создать токен. Попробуйте ещё раз.",
+			"tokenWarning": "Скопируйте сейчас — повторно он не будет показан.",
+			"copy": "Копировать",
+			"copied": "Скопировано!",
+			"step3Title": "Установите навык Paca",
+			"step3Description": "Позволяет вашему CLI направлять запросы через MCP-инструменты Paca — по умолчанию добавляется в каждый промпт через /paca.",
+			"step3NotAvailable": "Автоматическая установка доступна только для Claude Code. У {{provider}} пока нет известного установщика пользовательских промптов — инструменты MCP Paca ниже всё равно работают без этого.",
+			"step3ViewContent": "Посмотреть инструкции навыка",
+			"step4Title": "Подключите MCP-сервер",
+			"step4Description": "Использует личный API-ключ, чтобы CLI мог напрямую вызывать инструменты Paca.",
+			"step4ApiKeyLink": "Получить API-ключ",
+			"step4GenericHint": "Точные шаги для регистрации MCP-сервера зависят от CLI — {{provider}} обычно считывает это из собственного файла конфигурации. Используйте эту команду как образец:",
+			"customProviderLabel": "ваш собственный ACP-сервер",
+			"done": "Готово"
+		},
+		"detail": {
+			"tabs": {
+				"overview": "Обзор",
+				"mcpServers": "MCP-серверы",
+				"skills": "Навыки",
+				"envVars": "Окружение"
+			},
+			"overview": {
+				"nameLabel": "Имя",
+				"llmConfiguration": "Конфигурация LLM",
+				"providerLabel": "Провайдер",
+				"modelLabel": "Модель",
+				"customOption": "Другая…",
+				"apiKeyUpdateLabel": "Обновление API-ключа",
+				"apiKeyUpdateHint": "(оставьте пустым, чтобы сохранить текущий)",
+				"baseUrlLabel": "Base URL",
+				"gitCommitterIdentity": "Идентификация git-коммитера",
+				"gitCommitterHint": "Имя и email для коммитов, созданных этим агентом.",
+				"committerNameLabel": "Имя коммитера",
+				"committerEmailLabel": "Email коммитера",
+				"saveChanges": "Сохранить изменения",
+				"saved": "Сохранено",
+				"saveFailed": "Не удалось сохранить. Попробуйте ещё раз.",
+				"systemPromptLabel": "Системный промпт",
+				"acpConfiguration": "Конфигурация ACP",
+				"acpProviderLabel": "Провайдер",
+				"acpProviderClaudeCode": "Claude Code",
+				"acpProviderCodex": "Codex",
+				"acpProviderGeminiCli": "Gemini CLI",
+				"acpProviderCustom": "Другой…",
+				"acpCommandLabel": "Команда",
+				"acpCommandHint": "Команда через пробел, используемая для запуска вашего ACP-сервера.",
+				"acpGuidanceBanner": "Инструменты, MCP-серверы и навыки этого агента настраиваются в вашем локальном ACP-клиенте, который работает с вашими собственными учётными данными git/gh, — а не в Paca."
+			},
+			"mcp": {
+				"serverCount_one": "{{count}} сервер настроен",
+				"serverCount_few": "{{count}} сервера настроено",
+				"serverCount_many": "{{count}} серверов настроено",
+				"serverCount_other": "{{count}} сервера настроено",
+				"addServer": "Добавить сервер",
+				"empty": {
+					"title": "MCP-серверы не добавлены",
+					"addFirstServer": "Добавить первый сервер"
+				},
+				"addDialog": {
+					"title": "Добавить MCP-сервер",
+					"description": "Подключите MCP-сервер, чтобы расширить возможности агента.",
+					"serverNameLabel": "Название сервера",
+					"transportLabel": "Транспорт",
+					"commandLabel": "Команда",
+					"argsLabel": "Аргументы",
+					"argsHint": "(через пробел)",
+					"urlLabel": "URL",
+					"cancel": "Отмена",
+					"addServer": "Добавить сервер"
+				}
+			},
+			"envVars": {
+				"count_one": "{{count}} переменная настроена",
+				"count_few": "{{count}} переменные настроены",
+				"count_many": "{{count}} переменных настроено",
+				"count_other": "{{count}} переменные настроены",
+				"addVariable": "Добавить переменную",
+				"empty": {
+					"title": "Переменные окружения не добавлены",
+					"addFirst": "Добавить первую переменную"
+				},
+				"addDialog": {
+					"title": "Добавить переменную окружения",
+					"description": "Секретные значения хранятся в зашифрованном виде и передаются в песочницу агента во время выполнения. После сохранения значение больше нельзя будет посмотреть.",
+					"keyLabel": "Ключ",
+					"keyPlaceholder": "GITHUB_TOKEN",
+					"keyHint": "(буквы, цифры, подчёркивания — должно начинаться с буквы или подчёркивания)",
+					"valueLabel": "Значение",
+					"cancel": "Отмена",
+					"addVariable": "Добавить переменную"
+				}
+			},
+			"skills": {
+				"skillCount_one": "{{count}} навык подключён",
+				"skillCount_few": "{{count}} навыка подключено",
+				"skillCount_many": "{{count}} навыков подключено",
+				"skillCount_other": "{{count}} навыка подключено",
+				"addSkill": "Добавить навык",
+				"empty": {
+					"title": "Навыков пока нет",
+					"addFirstSkill": "Добавить первый навык"
+				},
+				"addDialog": {
+					"title": "Добавить навык",
+					"description": "Дайте агенту специальные инструкции или возможности.",
+					"skillNameLabel": "Название навыка",
+					"sourceLabel": "Источник",
+					"sourceInline": "Inline (написать содержимое здесь)",
+					"sourceMarketplace": "Маркетплейс",
+					"sourceGithubUrl": "GitHub URL",
+					"skillContentLabel": "Содержимое навыка (Markdown)",
+					"urlLabel": "URL",
+					"cancel": "Отмена",
+					"addSkill": "Добавить навык"
+				}
+			}
+		},
+		"conversationView": {
+			"stop": "Остановить",
+			"notFound": "Диалог не найден",
+			"chatSession": "Чат-сессия",
+			"taskSession": "Сессия задачи",
+			"pr": "PR",
+			"conversationEnded": "Этот диалог завершён.",
+			"textOnlyMessage": "Поддерживаются только текстовые сообщения.",
+			"failed": "Диалог завершился с ошибкой",
+			"noOutput": "Агент не выдал результат."
+		},
+		"thread": {
+			"composerPlaceholder": "Сообщение агенту…",
+			"welcomeHeading": "Чем я могу помочь?",
+			"messageInputAriaLabel": "Поле ввода сообщения",
+			"voiceInput": "Голосовой ввод",
+			"startVoiceInputAriaLabel": "Начать голосовой ввод",
+			"stopDictation": "Остановить надиктовку",
+			"stopVoiceInputAriaLabel": "Остановить голосовой ввод",
+			"sendMessage": "Отправить сообщение",
+			"stopGeneratingAriaLabel": "Остановить генерацию",
+			"assistantWorkingAriaLabel": "Ассистент работает",
+			"copy": "Копировать",
+			"refresh": "Обновить",
+			"more": "Ещё",
+			"edit": "Изменить",
+			"previous": "Предыдущее",
+			"next": "Следующее",
+			"exportAsMarkdown": "Экспортировать в Markdown",
+			"scrollToBottom": "Прокрутить вниз",
+			"cancel": "Отмена",
+			"update": "Обновить",
+			"reasoning": "Рассуждение",
+			"reasoningWithDuration": "Рассуждение ({{duration}} с)",
+			"toolCallCount_one": "{{count}} вызов инструмента",
+			"toolCallCount_few": "{{count}} вызова инструмента",
+			"toolCallCount_many": "{{count}} вызовов инструмента",
+			"toolCallCount_other": "{{count}} вызова инструмента",
+			"usedTool": "Использован инструмент",
+			"cancelledTool": "Инструмент отменён",
+			"resultLabel": "Результат:",
+			"errorLabel": "Ошибка:",
+			"cancelledReasonLabel": "Причина отмены:",
+			"approvedByUser": "Одобрено пользователем",
+			"deniedByUser": "Пользователь отклонил выполнение инструмента",
+			"allow": "Разрешить",
+			"alwaysAllow": "Всегда разрешать",
+			"deny": "Отклонить",
+			"alwaysDeny": "Всегда отклонять",
+			"confirm": "Подтвердить",
+			"back": "Назад",
+			"attachmentPreview": "Предпросмотр вложения",
+			"attachmentTypeImage": "Изображение",
+			"attachmentTypeDocument": "Документ",
+			"attachmentTypeFile": "Файл",
+			"removeFile": "Удалить файл",
+			"imageAttachmentPreviewTitle": "Предпросмотр вложенного изображения",
+			"attachmentAriaLabel": "Вложение: {{type}}",
+			"attachmentAriaLabelError": "Вложение: {{type}}, ошибка загрузки",
+			"attachmentAriaLabelUploading": "Вложение: {{type}}, загружается"
+		}
+	},
+	"docs": {
+		"editorPage": {
+			"notFound": {
+				"title": "Документ не найден",
+				"description": "Возможно, документ был удалён или ссылка недействительна."
+			},
+			"unsaved": "Не сохранено",
+			"saving": "Сохранение…",
+			"saved": "Сохранено",
+			"commentsAndActivity": "Комментарии и активность"
+		},
+		"activity": {
+			"created": "создал(а) этот документ",
+			"updated": "обновил(а) документ",
+			"updatedFields": "обновил(а) {{fields}}",
+			"deleted": "удалил(а) документ",
+			"moved": "переместил(а) документ",
+			"contentChangeDiff": "Diff изменения содержимого"
+		}
+	},
+	"roles": {
+		"deleteDialog": {
+			"title": "Удалить роль",
+			"confirmTextPrefix": "Вы уверены, что хотите удалить",
+			"confirmTextSuffix": "? Все участники с этой ролью потеряют доступ. Это действие нельзя отменить.",
+			"cancel": "Отмена",
+			"deleteRole": "Удалить роль",
+			"errors": {
+				"notFound": "Эта роль больше не существует.",
+				"hasMembers": "Эту роль нельзя удалить, потому что она всё ещё назначена одному или нескольким участникам.",
+				"forbidden": "У вас нет прав на удаление этой роли.",
+				"internalError": "Что-то пошло не так. Попробуйте ещё раз.",
+				"generic": "Что-то пошло не так."
+			}
+		},
+		"formDialog": {
+			"editTitle": "Редактировать роль",
+			"createTitle": "Новая роль",
+			"editDescription": "Обновите название роли и настройте выданные разрешения.",
+			"createDescription": "Определите новую проектную роль и настройте, какие разрешения она даёт участникам.",
+			"roleNameLabel": "Название роли",
+			"roleNamePlaceholder": "например, PROJECT_REVIEWER",
+			"permissionsLabel": "Разрешения",
+			"enabledCount_one": "{{count}} включено",
+			"enabledCount_few": "{{count}} включено",
+			"enabledCount_many": "{{count}} включено",
+			"enabledCount_other": "{{count}} включено",
+			"cancel": "Отмена",
+			"saveChanges": "Сохранить изменения",
+			"createRole": "Создать роль",
+			"errors": {
+				"nameTaken": "Роль с таким названием уже существует.",
+				"nameInvalid": "Название роли должно содержать заглавные буквы, цифры и подчёркивания.",
+				"notFound": "Эта роль больше не существует. Возможно, она уже удалена.",
+				"forbidden": "У вас нет прав на это действие.",
+				"internalError": "На сервере что-то пошло не так. Попробуйте ещё раз.",
+				"generic": "Что-то пошло не так."
+			}
+		},
+		"permissions": {
+			"projectsRead": {
+				"label": "Читать проект",
+				"description": "Просматривать данные и настройки проекта"
+			},
+			"projectsWrite": {
+				"label": "Редактировать проект",
+				"description": "Обновлять название, описание и настройки проекта"
+			},
+			"projectsDelete": {
+				"label": "Удалять проект",
+				"description": "Навсегда удалить этот проект"
+			},
+			"membersRead": {
+				"label": "Просматривать участников",
+				"description": "Смотреть список и профили участников проекта"
+			},
+			"membersWrite": {
+				"label": "Управлять участниками",
+				"description": "Добавлять, удалять и переназначать участников проекта"
+			},
+			"rolesRead": {
+				"label": "Просматривать роли",
+				"description": "Смотреть список и определения ролей проекта"
+			},
+			"rolesWrite": {
+				"label": "Управлять ролями",
+				"description": "Создавать, редактировать и удалять роли проекта"
+			},
+			"tasksRead": {
+				"label": "Просматривать задачи",
+				"description": "Открывать и читать задачи в проекте"
+			},
+			"tasksWrite": {
+				"label": "Редактировать задачи",
+				"description": "Создавать, обновлять и перемещать задачи"
+			},
+			"sprintsRead": {
+				"label": "Просматривать спринты",
+				"description": "Открывать доски спринтов и бэклоги"
+			},
+			"sprintsWrite": {
+				"label": "Управлять спринтами",
+				"description": "Создавать, обновлять и закрывать спринты"
+			},
+			"docsRead": {
+				"label": "Просматривать документы",
+				"description": "Открывать и читать документы проекта"
+			},
+			"docsWrite": {
+				"label": "Редактировать документы",
+				"description": "Создавать, обновлять и удалять документы и папки"
+			},
+			"agentsRead": {
+				"label": "Просматривать агентов",
+				"description": "Просматривать AI-агентов и их конфигурацию"
+			},
+			"agentsWrite": {
+				"label": "Управлять агентами",
+				"description": "Создавать, настраивать и удалять AI-агентов"
+			},
+			"workflowsRead": {
+				"label": "Просмотр workflow",
+				"description": "Просмотр workflow автоматизации и их настроек"
+			},
+			"workflowsWrite": {
+				"label": "Управление workflow",
+				"description": "Создание, редактирование, активация и удаление workflow автоматизации"
+			}
+		},
+		"permissionGroups": {
+			"project": "Проект",
+			"members": "Участники",
+			"roles": "Роли",
+			"tasks": "Задачи",
+			"sprints": "Спринты",
+			"documents": "Документы",
+			"aiAgents": "AI-агенты",
+			"workflows": "Автоматизация",
+			"plugins": "Плагины"
+		}
+	},
+	"settings": {
+		"general": {
+			"title": "Общие",
+			"projectNameLabel": "Название проекта",
+			"projectNamePlaceholder": "Мой отличный проект",
+			"taskIdPrefixLabel": "Префикс ID задач",
+			"taskIdPrefixHint": "например, PACA → PACA-1, PACA-2…",
+			"taskIdPrefixPlaceholder": "PROJ",
+			"descriptionLabel": "Описание",
+			"descriptionPlaceholder": "Опишите, о чём этот проект…",
+			"publicProjectLabel": "Публичный проект",
+			"publicProjectHintPublic": "Любой, у кого есть ссылка, сможет просматривать этот проект. Анонимным пользователям доступен только просмотр.",
+			"publicProjectHintPrivate": "Доступ есть только у участников команды.",
+			"saveChanges": "Сохранить изменения",
+			"saved": "Сохранено ✓",
+			"noPermission": "У вас нет прав на редактирование этого проекта.",
+			"errors": {
+				"nameTaken": "Проект с таким названием уже существует.",
+				"nameInvalid": "Название проекта пустое или некорректное.",
+				"prefixInvalid": "Префикс должен содержать 1–10 заглавных букв/цифр (например, PACA).",
+				"updateFailed": "Не удалось обновить проект. Попробуйте ещё раз."
+			}
+		},
+		"roles": {
+			"title": "Роли проекта",
+			"description": "Управляйте ролями и разрешениями участников этого проекта.",
+			"newRole": "Новая роль",
+			"noPermissionsAssigned": "Разрешения не назначены",
+			"editRole": "Редактировать роль",
+			"deleteRole": "Удалить роль",
+			"rolesDefined_one": "роль создана",
+			"rolesDefined_few": "роли созданы",
+			"rolesDefined_many": "ролей создано",
+			"rolesDefined_other": "роли создано",
+			"permissionGrants": "выданных разрешений во всех ролях",
+			"empty": {
+				"title": "Роли ещё не созданы",
+				"description": "Создайте первую роль, чтобы назначать разрешения участникам.",
+				"createRole": "Создать роль"
+			},
+			"table": {
+				"name": "Название",
+				"permissions": "Разрешения",
+				"created": "Создана"
+			},
+			"systemRolesNote": "Системные роли являются общими шаблонами, их нельзя редактировать или удалять."
+		},
+		"taskStatuses": {
+			"title": "Статусы задач",
+			"description": "Определите workflow-статусы, через которые проходят задачи в этом проекте.",
+			"newStatus": "Новый статус",
+			"reorderFailed": "Не удалось сохранить новый порядок. Попробуйте ещё раз.",
+			"empty": {
+				"title": "Статусы не определены",
+				"description": "Создайте статусы, чтобы задать workflow задач в этом проекте.",
+				"createStatus": "Создать статус"
+			},
+			"table": {
+				"name": "Название",
+				"category": "Категория",
+				"default": "По умолчанию"
+			},
+			"default": "По умолчанию",
+			"setAsDefault": "Сделать статусом по умолчанию",
+			"editStatus": "Редактировать статус",
+			"deleteStatus": "Удалить статус"
+		},
+		"taskTypes": {
+			"title": "Типы задач",
+			"description": "Категоризируйте задачи пользовательскими типами (например, Bug, Feature, Story).",
+			"newType": "Новый тип",
+			"empty": {
+				"title": "Типы задач не определены",
+				"description": "Создайте типы, чтобы категоризировать задачи — например Bug, Feature, Story.",
+				"createType": "Создать тип"
+			},
+			"table": {
+				"icon": "Иконка",
+				"name": "Название",
+				"description": "Описание",
+				"default": "По умолчанию"
+			},
+			"default": "По умолчанию",
+			"setAsDefault": "Сделать типом по умолчанию",
+			"editType": "Редактировать тип",
+			"deleteType": "Удалить тип"
+		},
+		"customFields": {
+			"title": "Пользовательские поля",
+			"description": "Определите поля задач на уровне проекта, чтобы расширить задачи данными под ваш workflow.",
+			"newField": "Новое пользовательское поле",
+			"empty": {
+				"title": "Пользовательских полей пока нет",
+				"description": "Пользовательские поля позволяют хранить данные под ваш workflow — спринты, уровни критичности, релизные теги и многое другое.",
+				"createFirstField": "Создать первое поле"
+			},
+			"table": {
+				"displayName": "Отображаемое имя",
+				"fieldKey": "Ключ поля",
+				"type": "Тип",
+				"required": "Обязательное"
+			},
+			"yes": "Да",
+			"no": "Нет",
+			"editField": "Редактировать поле",
+			"deleteField": "Удалить поле",
+			"cancel": "Отмена",
+			"saveChanges": "Сохранить изменения",
+			"displayNameLabel": "Отображаемое имя",
+			"displayNamePlaceholder": "например, Release Tag",
+			"fieldKeyLabel": "Ключ поля",
+			"fieldKeyHint": "Используется как идентификатор в API и экспортах данных.",
+			"fieldKeyImmutableHint": "Ключ поля нельзя изменить после создания.",
+			"fieldTypeLabel": "Тип поля",
+			"fieldTypeImmutableHint": "Тип поля нельзя изменить после создания.",
+			"optionsLabel": "Опции",
+			"addOptionPlaceholder": "Добавить опцию…",
+			"addOption": "Добавить",
+			"requiredLabel": "Обязательное",
+			"requiredHint": "Пользователи должны заполнять это поле при создании или редактировании задачи.",
+			"fieldTypes": {
+				"text": "Текст",
+				"number": "Число",
+				"date": "Дата",
+				"checkbox": "Чекбокс",
+				"select": "Выбор",
+				"multiSelect": "Множественный выбор",
+				"url": "URL"
+			},
+			"createDialog": {
+				"title": "Создать пользовательское поле",
+				"description": "Определите новое поле для дополнительных данных задач в этом проекте.",
+				"createField": "Создать поле",
+				"errors": {
+					"keyTaken": "Поле с таким ключом уже существует в проекте.",
+					"keyInvalid": "Ключ поля пустой или некорректный.",
+					"nameInvalid": "Отображаемое имя пустое или некорректное.",
+					"createFailed": "Не удалось создать поле. Попробуйте ещё раз."
+				}
+			},
+			"editDialog": {
+				"title": "Редактировать пользовательское поле",
+				"description": "Обновите настройки поля.",
+				"errors": {
+					"nameInvalid": "Отображаемое имя пустое или некорректное.",
+					"saveFailed": "Не удалось сохранить изменения. Попробуйте ещё раз."
+				}
+			},
+			"deleteDialog": {
+				"title": "Удалить пользовательское поле",
+				"confirmTextPrefix": "Удалить",
+				"confirmTextSuffix": "? Данные задач, сохранённые в этом поле, будут потеряны. Это действие нельзя отменить.",
+				"deleteFailed": "Не удалось удалить поле. Попробуйте ещё раз.",
+				"deleteField": "Удалить поле"
+			}
+		},
+		"dangerZone": {
+			"title": "Опасная зона",
+			"deleteProjectTitle": "Удалить этот проект",
+			"deleteProjectDescription": "Навсегда удалить проект и все его данные. Это действие нельзя отменить.",
+			"deleteProjectButton": "Удалить проект",
+			"deleteDialog": {
+				"title": "Удалить проект",
+				"confirmTextPrefix": "Это навсегда удалит",
+				"confirmTextSuffix": "и все его данные, включая участников, роли и взаимодействия. Это действие нельзя отменить.",
+				"typeToConfirmPrefix": "Введите",
+				"typeToConfirmSuffix": "для подтверждения",
+				"deleteFailed": "Не удалось удалить проект. Попробуйте ещё раз.",
+				"cancel": "Отмена",
+				"deletePermanently": "Удалить навсегда"
+			}
+		}
+	},
+	"taskStatuses": {
+		"deleteDialog": {
+			"title": "Удалить статус",
+			"confirmTextPrefix": "Удалить",
+			"confirmTextSuffix": "? Задачи с этим статусом потеряют статус. Это действие нельзя отменить.",
+			"deleteFailed": "Не удалось удалить статус. Попробуйте ещё раз.",
+			"cancel": "Отмена",
+			"deleteStatus": "Удалить статус"
+		},
+		"formDialog": {
+			"editTitle": "Редактировать статус",
+			"createTitle": "Создать статус",
+			"editDescription": "Обновите этот workflow-статус.",
+			"createDescription": "Добавьте новый статус в workflow проекта.",
+			"nameLabel": "Название",
+			"namePlaceholder": "например, На ревью",
+			"categoryLabel": "Категория",
+			"colorLabel": "Цвет",
+			"customColorTitle": "Пользовательский цвет",
+			"cancel": "Отмена",
+			"saveChanges": "Сохранить изменения",
+			"createStatus": "Создать статус",
+			"errors": {
+				"nameInvalid": "Название статуса пустое или некорректное.",
+				"categoryInvalid": "Выбрана некорректная категория.",
+				"saveFailed": "Не удалось сохранить статус. Попробуйте ещё раз."
+			}
+		}
+	},
+	"team": {
+		"title": "Команда",
+		"subtitle": "Управляйте участниками проекта и ролями",
+		"addMember": "Добавить участника",
+		"memberCount_one": "{{count}} участник",
+		"memberCount_few": "{{count}} участника",
+		"memberCount_many": "{{count}} участников",
+		"memberCount_other": "{{count}} участника",
+		"empty": {
+			"title": "Участников пока нет",
+			"description": "Добавьте людей или AI-агентов в этот проект, чтобы начать.",
+			"addFirstMember": "Добавить первого участника"
+		},
+		"addMemberDialog": {
+			"title": "Добавить участника",
+			"description": "Выберите пользователя и назначьте ему роль в этом проекте.",
+			"userLabel": "Пользователь",
+			"change": "Изменить",
+			"searchPlaceholder": "Поиск по имени или username…",
+			"noUsersMatch": "Пользователи по запросу не найдены.",
+			"noUsersAvailable": "Нет пользователей, которых можно добавить.",
+			"roleLabel": "Роль",
+			"rolePlaceholder": "Выберите роль…",
+			"cancel": "Отмена",
+			"addMember": "Добавить участника",
+			"errors": {
+				"addFailed": "Не удалось добавить участника. Попробуйте ещё раз."
+			}
+		},
+		"roleChip": {
+			"changeRole": "Изменить роль",
+			"changeFailed": "Не удалось изменить роль."
+		},
+		"memberRow": {
+			"removeMember": "Удалить участника"
+		},
+		"removeDialog": {
+			"title": "Удалить участника",
+			"removePrefix": "Удалить",
+			"fromInfix": "из",
+			"confirmSuffix": "? Доступ будет потерян сразу.",
+			"removeFailed": "Не удалось удалить участника. Попробуйте ещё раз.",
+			"cancel": "Отмена",
+			"remove": "Удалить"
+		}
+	},
+	"aiChat": {
+		"chatWithAgent": "Чат с AI-агентом",
+		"newConversation": "Новый диалог",
+		"agentLabel": "Агент",
+		"noAgentsConfigured": "Для этого проекта агенты не настроены.",
+		"selectAgentPlaceholder": "Выберите агента…",
+		"selectAgentFirst": "Сначала выберите агента."
+	},
+	"taskTypes": {
+		"deleteDialog": {
+			"title": "Удалить тип задачи",
+			"confirmTextPrefix": "Удалить",
+			"confirmTextSuffix": "? Задачи с этим типом потеряют назначенный тип. Это действие нельзя отменить.",
+			"deleteFailed": "Не удалось удалить тип задачи. Попробуйте ещё раз.",
+			"cancel": "Отмена",
+			"deleteType": "Удалить тип"
+		},
+		"formDialog": {
+			"editTitle": "Редактировать тип задачи",
+			"createTitle": "Создать тип задачи",
+			"editDescription": "Обновите этот тип задачи.",
+			"createDescription": "Добавьте новый тип для категоризации задач в этом проекте.",
+			"nameLabel": "Название",
+			"namePlaceholder": "например, Bug, Feature, Story",
+			"iconLabel": "Иконка",
+			"optional": "(необязательно)",
+			"clear": "Очистить",
+			"colorLabel": "Цвет",
+			"customColorTitle": "Пользовательский цвет",
+			"descriptionLabel": "Описание",
+			"descriptionPlaceholder": "Опишите, когда использовать этот тип…",
+			"cancel": "Отмена",
+			"saveChanges": "Сохранить изменения",
+			"createType": "Создать тип",
+			"errors": {
+				"nameInvalid": "Название типа пустое или некорректное.",
+				"saveFailed": "Не удалось сохранить тип задачи. Попробуйте ещё раз."
+			}
+		}
+	},
+	"taskDetail": {
+		"common": {
+			"empty": "Пусто",
+			"dash": "—",
+			"unassigned": "Не назначено"
+		},
+		"notFound": {
+			"title": "Задача не найдена",
+			"description": "Возможно, задача была удалена или ссылка недействительна.",
+			"ariaLabel": "Детали задачи",
+			"backToProject": "Назад к проекту",
+			"projectFallback": "Проект"
+		},
+		"header": {
+			"created": "Создана {{date}}",
+			"copied": "Скопировано!",
+			"share": "Поделиться",
+			"taskActions": "Действия с задачей",
+			"delete": "Удалить",
+			"closeTaskDetail": "Закрыть детали задачи",
+			"deleteDialog": {
+				"title": "Удалить задачу?",
+				"description": "Задача \"{{title}}\" и все её данные будут удалены навсегда. Это действие нельзя отменить.",
+				"cancel": "Отмена",
+				"delete": "Удалить"
+			}
+		},
+		"properties": {
+			"title": "Свойства",
+			"status": "Статус",
+			"dates": "Даты",
+			"type": "Тип",
+			"assignees": "Исполнители",
+			"importance": "Важность",
+			"none": "Нет",
+			"storyPoints": "Story Points",
+			"tags": "Теги",
+			"reporter": "Автор",
+			"sprint": "Спринт",
+			"productBacklog": "Бэклог продукта",
+			"epic": "Эпик",
+			"viewEpic": "Открыть эпик",
+			"removeEpic": "Убрать эпик",
+			"parent": "Родительская",
+			"viewParent": "Открыть родительскую",
+			"removeParent": "Убрать родительскую",
+			"addFields": "Добавить поля"
+		},
+		"description": {
+			"title": "Описание",
+			"writeWithAI": "Написать с AI",
+			"writeWithAIDialog": {
+				"title": "Написать с AI",
+				"description": "Выберите агента, который напишет описание задачи.",
+				"noAgents": "Для этого проекта агенты не настроены.",
+				"cancel": "Отмена",
+				"starting": "Запуск...",
+				"writeButton": "Написать описание"
+			}
+		},
+		"subtasks": {
+			"title": "Подзадачи",
+			"addButton": "Добавить подзадачу",
+			"titlePlaceholder": "Название подзадачи…",
+			"empty": "Подзадач пока нет"
+		},
+		"links": {
+			"title": "Связанные задачи",
+			"addButton": "Добавить связь",
+			"openTask": "Открыть задачу",
+			"removeLink": "Удалить связь",
+			"empty": "Связанных задач нет"
+		},
+		"workflows": {
+			"title": "Автоматизация",
+			"open": "Открыть workflow",
+			"empty": "Пока нет workflow"
+		},
+		"attachments": {
+			"title": "Вложения",
+			"uploadLabel": "Загрузить вложение",
+			"dropZoneTitle": "Перетащите файлы сюда для загрузки",
+			"dropZoneSubtitle": "или нажмите для выбора",
+			"previewLabel": "Предпросмотр {{fileName}}",
+			"downloadLabel": "Скачать {{fileName}}",
+			"deleteLabel": "Удалить {{fileName}}",
+			"unitBytes_one": "{{count}} Б",
+			"unitBytes_few": "{{count}} Б",
+			"unitBytes_many": "{{count}} Б",
+			"unitBytes_other": "{{count}} Б",
+			"unitKilobytes": "{{value}} КБ",
+			"unitMegabytes": "{{value}} МБ"
+		},
+		"addFieldDialog": {
+			"title": "Создать пользовательское поле",
+			"displayNameLabel": "Отображаемое имя",
+			"displayNamePlaceholder": "например, Release Tag",
+			"fieldKeyLabel": "Ключ поля",
+			"fieldKeyPlaceholder": "release_tag",
+			"fieldTypeLabel": "Тип поля",
+			"requiredLabel": "Обязательное",
+			"cancel": "Отмена",
+			"creating": "Создание…",
+			"createField": "Создать поле",
+			"fieldTypes": {
+				"text": "Текст",
+				"number": "Число",
+				"date": "Дата",
+				"checkbox": "Чекбокс",
+				"select": "Выбор",
+				"multiSelect": "Множественный выбор",
+				"url": "URL"
+			}
+		},
+		"addTaskLinkModal": {
+			"title": "Связать задачу",
+			"relationship": "Связь",
+			"searchPlaceholder": "Поиск задач по названию или номеру...",
+			"loadingTasks": "Загрузка задач…",
+			"noTasksFound": "Задачи не найдены",
+			"linkTypes": {
+				"blocks": {
+					"label": "Блокирует",
+					"description": "Эту задачу нужно завершить раньше другой"
+				},
+				"isBlockedBy": {
+					"label": "Заблокирована",
+					"description": "Эта задача не может начаться, пока другая не завершена"
+				},
+				"relatesTo": {
+					"label": "Связана с",
+					"description": "Эти задачи связаны, но не зависят друг от друга"
+				},
+				"duplicates": {
+					"label": "Дублирует",
+					"description": "Эта задача является дублем другой"
+				}
+			}
+		},
+		"propertyField": {
+			"dateEditor": {
+				"datePlaceholder": "Дата",
+				"clearDate": "Очистить дату",
+				"startDate": "Дата начала",
+				"dueDate": "Срок"
+			},
+			"storyPointsEditor": {
+				"decrease": "Уменьшить story points",
+				"increase": "Увеличить story points"
+			},
+			"tagsEditor": {
+				"addTag": "Добавить тег",
+				"addTagPlaceholder": "Добавить тег..."
+			},
+			"multiSelectEditor": {
+				"addOption": "Добавить опцию"
+			}
+		},
+		"panel": {
+			"priority": "Приоритет",
+			"assignee": "Исполнитель",
+			"assigned": "Назначено",
+			"sprint": "Спринт",
+			"created": "Создана",
+			"updated": "Обновлена"
+		},
+		"activity": {
+			"none": "нет",
+			"system": "Система",
+			"created": "создал(а) эту задачу",
+			"deleted": "удалил(а) эту задачу",
+			"updated": "обновил(а) эту задачу",
+			"changedStatus": "изменил(а) статус с \"{{oldVal}}\" на \"{{newVal}}\"",
+			"setStatus": "установил(а) статус \"{{newVal}}\"",
+			"clearedStatus": "очистил(а) статус",
+			"changedType": "изменил(а) тип с \"{{oldVal}}\" на \"{{newVal}}\"",
+			"setType": "установил(а) тип \"{{newVal}}\"",
+			"clearedType": "очистил(а) тип",
+			"renamed": "переименовал(а) с \"{{oldVal}}\" на \"{{newVal}}\"",
+			"setTitle": "установил(а) название \"{{newVal}}\"",
+			"changedPriority": "изменил(а) приоритет с {{oldVal}} на {{newVal}}",
+			"setPriority": "установил(а) приоритет {{newVal}}",
+			"changedAssignee": "изменил(а) исполнителя с {{oldName}} на {{newName}}",
+			"assignedTo": "назначил(а) {{newName}}",
+			"removedAssignee": "убрал(а) исполнителя {{oldName}}",
+			"changedReporter": "изменил(а) автора с {{oldName}} на {{newName}}",
+			"setReporter": "установил(а) автора {{newName}}",
+			"removedReporter": "убрал(а) автора {{oldName}}",
+			"movedSprint": "переместил(а) из спринта \"{{oldSprint}}\" в \"{{newSprint}}\"",
+			"addedToSprint": "добавил(а) в спринт \"{{newSprint}}\"",
+			"removedFromSprint": "убрал(а) из спринта \"{{oldSprint}}\"",
+			"setParentTask": "установил(а) родительскую задачу",
+			"removedParentTask": "удалил(а) родительскую задачу",
+			"changedDueDate": "изменил(а) срок с {{oldVal}} на {{newVal}}",
+			"setDueDate": "установил(а) срок {{newVal}}",
+			"removedDueDate": "убрал(а) срок",
+			"changedStartDate": "изменил(а) дату начала с {{oldVal}} на {{newVal}}",
+			"setStartDate": "установил(а) дату начала {{newVal}}",
+			"removedStartDate": "убрал(а) дату начала",
+			"updatedDescription": "обновил(а) описание",
+			"updatedTags": "обновил(а) теги",
+			"updatedCustomFields": "обновил(а) пользовательские поля",
+			"updatedField": "обновил(а) {{field}}",
+			"addedAttachment": "добавил(а) вложение",
+			"addedAttachmentNamed": "добавил(а) вложение: {{fileName}}",
+			"removedAttachment": "удалил(а) вложение",
+			"removedAttachmentNamed": "удалил(а) вложение: {{fileName}}",
+			"linkTypeBlocks": "блокирует",
+			"linkTypeRelatedTo": "связана с",
+			"linkTypeDuplicates": "дублирует",
+			"addedTaskLink": "добавил(а) связь задачи ({{linkType}})",
+			"removedTaskLink": "удалил(а) связь задачи",
+			"startedAiSession": "запустил(а) AI-сессию",
+			"watchSession": "Смотреть сессию",
+			"madeChange": "внёс(ла) изменение",
+			"descriptionChangeDiff": "Diff изменения описания"
+		}
+	},
+	"board": {
+		"common": {
+			"none": "Нет"
+		},
+		"view": {
+			"noTasks": "Нет задач",
+			"loading": "Загрузка…",
+			"viewMore": "Показать ещё",
+			"expandColumn": "Развернуть колонку",
+			"collapseColumn": "Свернуть колонку"
+		},
+		"taskCard": {
+			"unassigned": "Не назначено",
+			"priorityLabel": "Приоритет",
+			"reporterTitle": "Автор",
+			"epicLabel": "Эпик",
+			"noEpic": "Без эпика",
+			"storyPointsTitle": "Story Points"
+		},
+		"listGroup": {
+			"columnHeaders": {
+				"id": "ID",
+				"title": "Название"
+			},
+			"loading": "Загрузка…",
+			"viewMore": "Показать ещё",
+			"startSprint": "Начать спринт",
+			"newSprint": "Новый спринт",
+			"noTasks": "Нет задач"
+		},
+		"taskRow": {
+			"columnHeaders": {
+				"type": "Тип",
+				"importance": "Важность",
+				"storyPoints": "SP",
+				"status": "Статус",
+				"assignee": "Исполнитель",
+				"reporter": "Автор",
+				"startDate": "Дата начала",
+				"dueDate": "Срок",
+				"epic": "Эпик",
+				"created": "Создана"
+			},
+			"unassigned": "Не назначено",
+			"noEpic": "Без эпика"
+		},
+		"addTaskRow": {
+			"addTask": "Добавить задачу",
+			"placeholder": "Название задачи…",
+			"cancel": "Отмена",
+			"create": "Создать"
+		},
+		"taskTypeSelector": {
+			"noType": "—"
+		},
+		"backlog": {
+			"title": "Бэклог продукта",
+			"description": "Все элементы работы, не назначенные в спринт."
+		}
+	},
+	"conversationsPage": {
+		"title": "Диалоги",
+		"triggerChat": "Чат",
+		"triggerWriteDescription": "Написать описание",
+		"triggerTask": "Задача",
+		"iterations_one": "{{count}} итерация",
+		"iterations_few": "{{count}} итерации",
+		"iterations_many": "{{count}} итераций",
+		"iterations_other": "{{count}} итерации",
+		"prOpened": "PR открыт",
+		"list": {
+			"empty": {
+				"title": "Диалогов пока нет",
+				"description": "Диалоги начинаются, когда задача назначена агенту или кто-то пишет ему сообщение."
+			}
+		},
+		"detail": {
+			"empty": {
+				"title": "Диалог не выбран",
+				"description": "Выберите диалог из списка, чтобы просмотреть его."
+			}
+		}
+	},
+	"layout": {
+		"shell": {
+			"newSprint": "Новый спринт",
+			"renameView": "Переименовать представление",
+			"deleteView": "Удалить представление",
+			"searchTasksPlaceholder": "Поиск задач…",
+			"pluginNotAvailable": "Плагин недоступен"
+		},
+		"viewSettings": {
+			"viewSettingsAriaLabel": "Настройки представления",
+			"title": "Настройки представления",
+			"chooseFields": "Выбрать поля",
+			"back": "← Назад",
+			"clearFilters": "Очистить фильтры",
+			"display": "Отображение",
+			"filters": "Фильтры",
+			"noSelection": "—",
+			"titleField": "Название",
+			"fieldsLabel": "Поля",
+			"columnByLabel": "Колонки по",
+			"swimlanesLabel": "Дорожки",
+			"sortByLabel": "Сортировать по",
+			"fieldSumLabel": "Сумма поля",
+			"initialSizeLabel": "Начальный размер",
+			"perPageLabel": "На странице",
+			"sprintsLabel": "Спринты",
+			"statusesLabel": "Статусы",
+			"assigneesLabel": "Исполнители",
+			"taskTypesLabel": "Типы задач",
+			"startDateLabel": "Дата начала",
+			"dueDateLabel": "Срок",
+			"importanceLabel": "Важность",
+			"storyPointsLabel": "Story Points",
+			"tagsLabel": "Теги",
+			"reset": "Сбросить",
+			"saving": "Сохранение…",
+			"save": "Сохранить",
+			"sprintFilter": {
+				"noSprints": "Нет спринтов",
+				"allSprints": "Все спринты"
+			},
+			"statusFilter": {
+				"noStatuses": "Нет статусов",
+				"allStatuses": "Все статусы",
+				"clear": "Очистить",
+				"all": "Все"
+			},
+			"assigneeFilter": {
+				"allAssignees": "Все исполнители",
+				"noMembers": "Нет участников",
+				"unassigned": "Не назначено"
+			},
+			"taskTypeFilter": {
+				"normalTypes": "Обычные типы",
+				"allNormalTypesDynamic": "Все обычные типы (динамически)",
+				"systemTypes": "Системные типы",
+				"noTaskTypes": "Нет типов задач"
+			},
+			"customFieldFilter": {
+				"allValues": "Все значения",
+				"noOptions": "Нет вариантов",
+				"min": "Мин",
+				"max": "Макс",
+				"containsPlaceholder": "Содержит…"
+			},
+			"importanceFilter": {
+				"allLevels": "Все уровни"
+			},
+			"tagsFilter": {
+				"addTag": "Добавить тег",
+				"addTagPlaceholder": "Добавить тег..."
+			}
+		},
+		"roadmap": {
+			"taskColumnLabel": "Задача",
+			"noTasksToDisplay": "Нет задач для отображения",
+			"noDatesSet": "Даты не заданы",
+			"dateRangeTooltip": "{{start}} → {{end}}",
+			"startDateTooltip": "Начало: {{date}}",
+			"dueDateTooltip": "Срок: {{date}}",
+			"loading": "Загрузка…",
+			"viewMore": "Показать ещё"
+		},
+		"newViewPopover": {
+			"addView": "Добавить представление",
+			"addViewAriaLabel": "Добавить представление",
+			"title": "Новое представление",
+			"viewNameLabel": "Название представления",
+			"defaultName": "Новый {{layout}}",
+			"layoutLabel": "Макет",
+			"creating": "Создание…",
+			"createView": "Создать представление",
+			"layouts": {
+				"board": "Доска",
+				"table": "Таблица",
+				"roadmap": "Roadmap",
+				"plugin": "Плагин"
+			}
+		},
+		"renameViewDialog": {
+			"title": "Переименовать представление",
+			"cancel": "Отмена",
+			"renaming": "Переименование…",
+			"rename": "Переименовать"
+		},
+		"startSprintModal": {
+			"title": "Начать спринт",
+			"nameLabel": "Название",
+			"goalLabel": "Цель",
+			"optional": "(необязательно)",
+			"goalPlaceholder": "Чего должен достичь этот спринт?",
+			"startDateLabel": "Дата начала",
+			"endDateLabel": "Дата окончания",
+			"cancel": "Отмена",
+			"starting": "Запуск…",
+			"startSprint": "Начать спринт"
+		},
+		"timeline": {
+			"title": "Таймлайн",
+			"description": "Эпики и долгосрочное планирование на roadmap."
+		},
+		"sprintDetail": {
+			"notFound": "Спринт не найден или доступ запрещён.",
+			"statusActive": "Активный",
+			"statusPlanned": "Запланирован",
+			"statusCompleted": "Завершён",
+			"description": "{{status}} спринт",
+			"descriptionWithStartDate": "{{status}} спринт · начат {{date}}",
+			"completeSprint": "Завершить спринт",
+			"completeSprintModal": {
+				"title": "Завершить спринт",
+				"willBeMovedTo_one": "{{count}} незавершённая задача будет перемещена в:",
+				"willBeMovedTo_few": "{{count}} незавершённые задачи будут перемещены в:",
+				"willBeMovedTo_many": "{{count}} незавершённых задач будет перемещено в:",
+				"willBeMovedTo_other": "{{count}} незавершённой задачи будет перемещено в:",
+				"noIncompleteTasks": "В этом спринте не осталось незавершённых задач.",
+				"productBacklog": "Бэклог продукта",
+				"unassignedHint": "Задачи будут отвязаны от любого спринта",
+				"cancel": "Отмена",
+				"completing": "Завершение…",
+				"completeSprint": "Завершить спринт"
+			}
+		},
+		"conversation": {
+			"agentsFallback": "Агенты"
+		}
+	},
+	"priority": {
+		"none": "Нет",
+		"low": "Низкий",
+		"medium": "Средний",
+		"high": "Высокий",
+		"critical": "Критический"
+	},
+	"viewUtils": {
+		"groups": {
+			"backlog": "Бэклог",
+			"unassigned": "Не назначено",
+			"noReporter": "Без автора",
+			"noType": "Без типа",
+			"none": "Нет",
+			"yes": "Да",
+			"no": "Нет"
+		},
+		"columnBy": {
+			"status": "Статус",
+			"sprint": "Спринт",
+			"assignee": "Исполнитель",
+			"importance": "Важность",
+			"type": "Тип",
+			"reporter": "Автор"
+		},
+		"sortBy": {
+			"manual": "Вручную",
+			"importance": "Важность",
+			"storyPoints": "Story Points",
+			"title": "Название",
+			"created": "Создана",
+			"startDate": "Дата начала",
+			"dueDate": "Срок"
+		},
+		"swimlanes": {
+			"none": "Нет",
+			"assignee": "Исполнитель",
+			"importance": "Важность",
+			"type": "Тип"
+		},
+		"fieldSum": {
+			"count": "Количество",
+			"storyPoints": "Story Points"
+		},
+		"fields": {
+			"assignee": "Исполнитель",
+			"status": "Статус",
+			"importance": "Важность",
+			"storyPoints": "Story Points",
+			"type": "Тип",
+			"epic": "Эпик",
+			"reporter": "Автор",
+			"startDate": "Дата начала",
+			"dueDate": "Срок",
+			"created": "Создана"
+		}
+	},
+	"automation": {
+		"list": {
+			"title": "Автоматизация",
+			"subtitle": "Автоматизируйте передачу задач по мере продвижения работы в проекте",
+			"newWorkflow": "Новый workflow",
+			"empty": {
+				"title": "Пока нет workflow",
+				"description": "Создайте workflow, чтобы автоматизировать передачу задач по мере продвижения работы в проекте.",
+				"createFirstWorkflow": "Создать первый workflow"
+			},
+			"noDescription": "Без описания",
+			"updated": "Обновлено {{time}}"
+		},
+		"status": {
+			"draft": "Черновик",
+			"active": "Активен",
+			"archived": "В архиве"
+		},
+		"createDialog": {
+			"title": "Новый workflow автоматизации",
+			"nameLabel": "Название",
+			"namePlaceholder": "напр. Конвейер релиза",
+			"descriptionLabel": "Описание",
+			"descriptionPlaceholder": "Необязательные детали об этом workflow…",
+			"cancel": "Отмена",
+			"create": "Создать"
+		},
+		"deleteDialog": {
+			"title": "Удалить workflow",
+			"body": "Вы уверены, что хотите удалить «{{name}}»? Это действие нельзя отменить.",
+			"cancel": "Отмена",
+			"confirm": "Удалить"
+		},
+		"builder": {
+			"addTask": "Добавить задачу",
+			"activate": "Активировать",
+			"archive": "Архивировать",
+			"deactivate": "Деактивировать",
+			"readOnlyNoticeArchived": "Этот workflow в архиве и доступен только для чтения — архивные workflow нельзя редактировать.",
+			"genericError": "Что-то пошло не так. Попробуйте ещё раз.",
+			"collapseSidebar": "Свернуть боковую панель",
+			"expandSidebar": "Развернуть боковую панель"
+		},
+		"canvas": {
+			"unknownTask": "Неизвестная задача",
+			"deleteEdge": "Удалить связь"
+		},
+		"addNodeModal": {
+			"title": "Добавить задачу в workflow",
+			"searchPlaceholder": "Поиск задач...",
+			"loadingTasks": "Загрузка задач...",
+			"noTasksFound": "Задачи не найдены"
+		},
+		"nodePanel": {
+			"title": "Задача",
+			"removeNode": "Убрать из workflow",
+			"removeConfirmTitle": "Убрать задачу из workflow",
+			"removeConfirmBody": "Задача будет убрана из графа workflow вместе со всеми её связями. Сама задача при этом не изменится.",
+			"cancel": "Отмена",
+			"removeConfirmAction": "Убрать"
+		},
+		"statusRules": {
+			"title": "Правила «статус → исполнитель»",
+			"hint": "Автоматически назначает задачу участнику при переходе в один из этих статусов. Правило применяется к любой задаче в этом workflow — когда кто-то напрямую меняет статус задачи или когда предшествующая задача завершается и последующая задача повторно оценивается в её текущем статусе.",
+			"noRules": "Пока нет правил",
+			"statusPlaceholder": "Статус",
+			"memberPlaceholder": "Исполнитель"
+		},
+		"statusTransitions": {
+			"title": "Workflow статусов",
+			"hint": "Определите, какой статус наступает следующим после завершения работы в каждом статусе. Это открывает последующие задачи и точно указывает агенту-исполнителю ИИ, какой статус установить далее, вместо того чтобы гадать. При создании workflow цепочка по умолчанию формируется автоматически на основе статусов проекта.",
+			"nextStatusLabel": "Следующий статус",
+			"terminalOption": "__END__",
+			"ambiguousWarning": "Ровно один статус не должен иметь следующего статуса (он становится статусом __END__ workflow). Сейчас настроено: {{count}}."
+		}
+	}
+}

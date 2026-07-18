@@ -61,7 +61,7 @@ const makeTask = (overrides: Partial<Task> = {}): Task => ({
 	parent_task_id: null,
 	description: null,
 	importance: 0,
-	assignee_id: null,
+	assignee_ids: [],
 	reporter_id: null,
 	custom_fields: {},
 	view_position: null,

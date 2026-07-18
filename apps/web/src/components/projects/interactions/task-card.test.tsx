@@ -17,7 +17,7 @@ const makeTask = (overrides: Partial<Task> = {}): Task => ({
 	parent_task_id: null,
 	description: null,
 	importance: 0,
-	assignee_id: null,
+	assignee_ids: [],
 	reporter_id: null,
 	custom_fields: {},
 	view_position: null,
@@ -166,13 +166,13 @@ describe("TaskCard", () => {
 	it("shows the assignee icon when task has an assignee", () => {
 		const { container } = render(
 			<TaskCard
-				task={makeTask({ assignee_id: "user-1" })}
+				task={makeTask({ assignee_ids: ["user-1"] })}
 				statuses={NO_STATUSES}
 				taskTypes={NO_TYPES}
 			/>,
 		);
-		// assigned state: filled avatar circle with ring-primary/20
-		const assigneeEl = container.querySelector(".ring-primary\\/20");
+		// assigned state: filled avatar circle with the primary gradient
+		const assigneeEl = container.querySelector(".from-primary\\/20");
 		expect(assigneeEl).toBeInTheDocument();
 	});
 });

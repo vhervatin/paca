@@ -224,6 +224,7 @@ func New(cfg *config.Config) (*App, error) {
 		Log:        log,
 		Publisher:  publisher,
 		HTTPClient: &http.Client{Timeout: 30 * time.Second},
+		Authorizer: authorizer,
 		Config: map[string]string{
 			"ENCRYPTION_KEY": cfg.Security.EncryptionKey,
 			"PUBLIC_URL":     cfg.Server.PublicURL,
@@ -268,7 +269,7 @@ func New(cfg *config.Config) (*App, error) {
 		WithRouteAuth(tokenManager, apiKeyService, authorizer).
 		WithMarketplace(marketplaceClient, pluginInstaller, pluginMigrationRunner)
 
-	agentHandler := handler.NewAgentHandler(agentService, cfg.AIAgentURL).
+	agentHandler := handler.NewAgentHandler(agentService, cfg.AIAgentURL, cfg.AIAgentInternalKey, cfg.Server.PublicURL).
 		WithActivityRecorder(activityService).
 		WithMemberRepo(projectRepo)
 	convHandler := handler.NewConversationHandler(agentService)
@@ -292,24 +293,30 @@ func New(cfg *config.Config) (*App, error) {
 		User:                 handler.NewUserHandler(userService, authService),
 		GlobalRole:           handler.NewGlobalRoleHandler(globalRoleService),
 		ProjectVisibilitySvc: projectService,
-		Project:              handler.NewProjectHandler(projectService, authorizer, handler.WithProjectDefaultViews(viewService, taskService)),
+		Project: handler.NewProjectHandler(
+			projectService,
+			authorizer,
+			handler.WithProjectDefaultViews(viewService, taskService),
+			handler.WithProjectStatsServices(taskService, agentService),
+		),
 		Task: handler.NewTaskHandler(taskService, viewService, activityService,
 			handler.WithTaskPublisher(publisher)),
 		Sprint: handler.NewSprintHandler(sprintService, viewService,
 			handler.WithSprintDefaultTaskTypes(taskService),
 			handler.WithSprintDefaultTaskStatuses(taskService),
 		),
-		View:         handler.NewViewHandler(viewService),
-		Attachment:   handler.NewAttachmentHandler(attachmentService),
-		Document:     handler.NewDocumentHandler(docService, docActivityService),
-		DocFile:      handler.NewDocFileHandler(attachmentService),
-		Notification: handler.NewNotificationHandler(notificationService),
-		APIKey:       handler.NewAPIKeyHandler(apiKeyService),
-		Plugin:       pluginHandler,
-		Agent:        agentHandler,
-		Conversation: convHandler,
-		Workflow:     workflowHandler,
-		Log:          log,
+		View:               handler.NewViewHandler(viewService),
+		Attachment:         handler.NewAttachmentHandler(attachmentService),
+		Document:           handler.NewDocumentHandler(docService, docActivityService),
+		DocFile:            handler.NewDocFileHandler(attachmentService),
+		Notification:       handler.NewNotificationHandler(notificationService),
+		APIKey:             handler.NewAPIKeyHandler(apiKeyService),
+		Plugin:             pluginHandler,
+		Agent:              agentHandler,
+		Conversation:       convHandler,
+		Workflow:           workflowHandler,
+		Log:                log,
+		CORSAllowedOrigins: cfg.Server.CORSAllowedOrigins,
 	}
 
 	engine := router.New(deps)

@@ -39,4 +39,10 @@ var (
 	ErrActivityForbidden     = errors.New("activity: only the author can modify this comment")
 	ErrActivityNotAComment   = errors.New("activity: this entry is not a comment and cannot be edited")
 	ErrCommentContentInvalid = errors.New("activity: comment content must not be empty")
+
+	// ErrCommentActorUnidentified is returned when the request authenticated
+	// with the shared agent API key but did not supply an X-Agent-ID header.
+	// That identity is never itself a project member, so there is no member
+	// to attribute the comment to.
+	ErrCommentActorUnidentified = errors.New("activity: request has no identifiable project member; pass X-Agent-ID when using the agent API key")
 )

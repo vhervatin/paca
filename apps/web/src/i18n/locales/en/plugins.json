@@ -32,7 +32,9 @@
 			"sidebarProject": "Sidebar — Project",
 			"taskDetail": "Task Detail",
 			"projectSettingsTab": "Project Settings Tab",
-			"customView": "Custom View"
+			"customView": "Custom View",
+			"projectPage": "Project Page",
+			"adminPage": "Admin Page"
 		}
 	}
 }

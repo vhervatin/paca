@@ -13,6 +13,12 @@
 </p>
 
 <p align="center">
+  <a href="https://m.do.co/c/cce1c135acd1"><img src="https://opensource.nyc3.cdn.digitaloceanspaces.com/attribution/assets/PoweredByDO/DO_Powered_by_Badge_blue.svg" alt="Powered by DigitalOcean" width="201" /></a>
+  &nbsp;&nbsp;
+  <a href="https://app.virtuals.io/referral?code=rXZ9nf"><img src="https://os.virtuals.io/favicon.png" alt="Sponsored by Virtuals Protocol" width="40" /></a>
+</p>
+
+<p align="center">
   <a href="#getting-started">Getting Started</a>
   ·
   <a href="#mcp-server--connect-any-ai-agent-to-paca">MCP Server</a>
@@ -116,6 +122,22 @@ Plan  →  Act  →  Check  →  Adapt
 | **Act** | Sprint is live. Humans and AI agents pull tasks from the board, execute, and post updates. |
 | **Check** | QA agents run automated verification. Humans review AI output. The board reflects reality. |
 | **Adapt** | Data from the sprint informs the next cycle. The team — human and AI — retrospects together. |
+
+---
+
+## What's New in v0.10.0
+
+- **ACP agent support** — connect any [Agent Client Protocol](https://docs.openhands.dev/sdk/guides/agent-acp) coding CLI as a Paca AI agent: Claude Code, Codex, Gemini CLI, or a custom ACP server. A lightweight local bridge (`paca-acp-bridge`) runs from your project's source directory and streams the conversation back to Paca over an authenticated WebSocket — no code is cloned into a cloud sandbox, and the agent uses your own local auth, git/`gh` credentials, and whatever MCP servers or skills you've already set up for that CLI. See [apps/acp-bridge/README.md](apps/acp-bridge/README.md) for setup.
+
+---
+
+## What's New in v0.9.0
+
+- **Automation workflows** — build visual, status-driven automation on a canvas: define nodes and edges so tasks auto-assign or reassign as they move through statuses, with AND-join support for gates that wait on multiple predecessors. AI agents can create and edit workflows too, via dedicated MCP tools.
+
+<p align="center">
+  <img src="docs/assets/demo-automation-workflow.png" width="720" alt="Paca v0.9.0 — Automation Workflows" />
+</p>
 
 ---
 

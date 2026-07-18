@@ -28,6 +28,11 @@
 			"projectRoleLabel": "프로젝트 역할",
 			"projectRolePlaceholder": "프로젝트 역할을 선택하세요…",
 			"projectRoleHint": "이 프로젝트에서 에이전트가 읽고 수정할 수 있는 항목을 제어합니다.",
+			"agentTypeLabel": "에이전트 유형",
+			"agentTypeLLM": "LLM(API 키)",
+			"agentTypeLLMHint": "Paca가 모델 API를 직접 호출하고 클라우드 샌드박스에서 에이전트를 실행합니다.",
+			"agentTypeACP": "ACP(로컬 CLI)",
+			"agentTypeACPHint": "직접 실행하는 코딩 CLI(Claude Code, Codex, Gemini CLI 또는 사용자 지정 ACP 서버)에 위임합니다.",
 			"modelSection": "모델",
 			"providerLabel": "제공자",
 			"modelLabel": "모델",
@@ -37,6 +42,16 @@
 			"showApiKey": "API 키 표시",
 			"apiKeyHint": "암호화되어 저장됩니다 — API 응답에 노출되지 않습니다.",
 			"baseUrlLabel": "기본 URL",
+			"acpSection": "ACP 서버",
+			"acpProviderLabel": "제공자",
+			"acpProviderClaudeCode": "Claude Code",
+			"acpProviderCodex": "Codex",
+			"acpProviderGeminiCli": "Gemini CLI",
+			"acpProviderCustom": "사용자 지정…",
+			"acpCommandLabel": "명령어",
+			"acpCommandPlaceholder": "npx -y my-acp-server",
+			"acpCommandHint": "ACP 서버를 실행하는 데 사용되는, 공백으로 구분된 명령어입니다.",
+			"acpGuidance": "도구, MCP 서버, 스킬은 여기에서 구성되지 않습니다 — 이는 사용자의 git/gh 자격 증명으로 실행되는 ACP 클라이언트 자체의 로컬 설정에서 가져옵니다(클론, push, PR 열기가 모두 네이티브로 작동합니다). 이 에이전트를 생성한 후 로컬 브리지 연결, Paca 스킬 설치, MCP 서버 연동을 단계별로 안내해 드립니다.",
 			"systemPromptLabel": "시스템 프롬프트",
 			"optional": "(선택사항)",
 			"charsCount": "{{count}}자",
@@ -52,6 +67,8 @@
 		"card": {
 			"configure": "구성",
 			"delete": "삭제",
+			"acpStatusConnected": "온라인",
+			"acpStatusDisconnected": "오프라인",
 			"deleteDialog": {
 				"title": "{{name}}을(를) 삭제하시겠습니까?",
 				"description": "이 작업은 에이전트를 영구적으로 삭제하고 프로젝트에서 제거합니다. 진행 중인 대화는 중단됩니다.",
@@ -69,13 +86,42 @@
 				"createFirstAgent": "첫 에이전트 만들기"
 			}
 		},
+		"acpSetup": {
+			"dialogTitle": "로컬 ACP 브리지 연결",
+			"dialogDescription": "{{name}}이(가) 준비되었습니다 — 온라인 상태로 만들려면 사용자의 컴퓨터에서 다음 단계를 완료하세요.",
+			"panelTitle": "로컬 브리지",
+			"panelDescription": "이 에이전트의 ACP 서버를 사용자의 컴퓨터에서 실행하고 여기에 연결하세요.",
+			"statusConnected": "연결됨",
+			"statusDisconnected": "연결되지 않음",
+			"step1Title": "ACP 브리지 설치",
+			"step1Description": "Python 3.12 이상이 필요합니다. uv pip로 데몬을 한 번 설치하세요(또는 이 단계를 건너뛰어도 됩니다 — 아래 실행 명령어는 uvx를 사용하여 자동으로 가져옵니다).",
+			"step2Title": "로컬 브리지 실행",
+			"step2Description": "토큰을 생성한 다음 프로젝트 폴더에서 이를 실행하세요.",
+			"noTokenYet": "토큰을 생성하면 실행 명령어가 표시됩니다.",
+			"generateToken": "토큰 생성",
+			"regenerateToken": "토큰 재생성",
+			"generating": "생성 중…",
+			"generateFailed": "토큰을 생성하지 못했습니다. 다시 시도해 주세요.",
+			"tokenWarning": "지금 복사하세요 — 다시 표시되지 않습니다.",
+			"copy": "복사",
+			"copied": "복사됨!",
+			"step3Title": "Paca 스킬 설치",
+			"step3Description": "CLI가 Paca의 MCP 도구를 통해 요청을 라우팅할 수 있게 합니다 — 기본적으로 모든 프롬프트에 /paca가 추가됩니다.",
+			"step3NotAvailable": "자동 설치는 Claude Code에서만 사용할 수 있습니다. {{provider}}에는 알려진 사용자 지정 프롬프트 설치 도구가 아직 없습니다 — 아래의 Paca MCP 도구는 이것 없이도 작동합니다.",
+			"step3ViewContent": "스킬 내용 보기",
+			"step4Title": "MCP 서버 연결",
+			"step4Description": "개인 API 키를 사용하여 CLI가 Paca의 도구를 직접 호출할 수 있게 합니다.",
+			"step4ApiKeyLink": "API 키 받기",
+			"step4GenericHint": "MCP 서버를 등록하는 정확한 방법은 CLI마다 다릅니다 — {{provider}}는 일반적으로 자체 구성 파일에서 이를 읽습니다. 이 명령어를 참고로 사용하세요:",
+			"customProviderLabel": "사용자 지정 ACP 서버",
+			"done": "완료"
+		},
 		"detail": {
 			"tabs": {
 				"overview": "개요",
 				"mcpServers": "MCP 서버",
 				"skills": "스킬",
-				"envVars": "환경 변수",
-				"conversations": "대화"
+				"envVars": "환경 변수"
 			},
 			"overview": {
 				"nameLabel": "이름",
@@ -93,7 +139,16 @@
 				"saveChanges": "변경사항 저장",
 				"saved": "저장됨",
 				"saveFailed": "저장에 실패했습니다. 다시 시도해 주세요.",
-				"systemPromptLabel": "시스템 프롬프트"
+				"systemPromptLabel": "시스템 프롬프트",
+				"acpConfiguration": "ACP 구성",
+				"acpProviderLabel": "제공자",
+				"acpProviderClaudeCode": "Claude Code",
+				"acpProviderCodex": "Codex",
+				"acpProviderGeminiCli": "Gemini CLI",
+				"acpProviderCustom": "사용자 지정…",
+				"acpCommandLabel": "명령어",
+				"acpCommandHint": "ACP 서버를 실행하는 데 사용되는, 공백으로 구분된 명령어입니다.",
+				"acpGuidanceBanner": "이 에이전트의 도구, MCP 서버, 스킬은 Paca가 아닌 사용자의 git/gh 자격 증명으로 실행되는 로컬 ACP 클라이언트에서 구성됩니다."
 			},
 			"mcp": {
 				"serverCount_one": "서버 {{count}}개 구성됨",
@@ -155,18 +210,6 @@
 					"urlLabel": "URL",
 					"cancel": "취소",
 					"addSkill": "스킬 추가"
-				}
-			},
-			"conversations": {
-				"triggerChat": "채팅",
-				"triggerWriteDescription": "설명 작성",
-				"triggerTask": "작업",
-				"iterations_one": "{{count}}회 반복",
-				"iterations_other": "{{count}}회 반복",
-				"prOpened": "PR 열림",
-				"empty": {
-					"title": "아직 대화가 없습니다",
-					"description": "이 에이전트에게 작업이 배정되거나 누군가 메시지를 보내면 대화가 시작됩니다."
 				}
 			}
 		},
@@ -365,7 +408,8 @@
 			"sprints": "스프린트",
 			"documents": "문서",
 			"aiAgents": "AI 에이전트",
-			"workflows": "자동화"
+			"workflows": "자동화",
+			"plugins": "플러그인"
 		}
 	},
 	"settings": {
@@ -683,10 +727,7 @@
 			"title": "속성",
 			"status": "상태",
 			"dates": "날짜",
-			"trackTime": "시간 기록",
-			"addTime": "시간 추가",
 			"type": "유형",
-			"relationships": "관계",
 			"assignees": "담당자",
 			"importance": "중요도",
 			"none": "없음",
@@ -931,6 +972,27 @@
 			"description": "스프린트에 배정되지 않은 모든 작업 항목입니다."
 		}
 	},
+	"conversationsPage": {
+		"title": "대화",
+		"triggerChat": "채팅",
+		"triggerWriteDescription": "설명 작성",
+		"triggerTask": "작업",
+		"iterations_one": "{{count}}회 반복",
+		"iterations_other": "{{count}}회 반복",
+		"prOpened": "PR 열림",
+		"list": {
+			"empty": {
+				"title": "아직 대화가 없습니다",
+				"description": "에이전트에게 작업이 배정되거나 누군가 메시지를 보내면 대화가 시작됩니다."
+			}
+		},
+		"detail": {
+			"empty": {
+				"title": "선택된 대화가 없습니다",
+				"description": "목록에서 대화를 선택하면 여기에 표시됩니다."
+			}
+		}
+	},
 	"layout": {
 		"shell": {
 			"newSprint": "새 스프린트",
@@ -960,6 +1022,11 @@
 			"statusesLabel": "상태",
 			"assigneesLabel": "담당자",
 			"taskTypesLabel": "작업 유형",
+			"startDateLabel": "시작일",
+			"dueDateLabel": "마감일",
+			"importanceLabel": "중요도",
+			"storyPointsLabel": "스토리 포인트",
+			"tagsLabel": "태그",
 			"reset": "초기화",
 			"saving": "저장 중…",
 			"save": "저장",
@@ -983,6 +1050,20 @@
 				"allNormalTypesDynamic": "모든 일반 유형(동적)",
 				"systemTypes": "시스템 유형",
 				"noTaskTypes": "작업 유형 없음"
+			},
+			"customFieldFilter": {
+				"allValues": "모든 값",
+				"noOptions": "옵션 없음",
+				"min": "최소",
+				"max": "최대",
+				"containsPlaceholder": "포함…"
+			},
+			"importanceFilter": {
+				"allLevels": "모든 수준"
+			},
+			"tagsFilter": {
+				"addTag": "태그 추가",
+				"addTagPlaceholder": "태그 추가..."
 			}
 		},
 		"roadmap": {

@@ -677,9 +677,20 @@ func (h *PluginHandler) ProxyRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Build flattened query-param map (first value per key), same convention
+	// as headers above.
+	rawQuery := r.URL.Query()
+	query := make(map[string]string, len(rawQuery))
+	for k, vs := range rawQuery {
+		if len(vs) > 0 {
+			query[k] = vs[0]
+		}
+	}
+
 	req := &pluginrt.HTTPRequest{
 		Method:     r.Method,
 		Path:       subPath,
+		Query:      query,
 		ProjectID:  pathParams[projectParamName],
 		CallerID:   callerID,
 		UserID:     userIDStr,

@@ -361,6 +361,10 @@ func (s *Service) CreateTask(ctx context.Context, in taskdom.CreateTaskInput) (*
 	if tags == nil {
 		tags = []string{}
 	}
+	assigneeIDs := in.AssigneeIDs
+	if assigneeIDs == nil {
+		assigneeIDs = []uuid.UUID{}
+	}
 
 	now := time.Now()
 	t := &taskdom.Task{
@@ -374,7 +378,7 @@ func (s *Service) CreateTask(ctx context.Context, in taskdom.CreateTaskInput) (*
 		Description:  in.Description,
 		Importance:   in.Importance,
 		StoryPoints:  in.StoryPoints,
-		AssigneeID:   in.AssigneeID,
+		AssigneeIDs:  assigneeIDs,
 		ReporterID:   in.ReporterID,
 		CustomFields: cf,
 		StartDate:    in.StartDate,
@@ -451,8 +455,8 @@ func (s *Service) UpdateTask(ctx context.Context, projectID, id uuid.UUID, in ta
 	if in.StoryPoints != nil {
 		t.StoryPoints = *in.StoryPoints
 	}
-	if in.AssigneeID != nil {
-		t.AssigneeID = *in.AssigneeID
+	if in.AssigneeIDs != nil {
+		t.AssigneeIDs = *in.AssigneeIDs
 	}
 	if in.ReporterID != nil {
 		t.ReporterID = *in.ReporterID

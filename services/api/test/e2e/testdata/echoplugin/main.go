@@ -7,6 +7,7 @@
 //
 //	GET  .../hello   -> 200 {"message":"hello from plugin"}
 //	GET  .../whoami  -> 200 {"caller_id":..,"user_id":..,"caller_role":..,"project_id":..}
+//	GET  .../query   -> 200, the request's query params echoed back as a JSON object
 //	POST .../echo    -> 200, body echoed back unchanged
 //	anything else    -> 404 {"error":"not found"}
 //
@@ -70,6 +71,7 @@ func bytesAt(ptr, length uint32) []byte {
 type hostRequest struct {
 	Method     string            `json:"method"`
 	Path       string            `json:"path"`
+	Query      map[string]string `json:"query"`
 	ProjectID  string            `json:"project_id"`
 	CallerID   string            `json:"caller_id"`
 	UserID     string            `json:"user_id"`
@@ -131,6 +133,14 @@ func route(req hostRequest) hostResponse {
 
 	case path == "echo" && req.Method == "POST":
 		return hostResponse{Status: 200, Headers: jsonHeaders(), Body: req.Body}
+
+	case path == "query" && req.Method == "GET":
+		q := req.Query
+		if q == nil {
+			q = map[string]string{}
+		}
+		body, _ := json.Marshal(q)
+		return hostResponse{Status: 200, Headers: jsonHeaders(), Body: body}
 
 	default:
 		body, _ := json.Marshal(map[string]string{"error": "not found"})

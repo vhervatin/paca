@@ -32,7 +32,9 @@
 			"sidebarProject": "Thanh bên — Dự án",
 			"taskDetail": "Chi tiết nhiệm vụ",
 			"projectSettingsTab": "Tab cài đặt dự án",
-			"customView": "Chế độ xem tùy chỉnh"
+			"customView": "Chế độ xem tùy chỉnh",
+			"projectPage": "Trang dự án",
+			"adminPage": "Trang quản trị"
 		}
 	}
 }

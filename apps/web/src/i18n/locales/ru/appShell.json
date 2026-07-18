@@ -1,0 +1,72 @@
+{
+	"language": {
+		"label": "Язык",
+		"toggleTooltip": "Язык: {{language}} — нажмите, чтобы изменить"
+	},
+	"brand": {
+		"logoAlt": "Логотип Paca"
+	},
+	"theme": {
+		"label": "Тема",
+		"light": "Светлая",
+		"dark": "Тёмная",
+		"auto": "Авто",
+		"cycleTooltip": "Тема: {{mode}} — нажмите, чтобы переключить",
+		"modeAutoTooltip": "Режим темы: авто (системный). Нажмите, чтобы перейти на светлую тему.",
+		"modeTooltip": "Режим темы: {{mode}}. Нажмите, чтобы переключить."
+	},
+	"nav": {
+		"home": "Главная",
+		"administration": "Администрирование",
+		"globalRoles": "Глобальные роли",
+		"users": "Пользователи",
+		"plugins": "Плагины",
+		"allProjects": "Все проекты",
+		"project": "Проект",
+		"agents": "Агенты",
+		"conversations": "Диалоги",
+		"automation": "Автоматизация",
+		"team": "Команда",
+		"settings": "Настройки"
+	},
+	"projectSwitcher": {
+		"projects": "Проекты",
+		"yourProjects": "Ваши проекты",
+		"noProjectsYet": "Проектов пока нет",
+		"newProject": "Новый проект"
+	},
+	"interactions": {
+		"title": "Взаимодействия",
+		"timeline": "Таймлайн",
+		"productBacklog": "Бэклог продукта"
+	},
+	"docs": {
+		"documentation": "Документация",
+		"noDocumentsYet": "Документов пока нет",
+		"emptyFolder": "Пустая папка",
+		"add": "Добавить",
+		"newDocument": "Новый документ",
+		"newFolder": "Новая папка",
+		"newFolderDefaultName": "Новая папка",
+		"newSubfolder": "Новая подпапка",
+		"rename": "Переименовать",
+		"delete": "Удалить",
+		"untitled": "Без названия"
+	},
+	"notifications": {
+		"title": "Уведомления",
+		"empty": "Уведомлений пока нет",
+		"markAllAsRead": "Отметить все как прочитанные",
+		"text": {
+			"assigned": "{{actor}} назначил(а) вам задачу #{{taskNumber}} — {{taskTitle}}",
+			"mentioned": "{{actor}} упомянул(а) вас в #{{taskNumber}} — {{taskTitle}}"
+		}
+	},
+	"userMenu": {
+		"signIn": "Войти",
+		"myProfile": "Мой профиль",
+		"apiKeys": "API-ключи",
+		"logOut": "Выйти",
+		"loggingOut": "Выход…"
+	}
+}

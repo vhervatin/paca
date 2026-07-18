@@ -209,6 +209,9 @@ services:
       PACA_VERSION: ${PACA_VERSION:-dev}
       RELEASE_UPSTREAM_REPO: ${RELEASE_UPSTREAM_REPO:-Paca-AI/paca}
       RELEASE_FORK_REPO: ${RELEASE_FORK_REPO:-}
+      # Authenticates the reverse direction: API calling into ai-agent's
+      # internal-only routes. Must match INTERNAL_API_KEY in the ai-agent service.
+      AI_AGENT_INTERNAL_KEY: ${INTERNAL_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

@@ -207,7 +207,8 @@ export class PacaAPIClient {
 		if (input.task_type_id !== undefined)
 			body.task_type_id = input.task_type_id;
 		if (input.sprint_id !== undefined) body.sprint_id = input.sprint_id;
-		if (input.assignee_id !== undefined) body.assignee_id = input.assignee_id;
+		if (input.assignee_id !== undefined)
+			body.assignee_ids = input.assignee_id ? [input.assignee_id] : [];
 		if (input.parent_task_id !== undefined)
 			body.parent_task_id = input.parent_task_id;
 		if (input.importance !== undefined) body.importance = input.importance;
@@ -237,7 +238,8 @@ export class PacaAPIClient {
 		if (input.task_type_id !== undefined)
 			body.task_type_id = input.task_type_id;
 		if (input.sprint_id !== undefined) body.sprint_id = input.sprint_id;
-		if (input.assignee_id !== undefined) body.assignee_id = input.assignee_id;
+		if (input.assignee_id !== undefined)
+			body.assignee_ids = input.assignee_id ? [input.assignee_id] : [];
 		if (input.reporter_id !== undefined) body.reporter_id = input.reporter_id;
 		if (input.parent_task_id !== undefined)
 			body.parent_task_id = input.parent_task_id;

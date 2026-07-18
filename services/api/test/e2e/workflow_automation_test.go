@@ -76,10 +76,13 @@ func setStatusRuleViaAPI(t *testing.T, env *e2eEnv, client *http.Client, token, 
 	assertStatus(t, resp, http.StatusCreated)
 }
 
-// waitForTaskAssignee polls the task until its assignee_id matches
-// wantAssigneeID or timeout elapses. Reassignment happens asynchronously (via
-// a Valkey-stream event the WorkflowConsumer processes in the background), so
-// tests must poll rather than assert immediately after the triggering PATCH.
+// waitForTaskAssignee polls the task until its assignee_ids is exactly
+// [wantAssigneeID] or timeout elapses. Reassignment happens asynchronously
+// (via a Valkey-stream event the WorkflowConsumer processes in the
+// background), so tests must poll rather than assert immediately after the
+// triggering PATCH. A status rule firing replaces the task's entire assignee
+// set with its single configured member, so "assigned to X" means the array
+// is exactly [X], not merely contains it.
 //
 // The timeout is generous because the consumer group is shared across the
 // whole e2e suite: the first automation test to run drains any backlog of
@@ -90,16 +93,16 @@ func waitForTaskAssignee(t *testing.T, env *e2eEnv, client *http.Client, token, 
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	var data map[string]any
-	var lastAssignee string
+	var lastAssignees []any
 	for time.Now().Before(deadline) {
 		data = getTaskViaAPI(t, env, client, token, projectID, taskID)
-		lastAssignee, _ = data["assignee_id"].(string)
-		if lastAssignee == wantAssigneeID {
+		lastAssignees, _ = data["assignee_ids"].([]any)
+		if len(lastAssignees) == 1 && lastAssignees[0] == wantAssigneeID {
 			return data
 		}
 		time.Sleep(150 * time.Millisecond)
 	}
-	t.Fatalf("timed out waiting for task %s to be assigned to %q; last observed assignee_id=%q", taskID, wantAssigneeID, lastAssignee)
+	t.Fatalf("timed out waiting for task %s to be assigned to %q; last observed assignee_ids=%v", taskID, wantAssigneeID, lastAssignees)
 	return nil
 }
 
@@ -274,8 +277,8 @@ func TestE2EWorkflowAutomation_AndJoinWaitsForAllPredecessors(t *testing.T) {
 		waitForTaskAssignee(t, env, ownerClient, ownerToken, projID, taskA, ownerMemberID, 20*time.Second)
 
 		dataB := getTaskViaAPI(t, env, ownerClient, ownerToken, projID, taskB)
-		if assignee, ok := dataB["assignee_id"].(string); ok && assignee != "" {
-			t.Errorf("expected the joint successor to remain unassigned until ALL predecessors are done, got assignee_id=%q", assignee)
+		if assignees, ok := dataB["assignee_ids"].([]any); ok && len(assignees) > 0 {
+			t.Errorf("expected the joint successor to remain unassigned until ALL predecessors are done, got assignee_ids=%v", assignees)
 		}
 	})
 

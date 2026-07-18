@@ -4,6 +4,7 @@ import { FieldRow, FieldValue } from "../primitives";
 import { CheckboxEditor } from "./checkbox-editor";
 import { CustomFieldEditor } from "./custom-field-editor";
 import { DateRangeEditor, SingleDateEditor } from "./date-editor";
+import { MultiUserEditor } from "./multi-user-editor";
 import { NumberEditor } from "./number-editor";
 import { SelectEditor } from "./select-editor";
 import { TagsEditor } from "./tags-editor";
@@ -43,6 +44,8 @@ export function PropertyField({
 	users = [],
 	onUserChange,
 	showUnassigned = true,
+	userValues,
+	onUsersChange,
 	tags = [],
 	onTagsChange,
 	displayValue,
@@ -149,6 +152,16 @@ export function PropertyField({
 						canEdit={canEdit}
 						showUnassigned={showUnassigned}
 						onChange={onUserChange}
+					/>
+				);
+
+			case "multi-user":
+				return (
+					<MultiUserEditor
+						userValues={userValues}
+						users={users}
+						canEdit={canEdit}
+						onChange={onUsersChange}
 					/>
 				);
 

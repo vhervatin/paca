@@ -242,7 +242,8 @@
 		"permissionGroups": {
 			"globalRoles": "Vai trò toàn cục",
 			"users": "Người dùng",
-			"projects": "Dự án"
+			"projects": "Dự án",
+			"plugins": "Plugin"
 		}
 	},
 	"plugins": {

@@ -32,7 +32,9 @@
 			"sidebarProject": "サイドバー — プロジェクト",
 			"taskDetail": "タスク詳細",
 			"projectSettingsTab": "プロジェクト設定タブ",
-			"customView": "カスタムビュー"
+			"customView": "カスタムビュー",
+			"projectPage": "プロジェクトページ",
+			"adminPage": "管理者ページ"
 		}
 	}
 }

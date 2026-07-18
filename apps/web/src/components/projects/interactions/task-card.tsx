@@ -74,33 +74,54 @@ export function TaskCard({
 	const { t } = useTranslation("projects");
 	const [typePopoverOpen, setTypePopoverOpen] = useState(false);
 	const taskType = taskTypes.find((t) => t.id === task.task_type_id);
-	const assignee = task.assignee_id
-		? members.find((m) => m.id === task.assignee_id)
-		: undefined;
 	const status = statuses.find((s) => s.id === task.status_id);
 
 	/** Renders the chip/indicator for a single field key. */
 	const renderField = (fieldKey: string) => {
 		switch (fieldKey) {
-			case "assignee":
+			case "assignee": {
+				const assigneeIds = task.assignee_ids ?? [];
+				const visible = assigneeIds.slice(0, 3);
+				const overflow = assigneeIds.length - visible.length;
+				const avatarStack = (
+					<div className="flex items-center -space-x-1.5">
+						{visible.length > 0 ? (
+							visible.map((id) => {
+								const m = members.find((mm) => mm.id === id);
+								return (
+									<div
+										key={id}
+										className="flex size-5 items-center justify-center rounded-full bg-linear-to-br from-primary/20 to-primary/15 text-primary text-xs font-bold ring-2 ring-card"
+									>
+										{m ? (
+											(m.full_name || m.username).slice(0, 1).toUpperCase()
+										) : (
+											<User className="size-2.5" />
+										)}
+									</div>
+								);
+							})
+						) : (
+							<div className="flex size-5 items-center justify-center rounded-full bg-linear-to-br from-muted/80 to-muted/40 text-muted-foreground text-xs font-bold ring-1 ring-border/25">
+								<User className="size-2.5" />
+							</div>
+						)}
+						{overflow > 0 && (
+							<div className="flex size-5 items-center justify-center rounded-full bg-muted text-muted-foreground text-[10px] font-bold ring-2 ring-card">
+								+{overflow}
+							</div>
+						)}
+					</div>
+				);
+
 				return canEdit && members.length > 0 ? (
 					<Popover key="assignee">
 						<PopoverTrigger
 							type="button"
 							onClick={(e) => e.stopPropagation()}
-							className="nodrag flex size-5 items-center justify-center rounded-full transition-all duration-150 hover:ring-2 hover:ring-primary/30"
+							className="nodrag flex items-center rounded-full transition-all duration-150 hover:ring-2 hover:ring-primary/30"
 						>
-							{assignee ? (
-								<div className="flex size-5 items-center justify-center rounded-full bg-linear-to-br from-primary/20 to-primary/15 text-primary text-xs font-bold ring-1 ring-primary/20">
-									{(assignee.full_name || assignee.username)
-										.slice(0, 1)
-										.toUpperCase()}
-								</div>
-							) : (
-								<div className="flex size-5 items-center justify-center rounded-full bg-linear-to-br from-muted/80 to-muted/40 text-muted-foreground text-xs font-bold ring-1 ring-border/25">
-									<User className="size-2.5" />
-								</div>
-							)}
+							{avatarStack}
 						</PopoverTrigger>
 						<PopoverContent
 							className="w-48 p-1 rounded-xl border border-border/40 shadow-lg"
@@ -111,57 +132,50 @@ export function TaskCard({
 								className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted/60 transition-colors duration-100"
 								onClick={(e) => {
 									e.stopPropagation();
-									onUpdate?.(task.id, { assignee_id: null });
+									onUpdate?.(task.id, { assignee_ids: [] });
 								}}
 							>
 								<User className="size-3.5 opacity-60" />
 								<span className="flex-1 text-left">
 									{t("board.taskCard.unassigned")}
 								</span>
-								{!assignee && <Check className="size-3.5 text-primary" />}
+								{assigneeIds.length === 0 && (
+									<Check className="size-3.5 text-primary" />
+								)}
 							</button>
-							{members.map((m) => (
-								<button
-									key={m.id}
-									type="button"
-									className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm hover:bg-muted/60 transition-colors duration-100"
-									onClick={(e) => {
-										e.stopPropagation();
-										onUpdate?.(task.id, { assignee_id: m.id });
-									}}
-								>
-									<div className="flex size-5 items-center justify-center rounded-full bg-linear-to-br from-primary/20 to-primary/10 text-primary text-xs font-bold">
-										{(m.full_name || m.username).slice(0, 1).toUpperCase()}
-									</div>
-									<span className="flex-1 text-left truncate">
-										{m.full_name || m.username}
-									</span>
-									{m.id === task.assignee_id && (
-										<Check className="size-3.5 text-primary" />
-									)}
-								</button>
-							))}
+							{members.map((m) => {
+								const isSelected = task.assignee_ids?.includes(m.id) ?? false;
+								return (
+									<button
+										key={m.id}
+										type="button"
+										className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm hover:bg-muted/60 transition-colors duration-100"
+										onClick={(e) => {
+											e.stopPropagation();
+											const current = task.assignee_ids ?? [];
+											onUpdate?.(task.id, {
+												assignee_ids: isSelected
+													? current.filter((id) => id !== m.id)
+													: [...current, m.id],
+											});
+										}}
+									>
+										<div className="flex size-5 items-center justify-center rounded-full bg-linear-to-br from-primary/20 to-primary/10 text-primary text-xs font-bold">
+											{(m.full_name || m.username).slice(0, 1).toUpperCase()}
+										</div>
+										<span className="flex-1 text-left truncate">
+											{m.full_name || m.username}
+										</span>
+										{isSelected && <Check className="size-3.5 text-primary" />}
+									</button>
+								);
+							})}
 						</PopoverContent>
 					</Popover>
 				) : (
-					<div
-						key="assignee"
-						className={cn(
-							"flex size-5 items-center justify-center rounded-full text-xs font-bold ring-1",
-							task.assignee_id
-								? "bg-linear-to-br from-primary/20 to-primary/15 text-primary ring-primary/20"
-								: "bg-linear-to-br from-muted/80 to-muted/40 text-muted-foreground ring-border/25",
-						)}
-					>
-						{assignee ? (
-							(assignee.full_name || assignee.username)
-								.slice(0, 1)
-								.toUpperCase()
-						) : (
-							<User className="size-2.5" />
-						)}
-					</div>
+					<div key="assignee">{avatarStack}</div>
 				);
+			}
 
 			case "type":
 				return canEdit && taskTypes.length > 0 ? (

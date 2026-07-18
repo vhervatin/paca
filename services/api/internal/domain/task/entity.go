@@ -157,7 +157,7 @@ type Task struct {
 	Description  json.RawMessage
 	Importance   int
 	StoryPoints  *int
-	AssigneeID   *uuid.UUID
+	AssigneeIDs  []uuid.UUID
 	ReporterID   *uuid.UUID
 	CustomFields map[string]any
 	StartDate    *time.Time

@@ -17,6 +17,8 @@ const EXTENSION_POINT_LABEL_KEYS = {
 	"task.detail.section": "preferences.extensionPoints.taskDetail",
 	"project.settings.tab": "preferences.extensionPoints.projectSettingsTab",
 	view: "preferences.extensionPoints.customView",
+	"project.page": "preferences.extensionPoints.projectPage",
+	"admin.page": "preferences.extensionPoints.adminPage",
 } as const satisfies Record<ExtensionPointId, string>;
 
 const ALL_POINTS: ExtensionPointId[] = [
@@ -25,6 +27,8 @@ const ALL_POINTS: ExtensionPointId[] = [
 	"task.detail.section",
 	"project.settings.tab",
 	"view",
+	"project.page",
+	"admin.page",
 ];
 
 interface DraggableItemProps {

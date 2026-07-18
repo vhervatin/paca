@@ -242,7 +242,7 @@ def test_load_default_skills_is_cached():
 def test_stdio_server_fields(no_paca_key):
     server = _server(command="node", args=["index.js"], env={"KEY": "VAL"})
     cfg = build_mcp_config([server], "agent-1", "proj-1")
-    entry = cfg["mcpServers"]["my-server"]
+    entry = cfg["my-server"]
     assert entry["command"] == "node"
     assert entry["args"] == ["index.js"]
     assert entry["env"] == {"KEY": "VAL"}
@@ -251,7 +251,7 @@ def test_stdio_server_fields(no_paca_key):
 def test_http_server_has_url_no_auth(no_paca_key):
     server = _server(transport="http", url="https://mcp.example.com")
     cfg = build_mcp_config([server], "a", "p")
-    entry = cfg["mcpServers"]["my-server"]
+    entry = cfg["my-server"]
     assert entry["url"] == "https://mcp.example.com"
     assert "auth" not in entry
 
@@ -259,19 +259,19 @@ def test_http_server_has_url_no_auth(no_paca_key):
 def test_oauth_server_has_auth_field(no_paca_key):
     server = _server(transport="oauth", url="https://mcp.example.com")
     cfg = build_mcp_config([server], "a", "p")
-    assert cfg["mcpServers"]["my-server"]["auth"] == "oauth"
+    assert cfg["my-server"]["auth"] == {"strategy": "oauth2"}
 
 
 def test_disabled_server_excluded(no_paca_key):
     server = _server(enabled=False)
     cfg = build_mcp_config([server], "a", "p")
-    assert "my-server" not in cfg["mcpServers"]
+    assert "my-server" not in cfg
 
 
 def test_paca_server_injected_when_key_set(with_paca_key):
     cfg = build_mcp_config([], "agent-99", "proj-42")
-    assert "paca" in cfg["mcpServers"]
-    paca = cfg["mcpServers"]["paca"]
+    assert "paca" in cfg
+    paca = cfg["paca"]
     assert paca["command"] == "npx"
     assert paca["args"] == ["-y", "@paca-ai/paca-mcp"]
     assert paca["env"]["PACA_AGENT_ID"] == "agent-99"
@@ -282,30 +282,30 @@ def test_paca_server_injected_when_key_set(with_paca_key):
 def test_paca_server_uses_local_build_when_dev_mcp_path_set(with_paca_key):
     with_paca_key.dev_mcp_path = "/mcp/build/index.js"
     cfg = build_mcp_config([], "agent-99", "proj-42")
-    paca = cfg["mcpServers"]["paca"]
+    paca = cfg["paca"]
     assert paca["command"] == "node"
     assert paca["args"] == ["/mcp/build/index.js"]
 
 
 def test_paca_server_omitted_when_no_key(no_paca_key):
     cfg = build_mcp_config([], "a", "p")
-    assert "paca" not in cfg["mcpServers"]
+    assert "paca" not in cfg
 
 
 def test_user_servers_appear_before_paca(with_paca_key):
     servers = [_server(name="custom")]
     cfg = build_mcp_config(servers, "a", "p")
-    keys = list(cfg["mcpServers"])
+    keys = list(cfg)
     assert keys.index("custom") < keys.index("paca")
 
 
 def test_multiple_servers_all_included(no_paca_key):
     servers = [_server(name="srv1"), _server(name="srv2")]
     cfg = build_mcp_config(servers, "a", "p")
-    assert "srv1" in cfg["mcpServers"]
-    assert "srv2" in cfg["mcpServers"]
+    assert "srv1" in cfg
+    assert "srv2" in cfg
 
 
-def test_empty_servers_returns_only_mcpservers_key(no_paca_key):
+def test_empty_servers_returns_empty_dict(no_paca_key):
     cfg = build_mcp_config([], "a", "p")
-    assert cfg == {"mcpServers": {}}
+    assert cfg == {}

@@ -242,7 +242,8 @@
 		"permissionGroups": {
 			"globalRoles": "全局角色",
 			"users": "用户",
-			"projects": "项目"
+			"projects": "项目",
+			"plugins": "插件"
 		}
 	},
 	"plugins": {

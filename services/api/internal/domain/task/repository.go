@@ -103,7 +103,7 @@ type TaskFilter struct {
 	StatusIDs    []uuid.UUID // multi-value; takes priority over StatusID
 	AssigneeID   *uuid.UUID  // single-value compat; ignored when AssigneeIDs is non-empty
 	AssigneeIDs  []uuid.UUID // multi-value; takes priority over AssigneeID
-	AssigneeNull bool        // true → only tasks where assignee_id IS NULL
+	AssigneeNull bool        // true → only tasks with no rows in task_assignees
 	ParentTaskID *uuid.UUID  // non-nil → only subtasks of this parent
 	TaskTypeIDs  []uuid.UUID // multi-value; when non-empty, only tasks of these types
 	TaskTypeNull bool        // true → only tasks where task_type_id IS NULL
@@ -112,6 +112,52 @@ type TaskFilter struct {
 	// Search, when non-nil and non-blank, restricts results to tasks whose title
 	// or "#<task_number>" id contains the text (case-insensitive).
 	Search *string
+	// CustomFieldFilters filters tasks by custom field values, keyed by field key.
+	CustomFieldFilters map[string]CustomFieldFilterQuery
+	// StartDateAfter/StartDateBefore filter tasks by start_date (inclusive,
+	// "YYYY-MM-DD"). Either may be nil.
+	StartDateAfter  *string
+	StartDateBefore *string
+	// DueDateAfter/DueDateBefore filter tasks by due_date (inclusive,
+	// "YYYY-MM-DD"). Either may be nil.
+	DueDateAfter  *string
+	DueDateBefore *string
+	// StoryPointsMin/StoryPointsMax filter tasks by story_points (inclusive).
+	// Either may be nil. Tasks with no story_points never match when either is set.
+	StoryPointsMin *int
+	StoryPointsMax *int
+	// ImportanceRanges filters tasks whose importance falls within ANY of these
+	// inclusive ranges (OR'd together, so non-contiguous selections like
+	// "Low or Critical" are representable). Empty means no filter.
+	ImportanceRanges []IntRange
+	// Tags filters tasks that have ANY of these tag values (exact match).
+	Tags []string
+}
+
+// IntRange is an inclusive [Min, Max] integer range.
+type IntRange struct {
+	Min int
+	Max int
+}
+
+// CustomFieldFilterQuery carries resolved filter criteria for one custom
+// field, keyed by field key in TaskFilter.CustomFieldFilters. FieldType is
+// resolved server-side from CustomFieldDefinition (never trusted from the
+// client, since it determines how the value is cast in SQL) and determines
+// which of the other members are meaningful:
+//   - "select" / "boolean" → Values (exact-match, ANY-of)
+//   - "multi_select" → Values (array-containment, ANY-of)
+//   - "number" → Min / Max (inclusive range)
+//   - "date" → After / Before (inclusive range, "YYYY-MM-DD")
+//   - "text" / "url" → Contains (case-insensitive substring match)
+type CustomFieldFilterQuery struct {
+	FieldType string
+	Values    []string
+	Min       *float64
+	Max       *float64
+	After     *string
+	Before    *string
+	Contains  *string
 }
 
 // CustomFieldDefinitionRepository defines persistence operations for custom

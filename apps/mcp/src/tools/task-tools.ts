@@ -548,7 +548,9 @@ async function getTaskDetail(
 	const status = statuses.find((s: any) => s.id === task.status_id);
 	const taskType = taskTypes.find((t: any) => t.id === task.task_type_id);
 	const sprint = sprints.find((s: any) => s.id === task.sprint_id);
-	const assignee = members.find((m: any) => m.id === task.assignee_id);
+	const assignees = members.filter((m: any) =>
+		task.assignee_ids?.includes(m.id),
+	);
 	const reporter = members.find((m: any) => m.id === task.reporter_id);
 	let parentTask: Task | undefined;
 	if (task.parent_task_id) {
@@ -565,7 +567,7 @@ async function getTaskDetail(
 		status,
 		taskType,
 		sprint,
-		assignee,
+		assignees,
 		reporter,
 		parentTask,
 		subtasks,

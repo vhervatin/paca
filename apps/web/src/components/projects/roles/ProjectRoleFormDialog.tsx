@@ -1,6 +1,6 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Shield } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,11 @@ import {
 	normalizePermissionsToWildcards,
 } from "@/lib/permissions";
 import {
+	collectPluginCustomPermissions,
+	type Plugin,
+	pluginsQueryOptions,
+} from "@/lib/plugin-api";
+import {
 	createProjectRole,
 	type ProjectRole,
 	projectRolesQueryOptions,
@@ -30,9 +35,17 @@ import {
 } from "@/lib/project-api";
 
 import {
+	type KnownPermission,
 	PROJECT_KNOWN_PERMISSIONS,
 	PROJECT_PERMISSION_GROUPS,
+	toPluginKnownPermissions,
 } from "./permissions";
+
+// Stable reference so `allKnownPermissions` doesn't change identity on every
+// render while the plugins query has no data yet (pending/error) — an
+// inline `= []` default creates a new array each render, which re-triggers
+// the effect below in an infinite loop.
+const EMPTY_PLUGINS: Plugin[] = [];
 
 interface ProjectRoleFormDialogProps {
 	projectId: string;
@@ -51,22 +64,43 @@ export function ProjectRoleFormDialog({
 	const queryClient = useQueryClient();
 	const isEdit = !!role;
 
-	const [name, setName] = useState(role?.role_name ?? "");
-	const [permissions, setPermissions] = useState<Record<string, boolean>>(
-		expandWildcardPermissions(
-			role?.permissions as Record<string, boolean> | undefined,
-			PROJECT_KNOWN_PERMISSIONS,
-		),
+	const { data: plugins = EMPTY_PLUGINS } = useQuery(pluginsQueryOptions);
+	const allKnownPermissions = useMemo<KnownPermission[]>(
+		() => [
+			...PROJECT_KNOWN_PERMISSIONS,
+			...toPluginKnownPermissions(
+				collectPluginCustomPermissions(plugins, "project"),
+			),
+		],
+		[plugins],
 	);
+
+	const [name, setName] = useState(role?.role_name ?? "");
+	const [permissions, setPermissions] = useState<Record<string, boolean>>({});
 	const [error, setError] = useState<string | null>(null);
 	const [nameError, setNameError] = useState<string | null>(null);
+
+	// Re-derive `permissions` whenever the dialog opens or the known-permission
+	// set changes (e.g. plugin data finishes loading after the dialog already
+	// opened), rather than only at first mount — otherwise plugin-declared
+	// permissions loaded after mount would never make it into the editor and
+	// saving the role would silently drop them.
+	useEffect(() => {
+		if (!open) return;
+		setPermissions(
+			expandWildcardPermissions(
+				role?.permissions as Record<string, boolean> | undefined,
+				allKnownPermissions,
+			),
+		);
+	}, [open, allKnownPermissions, role?.permissions]);
 
 	const reset = () => {
 		setName(role?.role_name ?? "");
 		setPermissions(
 			expandWildcardPermissions(
 				role?.permissions as Record<string, boolean> | undefined,
-				PROJECT_KNOWN_PERMISSIONS,
+				allKnownPermissions,
 			),
 		);
 		setError(null);
@@ -77,7 +111,7 @@ export function ProjectRoleFormDialog({
 		mutationFn: async () => {
 			const normalized = normalizePermissionsToWildcards(
 				permissions,
-				PROJECT_KNOWN_PERMISSIONS,
+				allKnownPermissions,
 			);
 			if (isEdit && role) {
 				return updateProjectRole(projectId, role.id, {
@@ -124,6 +158,12 @@ export function ProjectRoleFormDialog({
 			setError((code && messages[code]) ?? fallback);
 		},
 	});
+
+	const permissionLabel = (permission: KnownPermission): string =>
+		permission.rawLabel ?? t(permission.labelKey as never);
+
+	const permissionDescription = (permission: KnownPermission): string =>
+		permission.rawDescription ?? t(permission.descriptionKey as never);
 
 	const togglePermission = (key: string, checked: boolean) => {
 		setPermissions((prev) => ({ ...prev, [key]: checked }));
@@ -200,9 +240,10 @@ export function ProjectRoleFormDialog({
 
 						<div className="flex flex-col gap-4 rounded-lg border bg-muted/20 p-4">
 							{PROJECT_PERMISSION_GROUPS.map((group, groupIndex) => {
-								const groupPerms = PROJECT_KNOWN_PERMISSIONS.filter(
+								const groupPerms = allKnownPermissions.filter(
 									(p) => p.domain === group.domain,
 								);
+								if (groupPerms.length === 0) return null;
 								const { Icon } = group;
 								return (
 									<div key={group.domain}>
@@ -220,10 +261,10 @@ export function ProjectRoleFormDialog({
 													<div className="flex items-center justify-between py-1">
 														<div className="flex flex-col gap-0.5">
 															<span className="text-sm font-medium">
-																{t(permission.labelKey)}
+																{permissionLabel(permission)}
 															</span>
 															<span className="text-xs text-muted-foreground">
-																{t(permission.descriptionKey)}
+																{permissionDescription(permission)}
 															</span>
 														</div>
 														<Switch

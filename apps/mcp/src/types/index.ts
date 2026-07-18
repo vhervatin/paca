@@ -81,7 +81,7 @@ export interface Task {
 	description?: unknown[] | null;
 	importance: number;
 	story_points?: number | null;
-	assignee_id?: string | null;
+	assignee_ids?: string[];
 	reporter_id?: string | null;
 	custom_fields: Record<string, unknown>;
 	start_date?: string | null;
@@ -425,11 +425,21 @@ export interface FilterConfig {
 	items?: Record<string, FilterEntry>;
 }
 
+export interface CustomFieldFilterConfig {
+	selector?: FilterConfig;
+	min?: number;
+	max?: number;
+	after?: string;
+	before?: string;
+	contains?: string;
+}
+
 export interface ViewFilters {
 	task_types?: FilterConfig;
 	statuses?: FilterConfig;
 	assignees?: FilterConfig;
 	sprints?: FilterConfig;
+	custom_fields?: Record<string, CustomFieldFilterConfig>;
 }
 
 export interface ViewConfig {

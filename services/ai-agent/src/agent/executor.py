@@ -30,7 +30,7 @@ from ..repositories import conversation_repository
 from . import trigger_skills
 from .builder import build_llm, build_mcp_config, build_skills, load_default_skills
 from .docker_workspace import start_sandbox, stop_sandbox
-from .prompt import build_initial_prompt, build_trigger_suffix
+from .prompt import build_initial_prompt, build_project_context_suffix, build_trigger_suffix
 from .repo_tools import make_repository_tool_specs
 
 # The trigger_type Go publishes for direct-chat messages (agent_service.go's
@@ -319,6 +319,47 @@ class _SeenEvents:
 # ─── Event callback ───────────────────────────────────────────────────────────
 
 
+async def persist_conversation_event(
+    conversation_id: str,
+    project_id: str,
+    event_type: str,
+    event_source: str,
+    event_index: int,
+    payload: str,
+) -> None:
+    """Write a single event to Postgres + Valkey and fan it out over realtime.
+
+    Shared by the in-process SDK event callback below (via `_persist_event`,
+    which additionally filters and indexes SDK event objects) and
+    routes/bridge.py, which persists events reported by a local ACP bridge
+    daemon — both paths must write to the same destinations so the frontend
+    renders either source identically.
+    """
+    await conversation_repository.insert_conversation_event(
+        conversation_id=conversation_id,
+        event_type=event_type,
+        event_source=event_source,
+        event_index=event_index,
+        payload=payload,
+    )
+    await stream_store.publish_event(
+        {
+            "conversation_id": conversation_id,
+            "project_id": project_id,
+            "event_type": event_type,
+            "event_source": event_source,
+            "event_index": str(event_index),
+            "payload": payload,
+            "status": "running",
+        }
+    )
+    await stream_store.publish_realtime(
+        project_id=project_id,
+        conversation_id=conversation_id,
+        event_type=f"agent.{event_type.lower()}",
+    )
+
+
 def _persist_event(
     trigger: TriggerMessage,
     loop: asyncio.AbstractEventLoop,
@@ -347,32 +388,17 @@ def _persist_event(
     event_index = counter.next()
     payload = event.model_dump_json() if hasattr(event, "model_dump_json") else "{}"
 
-    async def _persist():
-        await conversation_repository.insert_conversation_event(
+    future = asyncio.run_coroutine_threadsafe(
+        persist_conversation_event(
             conversation_id=trigger.conversation_id,
+            project_id=trigger.project_id,
             event_type=event_type,
             event_source=event_source,
             event_index=event_index,
             payload=payload,
-        )
-        await stream_store.publish_event(
-            {
-                "conversation_id": trigger.conversation_id,
-                "project_id": trigger.project_id,
-                "event_type": event_type,
-                "event_source": event_source,
-                "event_index": str(event_index),
-                "payload": payload,
-                "status": "running",
-            }
-        )
-        await stream_store.publish_realtime(
-            project_id=trigger.project_id,
-            conversation_id=trigger.conversation_id,
-            event_type=f"agent.{event_type.lower()}",
-        )
-
-    future = asyncio.run_coroutine_threadsafe(_persist(), loop)
+        ),
+        loop,
+    )
     try:
         future.result(timeout=10)
     except Exception as exc:
@@ -435,16 +461,6 @@ def _make_reconciler(
     return reconcile
 
 
-def _build_project_context_suffix(project_id: str) -> str:
-    return (
-        f"\n\n## Current Project Context\n"
-        f"You are working inside project `{project_id}`.\n"
-        "**Always pass this value as `projectId` in every MCP tool call** "
-        "that requires it — never ask the user for the project ID and "
-        "never call `list_projects` to find it.\n"
-    )
-
-
 # ─── Main entry point ─────────────────────────────────────────────────────────
 
 
@@ -499,7 +515,7 @@ async def run_conversation(trigger: TriggerMessage, agent_config: AgentConfig) -
 
         # Inject current project context so the AI never needs to ask for the
         # project ID or call list_projects to discover it.
-        system_suffix += _build_project_context_suffix(trigger.project_id)
+        system_suffix += build_project_context_suffix(trigger.project_id)
 
         # Documentation lives in Paca — never create local files, and always
         # read it before acting (it holds architecture/conventions/prior
@@ -582,7 +598,7 @@ async def run_conversation(trigger: TriggerMessage, agent_config: AgentConfig) -
 
             try:
                 agent_kwargs: dict = {"llm": llm, "agent_context": agent_context}
-                if mcp_config.get("mcpServers"):
+                if mcp_config:
                     agent_kwargs["mcp_config"] = mcp_config
 
                 if has_repos:

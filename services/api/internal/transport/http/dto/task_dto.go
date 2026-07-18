@@ -46,6 +46,44 @@ func (o OptionalUUID) Ptr() **uuid.UUID {
 	return &o.Value
 }
 
+// OptionalUUIDSlice is a JSON-decodable field for a settable list of UUIDs
+// (e.g. assignee_ids). Unlike OptionalUUID it has no null/absent distinction
+// beyond "was this field present in the body" — JSON null is treated the same
+// as an empty array (both clear the stored set).
+type OptionalUUIDSlice struct {
+	Set   bool
+	Value []uuid.UUID
+}
+
+// UnmarshalJSON implements json.Unmarshaler. It marks the field as Set and
+// decodes the value, treating JSON null as an empty (non-nil) slice.
+func (o *OptionalUUIDSlice) UnmarshalJSON(data []byte) error {
+	o.Set = true
+	if string(data) == "null" {
+		o.Value = []uuid.UUID{}
+		return nil
+	}
+	var ids []uuid.UUID
+	if err := json.Unmarshal(data, &ids); err != nil {
+		return fmt.Errorf("invalid uuid array value: %w", err)
+	}
+	if ids == nil {
+		ids = []uuid.UUID{}
+	}
+	o.Value = ids
+	return nil
+}
+
+// Ptr returns a *[]uuid.UUID suitable for UpdateTaskInput.AssigneeIDs: nil
+// when the field was absent (don't overwrite), non-nil when it was set
+// (replace in full, possibly with an empty slice to clear).
+func (o OptionalUUIDSlice) Ptr() *[]uuid.UUID {
+	if !o.Set {
+		return nil
+	}
+	return &o.Value
+}
+
 // OptionalString is a JSON-decodable field for nullable string columns.
 type OptionalString struct {
 	Set   bool
@@ -281,7 +319,7 @@ type CreateTaskRequest struct {
 	Description  *json.RawMessage `json:"description"`
 	Importance   int              `json:"importance"`
 	StoryPoints  *int             `json:"story_points"`
-	AssigneeID   *uuid.UUID       `json:"assignee_id"`
+	AssigneeIDs  []uuid.UUID      `json:"assignee_ids"`
 	ReporterID   *uuid.UUID       `json:"reporter_id"`
 	CustomFields map[string]any   `json:"custom_fields"`
 	StartDate    *time.Time       `json:"start_date"`
@@ -304,20 +342,20 @@ func (r CreateTaskRequest) NormalizedDescription() json.RawMessage {
 // For Tags and CustomFields, a nil pointer means absent (don't update); a non-nil
 // pointer (even to an empty slice/map) means the field was explicitly set.
 type UpdateTaskRequest struct {
-	Title        string          `json:"title"`
-	TaskTypeID   OptionalUUID    `json:"task_type_id"`
-	StatusID     OptionalUUID    `json:"status_id"`
-	SprintID     OptionalUUID    `json:"sprint_id"`
-	ParentTaskID OptionalUUID    `json:"parent_task_id"`
-	Description  OptionalJSON    `json:"description"`
-	Importance   *int            `json:"importance"`
-	StoryPoints  OptionalInt     `json:"story_points"`
-	AssigneeID   OptionalUUID    `json:"assignee_id"`
-	ReporterID   OptionalUUID    `json:"reporter_id"`
-	CustomFields *map[string]any `json:"custom_fields"`
-	StartDate    OptionalTime    `json:"start_date"`
-	DueDate      OptionalTime    `json:"due_date"`
-	Tags         *[]string       `json:"tags"`
+	Title        string            `json:"title"`
+	TaskTypeID   OptionalUUID      `json:"task_type_id"`
+	StatusID     OptionalUUID      `json:"status_id"`
+	SprintID     OptionalUUID      `json:"sprint_id"`
+	ParentTaskID OptionalUUID      `json:"parent_task_id"`
+	Description  OptionalJSON      `json:"description"`
+	Importance   *int              `json:"importance"`
+	StoryPoints  OptionalInt       `json:"story_points"`
+	AssigneeIDs  OptionalUUIDSlice `json:"assignee_ids"`
+	ReporterID   OptionalUUID      `json:"reporter_id"`
+	CustomFields *map[string]any   `json:"custom_fields"`
+	StartDate    OptionalTime      `json:"start_date"`
+	DueDate      OptionalTime      `json:"due_date"`
+	Tags         *[]string         `json:"tags"`
 }
 
 // TaskResponse is the public representation of a task.
@@ -336,7 +374,7 @@ type TaskResponse struct {
 	Description  json.RawMessage `json:"description,omitempty"`
 	Importance   int             `json:"importance"`
 	StoryPoints  *int            `json:"story_points,omitempty"`
-	AssigneeID   *uuid.UUID      `json:"assignee_id,omitempty"`
+	AssigneeIDs  []uuid.UUID     `json:"assignee_ids"`
 	ReporterID   *uuid.UUID      `json:"reporter_id,omitempty"`
 	CustomFields map[string]any  `json:"custom_fields"`
 	StartDate    *time.Time      `json:"start_date,omitempty"`
@@ -358,6 +396,10 @@ func TaskFromEntity(t *taskdom.Task) TaskResponse {
 	if tags == nil {
 		tags = []string{}
 	}
+	assigneeIDs := t.AssigneeIDs
+	if assigneeIDs == nil {
+		assigneeIDs = []uuid.UUID{}
+	}
 	return TaskResponse{
 		ID:           t.ID,
 		ProjectID:    t.ProjectID,
@@ -370,7 +412,7 @@ func TaskFromEntity(t *taskdom.Task) TaskResponse {
 		Description:  t.Description,
 		Importance:   t.Importance,
 		StoryPoints:  t.StoryPoints,
-		AssigneeID:   t.AssigneeID,
+		AssigneeIDs:  assigneeIDs,
 		ReporterID:   t.ReporterID,
 		CustomFields: cf,
 		StartDate:    t.StartDate,

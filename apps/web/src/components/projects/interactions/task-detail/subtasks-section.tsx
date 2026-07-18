@@ -22,7 +22,7 @@ interface SubtasksSectionProps {
 		payload: Partial<{
 			status_id: string | null;
 			task_type_id: string | null;
-			assignee_id: string | null;
+			assignee_ids: string[];
 			importance: number;
 		}>,
 	) => void;

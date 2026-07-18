@@ -106,6 +106,9 @@ def build_mcp_config(
 ) -> dict:
     """Build the MCP server configuration dict for the OpenHands SDK.
 
+    Returns a flat ``{server_name: server_config}`` map — the shape
+    ``Agent(mcp_config=...)`` expects directly (no ``mcpServers`` wrapper).
+
     User-configured servers come first; the built-in Paca MCP server is always
     appended last so it cannot be overridden by user entries.
     """
@@ -123,7 +126,7 @@ def build_mcp_config(
         else:
             servers[row.server_name] = {
                 "url": row.url,
-                **({"auth": "oauth"} if row.transport == "oauth" else {}),
+                **({"auth": {"strategy": "oauth2"}} if row.transport == "oauth" else {}),
             }
 
     if settings.paca_api_key:
@@ -143,4 +146,4 @@ def build_mcp_config(
             },
         }
 
-    return {"mcpServers": servers}
+    return servers

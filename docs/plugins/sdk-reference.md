@@ -221,7 +221,7 @@ interface TaskSummary {
   title: string;
   task_number: number;      // snake_case matching the API JSON
   status_id: string | null;
-  assignee_id: string | null;
+  assignee_ids: string[];
 }
 
 interface Task extends TaskSummary {

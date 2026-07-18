@@ -140,7 +140,7 @@ type CreateTaskInput struct {
 	Description  json.RawMessage
 	Importance   int
 	StoryPoints  *int
-	AssigneeID   *uuid.UUID
+	AssigneeIDs  []uuid.UUID
 	ReporterID   *uuid.UUID
 	CustomFields map[string]any
 	StartDate    *time.Time
@@ -155,9 +155,10 @@ type CreateTaskInput struct {
 //   - non-nil outer pointer, inner pointer nil  → explicitly set to null (clear)
 //   - non-nil outer pointer, inner pointer non-nil  → set to the given value
 //
-// For slice/map fields (Tags, CustomFields), a nil pointer means the field was
-// absent and should not be overwritten; a non-nil pointer (even to an empty
-// slice/map) means the field was explicitly set and replaces the stored value.
+// For slice/map fields (Tags, CustomFields, AssigneeIDs), a nil pointer means
+// the field was absent and should not be overwritten; a non-nil pointer (even
+// to an empty slice/map) means the field was explicitly set and replaces the
+// stored value in full.
 type UpdateTaskInput struct {
 	TaskTypeID   **uuid.UUID
 	StatusID     **uuid.UUID
@@ -167,7 +168,7 @@ type UpdateTaskInput struct {
 	Description  *json.RawMessage
 	Importance   *int
 	StoryPoints  **int
-	AssigneeID   **uuid.UUID
+	AssigneeIDs  *[]uuid.UUID
 	ReporterID   **uuid.UUID
 	CustomFields *map[string]any
 	StartDate    **time.Time

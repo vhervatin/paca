@@ -3,12 +3,14 @@ package docsvc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
 	docdom "github.com/Paca-AI/api/internal/domain/doc"
 	notificationdom "github.com/Paca-AI/api/internal/domain/notification"
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
+	userdom "github.com/Paca-AI/api/internal/domain/user"
 	"github.com/Paca-AI/api/internal/events"
 	mentionpkg "github.com/Paca-AI/api/internal/pkg/mention"
 	"github.com/Paca-AI/api/internal/platform/messaging"
@@ -88,7 +90,7 @@ func (s *ActivitySvc) AddComment(ctx context.Context, in docdom.AddCommentInput)
 	}
 	member, err := s.memberRepo.FindMemberByActor(ctx, in.ProjectID, in.ActorID, in.AgentID)
 	if err != nil {
-		return nil, err
+		return nil, wrapMemberLookupErr(err, in.ActorID, in.AgentID)
 	}
 	now := time.Now()
 	a := &docdom.Activity{
@@ -131,7 +133,7 @@ func (s *ActivitySvc) UpdateComment(ctx context.Context, id uuid.UUID, projectID
 	}
 	member, err := s.memberRepo.FindMemberByActor(ctx, projectID, actorID, agentID)
 	if err != nil {
-		return nil, err
+		return nil, wrapMemberLookupErr(err, actorID, agentID)
 	}
 	if a.ActorID == nil || *a.ActorID != member.ID {
 		return nil, docdom.ErrActivityForbidden
@@ -164,7 +166,7 @@ func (s *ActivitySvc) DeleteComment(ctx context.Context, id uuid.UUID, projectID
 	}
 	member, err := s.memberRepo.FindMemberByActor(ctx, projectID, actorID, agentID)
 	if err != nil {
-		return err
+		return wrapMemberLookupErr(err, actorID, agentID)
 	}
 	if a.ActorID == nil || *a.ActorID != member.ID {
 		return docdom.ErrActivityForbidden
@@ -182,6 +184,21 @@ func (s *ActivitySvc) DeleteComment(ctx context.Context, id uuid.UUID, projectID
 }
 
 // --- helpers ----------------------------------------------------------------
+
+// wrapMemberLookupErr replaces ErrMemberNotFound with the clearer
+// docdom.ErrCommentActorUnidentified when the actor is the system/agent-bot
+// identity with no agentID (see userdom.IsUnidentifiedSystemActor) — i.e. the
+// request authenticated with the shared agent API key but omitted
+// X-Agent-ID. That identity is never itself a project member by design, so
+// "member not found" is misleading; the caller instead needs to know to
+// supply X-Agent-ID. Any other lookup failure (a genuine non-member) is
+// returned unchanged.
+func wrapMemberLookupErr(err error, actorID uuid.UUID, agentID *uuid.UUID) error {
+	if errors.Is(err, projectdom.ErrMemberNotFound) && userdom.IsUnidentifiedSystemActor(actorID, agentID) {
+		return docdom.ErrCommentActorUnidentified
+	}
+	return err
+}
 
 // activityPayload builds the full stream message body for a doc activity.
 // projectID is included so the consumer can resolve the actor (user UUID) to

@@ -215,6 +215,8 @@ func statusAndCodeFor(err error) (int, apierr.Code) {
 		return http.StatusBadRequest, apierr.CodeActivityNotAComment
 	case errors.Is(err, taskdom.ErrCommentContentInvalid):
 		return http.StatusBadRequest, apierr.CodeCommentContentInvalid
+	case errors.Is(err, taskdom.ErrCommentActorUnidentified):
+		return http.StatusBadRequest, apierr.CodeCommentActorUnidentified
 	case errors.Is(err, taskdom.ErrTaskLinkNotFound):
 		return http.StatusNotFound, apierr.CodeTaskLinkNotFound
 	case errors.Is(err, taskdom.ErrTaskLinkSelf):
@@ -245,6 +247,8 @@ func statusAndCodeFor(err error) (int, apierr.Code) {
 		return http.StatusBadRequest, apierr.CodeDocActivityNotAComment
 	case errors.Is(err, docdom.ErrCommentContentInvalid):
 		return http.StatusBadRequest, apierr.CodeDocCommentContentInvalid
+	case errors.Is(err, docdom.ErrCommentActorUnidentified):
+		return http.StatusBadRequest, apierr.CodeDocCommentActorUnidentified
 	case errors.Is(err, notificationdom.ErrNotificationNotFound):
 		return http.StatusNotFound, apierr.CodeNotificationNotFound
 	case errors.Is(err, apikeydom.ErrNotFound):
@@ -272,6 +276,12 @@ func statusAndCodeFor(err error) (int, apierr.Code) {
 		return http.StatusBadRequest, apierr.CodeAgentHandleInvalid
 	case errors.Is(err, agentdom.ErrAgentNameInvalid):
 		return http.StatusBadRequest, apierr.CodeAgentNameInvalid
+	case errors.Is(err, agentdom.ErrAgentTypeInvalid):
+		return http.StatusBadRequest, apierr.CodeAgentTypeInvalid
+	case errors.Is(err, agentdom.ErrACPProviderInvalid):
+		return http.StatusBadRequest, apierr.CodeAgentACPProviderInvalid
+	case errors.Is(err, agentdom.ErrACPCommandRequired):
+		return http.StatusBadRequest, apierr.CodeAgentACPCommandRequired
 	case errors.Is(err, agentdom.ErrMCPServerNotFound):
 		return http.StatusNotFound, apierr.CodeAgentMCPServerNotFound
 	case errors.Is(err, agentdom.ErrSkillNotFound):
@@ -286,6 +296,8 @@ func statusAndCodeFor(err error) (int, apierr.Code) {
 		return http.StatusConflict, apierr.CodeAgentConversationAlreadyStopped
 	case errors.Is(err, agentdom.ErrConversationBusy):
 		return http.StatusConflict, apierr.CodeAgentConversationBusy
+	case errors.Is(err, agentdom.ErrConversationInvalidCursor):
+		return http.StatusBadRequest, apierr.CodeAgentConversationInvalidCursor
 	case errors.Is(err, agentdom.ErrChatSessionNotFound):
 		return http.StatusNotFound, apierr.CodeAgentChatSessionNotFound
 	case errors.Is(err, agentdom.ErrEnvVarNotFound):
@@ -427,7 +439,8 @@ func httpStatusForCode(code apierr.Code) int {
 		apierr.CodeCustomFieldTypeInvalid,
 		apierr.CodeCustomFieldNameInvalid,
 		apierr.CodeActivityNotAComment,
-		apierr.CodeCommentContentInvalid:
+		apierr.CodeCommentContentInvalid,
+		apierr.CodeCommentActorUnidentified:
 		return http.StatusBadRequest
 	case apierr.CodeActivityNotFound:
 		return http.StatusNotFound
@@ -452,7 +465,8 @@ func httpStatusForCode(code apierr.Code) int {
 		apierr.CodeDocFolderNotInProject,
 		apierr.CodeDocFolderSelfParent,
 		apierr.CodeDocActivityNotAComment,
-		apierr.CodeDocCommentContentInvalid:
+		apierr.CodeDocCommentContentInvalid,
+		apierr.CodeDocCommentActorUnidentified:
 		return http.StatusBadRequest
 	case apierr.CodeDocActivityForbidden:
 		return http.StatusForbidden
@@ -509,9 +523,13 @@ func httpStatusForCode(code apierr.Code) int {
 		return http.StatusConflict
 	case apierr.CodeAgentHandleInvalid,
 		apierr.CodeAgentNameInvalid,
+		apierr.CodeAgentTypeInvalid,
+		apierr.CodeAgentACPProviderInvalid,
+		apierr.CodeAgentACPCommandRequired,
 		apierr.CodeAgentEnvVarKeyInvalid,
 		apierr.CodeAgentEnvVarKeyReserved,
-		apierr.CodeAgentSkillNameReserved:
+		apierr.CodeAgentSkillNameReserved,
+		apierr.CodeAgentConversationInvalidCursor:
 		return http.StatusBadRequest
 	case apierr.CodeWorkflowNotFound,
 		apierr.CodeWorkflowNodeNotFound,

@@ -32,6 +32,9 @@ type AgentRepository interface {
 	// SoftDeleteAgentWithMembership atomically soft-deletes both the agent and
 	// its project_members row within a single database transaction.
 	SoftDeleteAgentWithMembership(ctx context.Context, projectID, agentID uuid.UUID) error
+	// SetACPBridgeTokenHash stores the SHA-256 hash of a newly generated
+	// local-bridge auth token, replacing any previous one.
+	SetACPBridgeTokenHash(ctx context.Context, agentID uuid.UUID, hash string) error
 }
 
 // MCPServerRepository defines storage for agent MCP server configurations.
@@ -64,7 +67,9 @@ type EnvVarRepository interface {
 
 // ConversationRepository defines storage for agent conversations.
 type ConversationRepository interface {
-	ListConversations(ctx context.Context, in ListConversationsFilter) ([]*AgentConversation, int64, error)
+	// ListConversations returns up to limit conversations matching the
+	// filter, ordered newest-first, plus whether more pages remain.
+	ListConversations(ctx context.Context, in ListConversationsFilter, limit int) (convs []*AgentConversation, hasMore bool, err error)
 	FindConversationByID(ctx context.Context, id uuid.UUID) (*AgentConversation, error)
 	// FindLatestConversationByChatSession returns the most recently created
 	// conversation for a chat session, or (nil, nil) if the session has none
@@ -91,10 +96,9 @@ type ChatSessionRepository interface {
 
 // ListConversationsFilter carries optional filters for listing conversations.
 type ListConversationsFilter struct {
-	AgentID   *uuid.UUID
-	ProjectID *uuid.UUID
-	TaskID    *uuid.UUID
-	Status    *string
-	Limit     int
-	Offset    int
+	AgentID     *uuid.UUID
+	ProjectID   *uuid.UUID
+	TaskID      *uuid.UUID
+	Status      *string
+	CursorAfter *string // opaque base64 cursor; when set, resumes after this conversation
 }

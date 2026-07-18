@@ -41,6 +41,11 @@ type Deps struct {
 	Conversation         *handler.ConversationHandler
 	Workflow             *handler.WorkflowHandler
 	Log                  *slog.Logger
+	// CORSAllowedOrigins is the CORS allow-list — see corsMiddleware. A nil
+	// or empty slice (the zero value, so every existing caller of this
+	// struct literal keeps working unchanged) is treated the same as ["*"]:
+	// reflect Access-Control-Allow-Origin: * for every request.
+	CORSAllowedOrigins []string
 }
 
 // New builds and returns a configured http.Handler.
@@ -51,7 +56,7 @@ func New(deps Deps) http.Handler {
 	r.Use(requestIDMiddleware())
 	r.Use(loggerMiddleware(deps.Log))
 	r.Use(chimw.Recoverer)
-	r.Use(corsMiddleware())
+	r.Use(corsMiddleware(deps.CORSAllowedOrigins))
 
 	r.Route("/api", func(r chi.Router) {
 		// Public routes
@@ -135,13 +140,19 @@ func New(deps Deps) http.Handler {
 					Put("/users/{userId}/global-roles", deps.GlobalRole.ReplaceUserRoles)
 			})
 
-			// Projects — collection routes
-			r.Route("/projects", func(r chi.Router) {
+			// Projects — collection routes.
+			// Registered via r.Group (not r.Route) so these stay in the same
+			// routing tree as the "/projects/{projectId}" mount below — chi
+			// treats two separate Route()/Mount() calls sharing the "projects"
+			// prefix as competing mounts, and the {projectId} one wins even for
+			// paths like /projects/workspace-stats, shadowing the static route.
+			r.Group(func(r chi.Router) {
 				r.Use(httpmw.Authn(deps.TokenManager, deps.APIKeyAuth))
 				r.Use(httpmw.RequireFreshPassword())
-				r.Get("/", deps.Project.ListProjects)
+				r.Get("/projects", deps.Project.ListProjects)
+				r.Get("/projects/workspace-stats", deps.Project.GetWorkspaceStats)
 				r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionProjectsCreate)).
-					Post("/", deps.Project.CreateProject)
+					Post("/projects", deps.Project.CreateProject)
 			})
 
 			// LLM models — accessible to any authenticated user
@@ -511,6 +522,12 @@ func New(deps Deps) http.Handler {
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsWrite)).
 							Delete("/{agentId}", deps.Agent.DeleteAgent)
 
+						// ACP local bridge
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsWrite)).
+							Post("/{agentId}/acp-bridge-token", deps.Agent.GenerateACPBridgeToken)
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsRead)).
+							Get("/{agentId}/acp-bridge-status", deps.Agent.GetACPBridgeStatus)
+
 						// MCP servers
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsRead)).
 							Get("/{agentId}/mcp-servers", deps.Agent.ListMCPServers)
@@ -657,11 +674,33 @@ func loggerMiddleware(log *slog.Logger) func(http.Handler) http.Handler {
 	}
 }
 
-// corsMiddleware sets permissive CORS headers (tighten in production).
-func corsMiddleware() func(http.Handler) http.Handler {
+// corsMiddleware sets CORS headers per the given allow-list. An empty list,
+// or a list containing "*", reflects Access-Control-Allow-Origin: * for
+// every request (the historical default — permissive, tighten in production
+// by setting CORS_ORIGINS). Otherwise only an exact-match Origin gets
+// Access-Control-Allow-Origin echoed back; everything else gets no CORS
+// headers at all, so the browser blocks the response.
+func corsMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
+	allowAll := len(allowedOrigins) == 0
+	allowed := make(map[string]bool, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		if o == "*" {
+			allowAll = true
+			break
+		}
+		allowed[o] = true
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
+			origin := r.Header.Get("Origin")
+			switch {
+			case allowAll:
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+			case origin != "" && allowed[origin]:
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Vary", "Origin")
+			}
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Request-ID")
 

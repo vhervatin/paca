@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Paca-AI/api/internal/apierr"
 	plugindom "github.com/Paca-AI/api/internal/domain/plugin"
 	"github.com/google/uuid"
 )
@@ -29,6 +30,9 @@ func (s *Service) ListPlugins(ctx context.Context) ([]*plugindom.Plugin, error) 
 func (s *Service) InstallPlugin(ctx context.Context, input plugindom.InstallInput) (*plugindom.Plugin, error) {
 	if input.Name == "" {
 		return nil, fmt.Errorf("plugin name is required")
+	}
+	if err := input.Manifest.Validate(); err != nil {
+		return nil, apierr.New(apierr.CodeBadRequest, "invalid plugin manifest: "+err.Error())
 	}
 	now := time.Now()
 	p := &plugindom.Plugin{
@@ -56,6 +60,9 @@ func (s *Service) UpdatePlugin(ctx context.Context, id uuid.UUID, input plugindo
 		p.Version = *input.Version
 	}
 	if input.Manifest != nil {
+		if err := input.Manifest.Validate(); err != nil {
+			return nil, apierr.New(apierr.CodeBadRequest, "invalid plugin manifest: "+err.Error())
+		}
 		p.Manifest = *input.Manifest
 	}
 	if input.Enabled != nil {

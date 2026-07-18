@@ -67,6 +67,26 @@ describe("permissions", () => {
 		});
 	});
 
+	it("expandWildcardPermissions matches plugin-declared permissions by their own key prefix, not the synthetic UI domain", () => {
+		// Plugin-declared permissions all share the UI domain "plugins" (see
+		// toPluginKnownPermissions), but the wildcard a role actually stores is
+		// keyed by the permission's own namespace (e.g. "time_logging.*") —
+		// domain-based matching would look for a non-existent "plugins.*".
+		const pluginPermissions: PermissionDefinition[] = [
+			{ key: "time_logging.view_all", domain: "plugins" },
+			{ key: "time_logging.manage_all", domain: "plugins" },
+			{ key: "checklist.manage", domain: "plugins" },
+		];
+
+		expect(
+			expandWildcardPermissions({ "time_logging.*": true }, pluginPermissions),
+		).toEqual({
+			"time_logging.view_all": true,
+			"time_logging.manage_all": true,
+			"checklist.manage": false,
+		});
+	});
+
 	it("normalizePermissionsToWildcards compacts fully selected domains and preserves partial domains", () => {
 		expect(
 			normalizePermissionsToWildcards(

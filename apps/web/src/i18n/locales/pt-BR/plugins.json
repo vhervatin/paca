@@ -32,7 +32,9 @@
 			"sidebarProject": "Barra lateral — Projeto",
 			"taskDetail": "Detalhes da tarefa",
 			"projectSettingsTab": "Aba de configurações do projeto",
-			"customView": "Visualização personalizada"
+			"customView": "Visualização personalizada",
+			"projectPage": "Página do Projeto",
+			"adminPage": "Página de Administração"
 		}
 	}
 }

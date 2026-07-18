@@ -84,7 +84,7 @@ Paca AI Agents are first-class project members powered by the [OpenHands Softwar
 
 ### 1. Task Assignment
 
-When a task's `assignee_id` points to a `project_members` row with `member_type = 'agent'`, the API publishes an `agent.task.assigned` event to the Valkey Stream containing:
+A task can have multiple assignees (stored in the `task_assignees` join table). When one of a task's assignees points to a `project_members` row with `member_type = 'agent'`, the API publishes an `agent.task.assigned` event to the Valkey Stream — one event per newly-added agent assignee — containing:
 
 ```json
 {

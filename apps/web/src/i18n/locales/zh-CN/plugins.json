@@ -32,7 +32,9 @@
 			"sidebarProject": "侧边栏 — 项目",
 			"taskDetail": "任务详情",
 			"projectSettingsTab": "项目设置标签页",
-			"customView": "自定义视图"
+			"customView": "自定义视图",
+			"projectPage": "项目页面",
+			"adminPage": "管理页面"
 		}
 	}
 }

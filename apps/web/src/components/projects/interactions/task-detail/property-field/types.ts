@@ -9,6 +9,7 @@ export type PropertyFieldMode =
 	| "text"
 	| "checkbox"
 	| "user"
+	| "multi-user"
 	| "tags"
 	| "readonly"
 	| "link"
@@ -57,6 +58,9 @@ export interface PropertyFieldProps {
 	users?: UserOption[];
 	onUserChange?: (value: string | null) => void;
 	showUnassigned?: boolean;
+
+	userValues?: UserOption[];
+	onUsersChange?: (values: string[]) => void;
 
 	tags?: string[];
 	onTagsChange?: (tags: string[]) => void;

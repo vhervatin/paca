@@ -153,6 +153,10 @@ const (
 	CodeActivityNotAComment Code = "ACTIVITY_NOT_A_COMMENT"
 	// CodeCommentContentInvalid indicates an empty or invalid comment content.
 	CodeCommentContentInvalid Code = "ACTIVITY_COMMENT_CONTENT_INVALID"
+	// CodeCommentActorUnidentified indicates the caller authenticated with the
+	// shared agent API key but did not supply an X-Agent-ID header, so there is
+	// no project member identity to attribute the comment to.
+	CodeCommentActorUnidentified Code = "ACTIVITY_COMMENT_ACTOR_UNIDENTIFIED"
 
 	// --- Task link errors ------------------------------------------------
 
@@ -189,6 +193,10 @@ const (
 	CodeDocActivityNotAComment Code = "DOC_ACTIVITY_NOT_A_COMMENT"
 	// CodeDocCommentContentInvalid indicates an empty or invalid comment content.
 	CodeDocCommentContentInvalid Code = "DOC_COMMENT_CONTENT_INVALID"
+	// CodeDocCommentActorUnidentified indicates the caller authenticated with
+	// the shared agent API key but did not supply an X-Agent-ID header, so
+	// there is no project member identity to attribute the comment to.
+	CodeDocCommentActorUnidentified Code = "DOC_COMMENT_ACTOR_UNIDENTIFIED"
 
 	// CodeNotificationNotFound indicates the requested notification does not exist
 	// or does not belong to the authenticated user.
@@ -260,6 +268,12 @@ const (
 	CodeAgentNameInvalid Code = "AGENT_NAME_INVALID"
 	// CodeAgentTypeNotFound indicates the requested agent type does not exist.
 	CodeAgentTypeNotFound Code = "AGENT_TYPE_NOT_FOUND"
+	// CodeAgentTypeInvalid indicates agent_type is not one of the supported values.
+	CodeAgentTypeInvalid Code = "AGENT_TYPE_INVALID"
+	// CodeAgentACPProviderInvalid indicates acp_provider is not one of the supported values.
+	CodeAgentACPProviderInvalid Code = "AGENT_ACP_PROVIDER_INVALID"
+	// CodeAgentACPCommandRequired indicates acp_command is required for the given acp_provider.
+	CodeAgentACPCommandRequired Code = "AGENT_ACP_COMMAND_REQUIRED"
 	// CodeAgentMCPServerNotFound indicates the requested MCP server does not exist.
 	CodeAgentMCPServerNotFound Code = "AGENT_MCP_SERVER_NOT_FOUND"
 	// CodeAgentSkillNotFound indicates the requested skill does not exist.
@@ -274,6 +288,8 @@ const (
 	CodeAgentConversationAlreadyStopped Code = "AGENT_CONVERSATION_ALREADY_STOPPED"
 	// CodeAgentConversationBusy indicates a chat reply was sent while the agent is still responding to the previous one.
 	CodeAgentConversationBusy Code = "AGENT_CONVERSATION_BUSY"
+	// CodeAgentConversationInvalidCursor indicates a client-supplied pagination cursor failed to decode.
+	CodeAgentConversationInvalidCursor Code = "AGENT_CONVERSATION_INVALID_CURSOR"
 	// CodeAgentChatSessionNotFound indicates the requested chat session does not exist.
 	CodeAgentChatSessionNotFound Code = "AGENT_CHAT_SESSION_NOT_FOUND"
 	// CodeAgentEnvVarNotFound indicates the requested environment variable does not exist.

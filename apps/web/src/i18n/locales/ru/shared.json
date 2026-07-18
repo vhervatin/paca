@@ -1,0 +1,146 @@
+{
+	"activityPane": {
+		"title": "Активность",
+		"empty": "Активности пока нет",
+		"editingComment": "Редактирование комментария...",
+		"cancel": "Отмена",
+		"sendHint": "⌘↵ для отправки",
+		"systemActor": "Система",
+		"editing": "Редактирование",
+		"edit": "Редактировать",
+		"delete": "Удалить",
+		"viewDiff": "Показать diff",
+		"revert": "Откатить",
+		"errors": {
+			"revertFailed": "Не удалось откатить. Попробуйте ещё раз."
+		}
+	},
+	"contentDiff": {
+		"emptyLine": "(пустая строка)",
+		"noDifferences": "Текстовых отличий нет",
+		"changeDiff": "Diff изменений",
+		"removed": "Удалено",
+		"added": "Добавлено"
+	},
+	"home": {
+		"greeting": {
+			"morning": "Доброе утро",
+			"afternoon": "Добрый день",
+			"evening": "Добрый вечер",
+			"fallbackName": "привет"
+		},
+		"hero": {
+			"badge": "Рабочее пространство Scrumban",
+			"subtitleWithProjects_one": "У вас {{count}} активный проект. Продолжайте с того места, где остановились.",
+			"subtitleWithProjects_few": "У вас {{count}} активных проекта. Продолжайте с того места, где остановились.",
+			"subtitleWithProjects_many": "У вас {{count}} активных проектов. Продолжайте с того места, где остановились.",
+			"subtitleWithProjects_other": "У вас {{count}} активного проекта. Продолжайте с того места, где остановились.",
+			"subtitleEmpty": "Рабочее пространство готово. Создайте проект, пригласите команду и начинайте выпускать результат.",
+			"newProject": "Новый проект"
+		},
+		"stats": {
+			"projects": {
+				"label": "Проекты",
+				"subEmpty": "Проектов пока нет",
+				"subActive": "{{count}} активных"
+			},
+			"openTasks": {
+				"label": "Открытые задачи",
+				"sub": "Во всех проектах"
+			},
+			"teamMembers": {
+				"label": "Участники команды",
+				"sub": "Включая вас"
+			},
+			"aiAgents": {
+				"label": "AI-агенты",
+				"sub": "Не настроены"
+			}
+		},
+		"projectsSection": {
+			"title": "Проекты",
+			"countInWorkspace_one": "{{count}} проект в рабочем пространстве",
+			"countInWorkspace_few": "{{count}} проекта в рабочем пространстве",
+			"countInWorkspace_many": "{{count}} проектов в рабочем пространстве",
+			"countInWorkspace_other": "{{count}} проекта в рабочем пространстве",
+			"newShort": "Новый",
+			"newProjectCard": "Новый проект"
+		},
+		"projectCard": {
+			"public": "Публичный",
+			"noDescription": "Без описания"
+		},
+		"gettingStarted": {
+			"title": "Начало работы",
+			"progress": "{{completed}} / {{total}}",
+			"subtitle": "Выполните эти шаги, чтобы раскрыть возможности Paca.",
+			"steps": {
+				"createProject": {
+					"title": "Создайте первый проект",
+					"description": "Настройте scrumban-доску для управления работой команды."
+				},
+				"inviteTeam": {
+					"title": "Пригласите команду",
+					"description": "Добавьте людей и назначьте роли."
+				},
+				"configureAgent": {
+					"title": "Настройте AI-агента",
+					"description": "Подключите AI для автономного выполнения задач."
+				},
+				"runSprint": {
+					"title": "Запустите первый спринт",
+					"description": "Проведите задачи через цикл Plan → Act → Check → Adapt."
+				}
+			}
+		},
+		"quickActions": {
+			"title": "Быстрые действия",
+			"newProject": {
+				"label": "Новый проект",
+				"description": "Создать scrumban-доску"
+			},
+			"inviteTeam": {
+				"label": "Пригласить команду",
+				"description": "Добавить участников или агентов"
+			},
+			"addAiAgent": {
+				"label": "Добавить AI-агента",
+				"description": "Настроить автоматизацию"
+			}
+		},
+		"about": {
+			"title": "Как работает Paca",
+			"descriptionLead": "Объединяйте человеческую креативность и скорость AI на общей scrumban-доске. Задачи проходят через",
+			"workflow": "Plan → Act → Check → Adapt",
+			"descriptionTrail": "с полной прозрачностью, кто — человек или AI — что сделал.",
+			"openSource": "Open source · Apache-2.0"
+		},
+		"createDialog": {
+			"title": "Новый проект",
+			"description": "Создайте scrumban-пространство для команды. После создания можно пригласить участников и настроить параметры.",
+			"nameLabel": "Название проекта *",
+			"namePlaceholder": "например, Platform v3",
+			"prefixLabel": "Префикс ID задач",
+			"prefixHint": "(например, PACA)",
+			"prefixPlaceholder": "PROJ",
+			"prefixExampleLead": "Задачи будут помечаться как",
+			"descriptionLabel": "Описание",
+			"optionalHint": "(необязательно)",
+			"descriptionPlaceholder": "О чём этот проект?",
+			"publicProject": {
+				"label": "Публичный проект",
+				"publicHint": "Любой, у кого есть ссылка, сможет просматривать этот проект. Анонимным пользователям доступен только просмотр.",
+				"privateHint": "Доступ есть только у участников команды."
+			},
+			"cancel": "Отмена",
+			"submit": "Создать проект",
+			"errors": {
+				"nameRequired": "Укажите название проекта.",
+				"nameTaken": "Проект с таким названием уже существует.",
+				"nameInvalid": "Название проекта пустое или некорректное.",
+				"prefixInvalid": "Префикс должен содержать 1–10 заглавных букв/цифр (например, PACA).",
+				"generic": "Что-то пошло не так. Попробуйте ещё раз."
+			}
+		}
+	}
+}

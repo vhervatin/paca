@@ -15,6 +15,12 @@ func discardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
+// isAssignedOnlyTo reports whether t's assignee set is exactly {member} —
+// the shape a status rule's replace-all-assignees reassignment produces.
+func isAssignedOnlyTo(t *taskdom.Task, member uuid.UUID) bool {
+	return len(t.AssigneeIDs) == 1 && t.AssigneeIDs[0] == member
+}
+
 // ---------------------------------------------------------------------------
 // Fakes
 // ---------------------------------------------------------------------------
@@ -165,8 +171,8 @@ func (f *fakeTaskStore) UpdateTask(_ context.Context, _, id uuid.UUID, in taskdo
 	if !ok {
 		return nil, taskdom.ErrTaskNotFound
 	}
-	if in.AssigneeID != nil {
-		t.AssigneeID = *in.AssigneeID
+	if in.AssigneeIDs != nil {
+		t.AssigneeIDs = *in.AssigneeIDs
 	}
 	cp := *t
 	return &cp, nil
@@ -275,8 +281,8 @@ func TestApplyNode_EventOne_DirectStatusRule(t *testing.T) {
 	}
 
 	got := f.tasks.tasks[task.ID]
-	if got.AssigneeID == nil || *got.AssigneeID != member {
-		t.Fatalf("expected task assigned to %v, got %+v", member, got.AssigneeID)
+	if !isAssignedOnlyTo(got, member) {
+		t.Fatalf("expected task assigned to %v, got %+v", member, got.AssigneeIDs)
 	}
 	if f.tasks.updateCalls != 1 {
 		t.Fatalf("expected exactly 1 UpdateTask call, got %d", f.tasks.updateCalls)
@@ -291,7 +297,7 @@ func TestApplyNode_EventOne_IdempotentWhenAlreadyAssigned(t *testing.T) {
 
 	_, task := f.addNode(w, &f.doneStatus.ID)
 	f.addRule(w, f.doneStatus.ID, member)
-	task.AssigneeID = &member // already assigned before the event fires
+	task.AssigneeIDs = []uuid.UUID{member} // already assigned before the event fires
 
 	if err := f.consumer.processTaskStatusChange(ctx, f.projectID, task.ID); err != nil {
 		t.Fatalf("processTaskStatusChange: %v", err)
@@ -318,8 +324,8 @@ func TestChain_SinglePredecessor_AssignsDownstreamOnDone(t *testing.T) {
 	}
 
 	gotB := f.tasks.tasks[taskB.ID]
-	if gotB.AssigneeID == nil || *gotB.AssigneeID != downstreamMember {
-		t.Fatalf("expected downstream task assigned to %v, got %+v", downstreamMember, gotB.AssigneeID)
+	if !isAssignedOnlyTo(gotB, downstreamMember) {
+		t.Fatalf("expected downstream task assigned to %v, got %+v", downstreamMember, gotB.AssigneeIDs)
 	}
 }
 
@@ -342,8 +348,8 @@ func TestDiamond_ANDJoin_WaitsForAllPredecessors(t *testing.T) {
 	if err := f.consumer.processTaskStatusChange(ctx, f.projectID, taskA.ID); err != nil {
 		t.Fatalf("processTaskStatusChange(A): %v", err)
 	}
-	if got := f.tasks.tasks[taskC.ID]; got.AssigneeID != nil {
-		t.Fatalf("expected C to remain unassigned while B is not done, got %+v", got.AssigneeID)
+	if got := f.tasks.tasks[taskC.ID]; len(got.AssigneeIDs) != 0 {
+		t.Fatalf("expected C to remain unassigned while B is not done, got %+v", got.AssigneeIDs)
 	}
 
 	// B finishes too — NOW C should be assigned.
@@ -352,8 +358,8 @@ func TestDiamond_ANDJoin_WaitsForAllPredecessors(t *testing.T) {
 		t.Fatalf("processTaskStatusChange(B): %v", err)
 	}
 	gotC := f.tasks.tasks[taskC.ID]
-	if gotC.AssigneeID == nil || *gotC.AssigneeID != downstreamMember {
-		t.Fatalf("expected C assigned to %v once both predecessors are done, got %+v", downstreamMember, gotC.AssigneeID)
+	if !isAssignedOnlyTo(gotC, downstreamMember) {
+		t.Fatalf("expected C assigned to %v once both predecessors are done, got %+v", downstreamMember, gotC.AssigneeIDs)
 	}
 }
 
@@ -478,12 +484,12 @@ func TestApplyStatusRule_ArchivedMidFanOut_StopsLaterNodes(t *testing.T) {
 	}
 
 	gotA := f.tasks.tasks[taskA.ID]
-	if gotA.AssigneeID == nil || *gotA.AssigneeID != memberA {
-		t.Fatalf("expected nodeA's own reassignment to complete before the archive landed, got %+v", gotA.AssigneeID)
+	if !isAssignedOnlyTo(gotA, memberA) {
+		t.Fatalf("expected nodeA's own reassignment to complete before the archive landed, got %+v", gotA.AssigneeIDs)
 	}
 	gotB := f.tasks.tasks[taskB.ID]
-	if gotB.AssigneeID != nil {
-		t.Fatalf("expected nodeB to NOT be reassigned once the workflow was archived mid-fan-out, got %v", *gotB.AssigneeID)
+	if len(gotB.AssigneeIDs) != 0 {
+		t.Fatalf("expected nodeB to NOT be reassigned once the workflow was archived mid-fan-out, got %v", gotB.AssigneeIDs)
 	}
 	if f.tasks.updateCalls != 1 {
 		t.Fatalf("expected exactly 1 UpdateTask call (nodeA only, before the archive), got %d", f.tasks.updateCalls)
@@ -529,8 +535,8 @@ func TestApplyStatusRule_ReflectsRuleEditedMidFanOut(t *testing.T) {
 	}
 
 	gotB := f.tasks.tasks[taskB.ID]
-	if gotB.AssigneeID == nil || *gotB.AssigneeID != newMemberB {
-		t.Fatalf("expected nodeB to be assigned the rule's up-to-date member %v (edited concurrently mid-fan-out), got %+v", newMemberB, gotB.AssigneeID)
+	if !isAssignedOnlyTo(gotB, newMemberB) {
+		t.Fatalf("expected nodeB to be assigned the rule's up-to-date member %v (edited concurrently mid-fan-out), got %+v", newMemberB, gotB.AssigneeIDs)
 	}
 	if f.graph.rulesCalls != 2 {
 		t.Fatalf("expected rules to be re-read fresh for each node in the fan-out (not cached), got %d calls", f.graph.rulesCalls)

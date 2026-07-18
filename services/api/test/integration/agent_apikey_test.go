@@ -14,6 +14,7 @@ import (
 
 	apikeydom "github.com/Paca-AI/api/internal/domain/apikey"
 	taskdom "github.com/Paca-AI/api/internal/domain/task"
+	userdom "github.com/Paca-AI/api/internal/domain/user"
 	"github.com/Paca-AI/api/internal/platform/authz"
 	jwttoken "github.com/Paca-AI/api/internal/platform/token"
 	apikeysvc "github.com/Paca-AI/api/internal/service/apikey"
@@ -37,6 +38,17 @@ const testAgentBotUserID = "00000000-0000-0000-0000-000000000001"
 
 // buildAgentKeyRouter creates a test router with agent API key authentication configured
 func buildAgentKeyRouter(taskRepo *fakeTaskRepo, apiKeyRepo *fakeAPIKeyRepo, store *projectPermStore, activityRepos ...*fakeTaskActivityRepo) http.Handler {
+	return buildAgentKeyRouterWithBotID(taskRepo, apiKeyRepo, store, uuid.MustParse(testAgentBotUserID), activityRepos...)
+}
+
+// buildAgentKeyRouterWithBotID is like buildAgentKeyRouter but lets the test
+// choose which user ID the shared agent key authenticates as when no
+// X-Agent-ID header is present. buildAgentKeyRouter always uses
+// testAgentBotUserID, a test-local placeholder distinct from the real
+// userdom.SystemActorUserID seeded in production — tests that need to
+// exercise the userdom.SystemActorUserID-specific "unidentified actor"
+// comment-error path must use this variant instead.
+func buildAgentKeyRouterWithBotID(taskRepo *fakeTaskRepo, apiKeyRepo *fakeAPIKeyRepo, store *projectPermStore, botUserID uuid.UUID, activityRepos ...*fakeTaskActivityRepo) http.Handler {
 	tm := jwttoken.New(testSecret, 15*time.Minute, 168*time.Hour)
 	refreshStore := &fakeRefreshStore{}
 	userRepo := newFakeUserRepo()
@@ -55,7 +67,7 @@ func buildAgentKeyRouter(taskRepo *fakeTaskRepo, apiKeyRepo *fakeAPIKeyRepo, sto
 	}
 	activityService := tasksvc.NewActivityService(activityRepo, &fakeActivityMemberRepo{}, nil)
 
-	apiKeyService := apikeysvc.New(apiKeyRepo).WithAgentKey(testAgentAPIKey, uuid.MustParse(testAgentBotUserID))
+	apiKeyService := apikeysvc.New(apiKeyRepo).WithAgentKey(testAgentAPIKey, botUserID)
 
 	if store == nil {
 		store = &projectPermStore{}
@@ -320,6 +332,64 @@ func TestAgentAPIKey_AddComment_Success(t *testing.T) {
 
 	if env.Data.ActivityType != "comment" {
 		t.Errorf("expected activity_type 'comment', got %q", env.Data.ActivityType)
+	}
+}
+
+// TestAgentAPIKey_AddComment_MissingAgentID_ReturnsClearError covers the
+// regression from GitHub issue #269: a request authenticated with the shared
+// agent API key but no X-Agent-ID header resolves to the system/agent-bot
+// identity (userdom.SystemActorUserID), which is never itself a project
+// member. Before the fix this surfaced a confusing 404
+// PROJECT_MEMBER_NOT_FOUND; it should now return a clear, actionable 400.
+func TestAgentAPIKey_AddComment_MissingAgentID_ReturnsClearError(t *testing.T) {
+	taskRepo := newFakeTaskRepoIT()
+	activityRepo := newFakeTaskActivityRepo()
+	apiKeyRepo := newFakeAPIKeyRepo()
+	projectID := uuid.New()
+	taskID := uuid.New()
+	botUserID := userdom.SystemActorUserID
+
+	store := &projectPermStore{
+		userPerms: map[uuid.UUID]map[uuid.UUID][]authz.Permission{
+			botUserID: {
+				projectID: {authz.PermissionTasksWrite},
+			},
+		},
+	}
+
+	taskRepo.tasks[taskID] = &taskdom.Task{
+		ID:        taskID,
+		ProjectID: projectID,
+		Title:     "Test Task",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	r := buildAgentKeyRouterWithBotID(taskRepo, apiKeyRepo, store, botUserID, activityRepo)
+	commentURL := fmt.Sprintf("/api/v1/projects/%s/tasks/%s/activities/comments", projectID, taskID)
+
+	// No agentID (uuid.Nil) means agentKeyAuthReq omits the X-Agent-ID header.
+	w := serve(r, agentKeyAuthReq(t.Context(), http.MethodPost, commentURL, uuid.Nil, map[string]any{
+		"content": []map[string]any{
+			{
+				"type":    "paragraph",
+				"content": []map[string]any{{"type": "text", "text": "orphan comment"}},
+			},
+		},
+	}))
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var env struct {
+		ErrorCode string `json:"error_code"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if env.ErrorCode != "ACTIVITY_COMMENT_ACTOR_UNIDENTIFIED" {
+		t.Errorf("expected error_code=ACTIVITY_COMMENT_ACTOR_UNIDENTIFIED, got %q", env.ErrorCode)
 	}
 }
 

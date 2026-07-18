@@ -242,7 +242,8 @@
 		"permissionGroups": {
 			"globalRoles": "Funções Globais",
 			"users": "Usuários",
-			"projects": "Projetos"
+			"projects": "Projetos",
+			"plugins": "Plugins"
 		}
 	},
 	"plugins": {

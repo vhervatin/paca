@@ -16,6 +16,7 @@ import (
 
 	plugindom "github.com/Paca-AI/api/internal/domain/plugin"
 	"github.com/Paca-AI/api/internal/events"
+	"github.com/Paca-AI/api/internal/platform/authz"
 	"github.com/google/uuid"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
@@ -68,6 +69,11 @@ type HostServices struct {
 	// AllowedOutboundDomains is the allowlist for paca.http_request outbound
 	// calls.  When empty, all outbound HTTP is blocked.
 	AllowedOutboundDomains []string
+	// Authorizer resolves effective permissions (built-in and plugin-declared
+	// custom permissions alike, since both are stored in the same permission
+	// map) for the paca.permission_check host function. May be nil, in which
+	// case permission_check always returns false.
+	Authorizer *authz.Authorizer
 }
 
 // EventPublisher abstracts the messaging.Publisher to avoid a circular import.
@@ -698,6 +704,36 @@ func (r *Runtime) execStatement(ctx context.Context, schema, sqlStr, paramsJSON 
 // PLUG-BE-05: Core read-only functions
 // -------------------------------------------------------------------------
 
+// loadTaskAssigneeIDs batch-loads task_assignees for taskIDs, returning a map
+// keyed by task ID (tasks with no assignees are simply absent from the map).
+func (r *Runtime) loadTaskAssigneeIDs(ctx context.Context, taskIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
+	result := make(map[uuid.UUID][]uuid.UUID, len(taskIDs))
+	if len(taskIDs) == 0 {
+		return result, nil
+	}
+	placeholders := make([]string, len(taskIDs))
+	args := make([]any, len(taskIDs))
+	for i, id := range taskIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	rows, err := r.services.DB.QueryContext(ctx,
+		`SELECT task_id, member_id FROM task_assignees WHERE task_id IN (`+strings.Join(placeholders, ",")+`) ORDER BY assigned_at ASC`,
+		args...)
+	if err != nil {
+		return nil, fmt.Errorf("load task assignees: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var taskID, memberID uuid.UUID
+		if err := rows.Scan(&taskID, &memberID); err != nil {
+			return nil, fmt.Errorf("load task assignees: scan: %w", err)
+		}
+		result[taskID] = append(result[taskID], memberID)
+	}
+	return result, rows.Err()
+}
+
 // registerCoreFunctions adds paca.tasks_list, paca.task_get,
 // paca.project_get, paca.members_list to the host module builder.
 // All results are scoped to the authorised project extracted from the
@@ -714,28 +750,51 @@ func (r *Runtime) registerCoreFunctions(b wazero.HostModuleBuilder, _ plugindom.
 			}
 
 			rows, err := r.services.DB.QueryContext(ctx,
-				`SELECT id, title, status_id, assignee_id, task_number FROM tasks
+				`SELECT id, title, status_id, task_number FROM tasks
 				 WHERE project_id = $1 AND deleted_at IS NULL
 				 ORDER BY task_number DESC LIMIT 100`, projectID)
 			if err != nil {
 				copy(stack, writeErrorResult(m, err))
 				return
 			}
-			defer func() { _ = rows.Close() }()
 
-			var tasks []map[string]any
+			type taskRow struct {
+				id       uuid.UUID
+				title    string
+				statusID *uuid.UUID
+				num      int
+			}
+			var taskRows []taskRow
 			for rows.Next() {
-				var id uuid.UUID
-				var title string
-				var statusID, assigneeID *uuid.UUID
-				var num int
-				if err := rows.Scan(&id, &title, &statusID, &assigneeID, &num); err != nil {
+				var tr taskRow
+				if err := rows.Scan(&tr.id, &tr.title, &tr.statusID, &tr.num); err != nil {
+					_ = rows.Close()
 					copy(stack, writeErrorResult(m, err))
 					return
 				}
+				taskRows = append(taskRows, tr)
+			}
+			_ = rows.Close()
+			if err := rows.Err(); err != nil {
+				copy(stack, writeErrorResult(m, err))
+				return
+			}
+
+			taskIDs := make([]uuid.UUID, len(taskRows))
+			for i, tr := range taskRows {
+				taskIDs[i] = tr.id
+			}
+			assigneeIDs, err := r.loadTaskAssigneeIDs(ctx, taskIDs)
+			if err != nil {
+				copy(stack, writeErrorResult(m, err))
+				return
+			}
+
+			var tasks []map[string]any
+			for _, tr := range taskRows {
 				tasks = append(tasks, map[string]any{
-					"id": id, "title": title, "status_id": statusID,
-					"assignee_id": assigneeID, "task_number": num,
+					"id": tr.id, "title": tr.title, "status_id": tr.statusID,
+					"assignee_ids": assigneeIDs[tr.id], "task_number": tr.num,
 				})
 			}
 			copy(stack, writeJSONResult(m, tasks))
@@ -754,21 +813,26 @@ func (r *Runtime) registerCoreFunctions(b wazero.HostModuleBuilder, _ plugindom.
 			}
 
 			row := r.services.DB.QueryRowContext(ctx,
-				`SELECT id, project_id, title, status_id, assignee_id, task_number
+				`SELECT id, project_id, title, status_id, task_number
 				 FROM tasks WHERE id = $1 AND deleted_at IS NULL`, taskID)
 			var (
-				id, projectID        uuid.UUID
-				title                string
-				statusID, assigneeID *uuid.UUID
-				num                  int
+				id, projectID uuid.UUID
+				title         string
+				statusID      *uuid.UUID
+				num           int
 			)
-			if err := row.Scan(&id, &projectID, &title, &statusID, &assigneeID, &num); err != nil {
+			if err := row.Scan(&id, &projectID, &title, &statusID, &num); err != nil {
+				copy(stack, writeErrorResult(m, err))
+				return
+			}
+			assigneeIDs, err := r.loadTaskAssigneeIDs(ctx, []uuid.UUID{id})
+			if err != nil {
 				copy(stack, writeErrorResult(m, err))
 				return
 			}
 			copy(stack, writeJSONResult(m, map[string]any{
 				"id": id, "project_id": projectID, "title": title,
-				"status_id": statusID, "assignee_id": assigneeID, "task_number": num,
+				"status_id": statusID, "assignee_ids": assigneeIDs[id], "task_number": num,
 			}))
 		}), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64},
 			[]api.ValueType{api.ValueTypeI64, api.ValueTypeI64}).
@@ -859,6 +923,7 @@ func WithPluginRequest(ctx context.Context, payload *HTTPRequest) context.Contex
 type HTTPRequest struct {
 	Method     string            `json:"method"`
 	Path       string            `json:"path"`
+	Query      map[string]string `json:"query"`
 	ProjectID  string            `json:"project_id"`
 	CallerID   string            `json:"caller_id"`
 	UserID     string            `json:"user_id"`
@@ -916,6 +981,55 @@ func (r *Runtime) registerHTTPFunctions(b wazero.HostModuleBuilder, _ plugindom.
 		WithGoModuleFunction(api.GoModuleFunc(func(_ context.Context, _ api.Module, _ []uint64) {
 		}), []api.ValueType{api.ValueTypeI32, api.ValueTypeI64, api.ValueTypeI64}, nil).
 		Export("http_respond")
+
+	// paca.permission_check(permissionPtr, permissionLen) -> (ok i32)
+	//
+	// Checks whether the current caller (from the request context set by
+	// WithPluginRequest) holds the given permission key, evaluated against the
+	// same effective permission set as requirePermissions route middleware:
+	// built-in permissions, LegacyPermissionsForRole, and any plugin-declared
+	// custom permission granted to the caller's project/global role. Scope
+	// (project vs global) is inferred from whether the request carries a
+	// project_id: project-scoped requests check project-role permissions,
+	// others check global-role permissions only.
+	//
+	// This lets plugin backend code enforce finer-grained authorization
+	// than the single all-or-nothing requirePermissions route gate allows —
+	// e.g. "is caller the record's author OR does caller hold
+	// time_logging.manage_all" — without a second host round-trip per check.
+	b.NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(func(ctx context.Context, m api.Module, stack []uint64) {
+			permission, _ := readString(m, stack[0], stack[1])
+			req, _ := ctx.Value(pluginRequestKey{}).(*HTTPRequest)
+			if req == nil || permission == "" || r.services.Authorizer == nil {
+				stack[0] = 0
+				return
+			}
+
+			userID, err := uuid.Parse(req.UserID)
+			if err != nil {
+				stack[0] = 0
+				return
+			}
+
+			var projectID *uuid.UUID
+			if req.ProjectID != "" {
+				pid, err := uuid.Parse(req.ProjectID)
+				if err != nil {
+					stack[0] = 0
+					return
+				}
+				projectID = &pid
+			}
+
+			granted, err := r.services.Authorizer.HasPermissions(ctx, userID, projectID, req.CallerRole, authz.Permission(permission))
+			if err != nil || !granted {
+				stack[0] = 0
+				return
+			}
+			stack[0] = 1
+		}), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI32}).
+		Export("permission_check")
 }
 
 // -------------------------------------------------------------------------

@@ -31,8 +31,10 @@
 			"sidebarGeneral": "Barre latérale — Général",
 			"sidebarProject": "Barre latérale — Projet",
 			"taskDetail": "Détail de la tâche",
-			"projectSettingsTab": "Onglet Paramètres du projet",
-			"customView": "Vue personnalisée"
+			"projectSettingsTab": "Onglet Paramètres du Projet",
+			"customView": "Vue personnalisée",
+			"projectPage": "Page du Projet",
+			"adminPage": "Page d'Administration"
 		}
 	}
 }
