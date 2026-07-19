@@ -796,9 +796,14 @@ func (h *AgentHandler) ListSkillTemplates(w http.ResponseWriter, r *http.Request
 // GetLLMModels handles GET /agents/llm-models.
 // It proxies the request to the ai-agent service and returns the verified
 // LLM models grouped by provider.
+//
+// EVUP: deployments may run without the ai-agent service (e.g. EasyPanel,
+// where mounting the host Docker socket is undesirable). When the service is
+// not configured or is unreachable, we degrade gracefully to an empty provider
+// map with 200 instead of 500, so the agents page still loads.
 func (h *AgentHandler) GetLLMModels(w http.ResponseWriter, r *http.Request) {
 	if h.aiAgentURL == "" {
-		presenter.Error(w, r, apierr.New(apierr.CodeInternalError, "ai-agent service URL not configured"))
+		writeEmptyLLMModels(w)
 		return
 	}
 
@@ -809,25 +814,28 @@ func (h *AgentHandler) GetLLMModels(w http.ResponseWriter, r *http.Request) {
 	}
 	resp, err := h.httpClient.Do(req)
 	if err != nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeInternalError, "failed to reach ai-agent service"))
+		writeEmptyLLMModels(w)
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		presenter.Error(w, r, apierr.New(apierr.CodeInternalError, "failed to read ai-agent response"))
-		return
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		presenter.Error(w, r, apierr.New(apierr.CodeInternalError, "ai-agent service returned an error"))
+	if err != nil || resp.StatusCode != http.StatusOK {
+		writeEmptyLLMModels(w)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(body)
+}
+
+// writeEmptyLLMModels responds with an empty provider map (200). Used when the
+// ai-agent service is absent so the UI treats it as "no models configured".
+func writeEmptyLLMModels(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("{}"))
 }
 
 // --- ACP local bridge --------------------------------------------------------
