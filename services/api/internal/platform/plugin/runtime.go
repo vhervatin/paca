@@ -10,6 +10,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +19,7 @@ import (
 	plugindom "github.com/Paca-AI/api/internal/domain/plugin"
 	"github.com/Paca-AI/api/internal/events"
 	"github.com/Paca-AI/api/internal/platform/authz"
+	"github.com/Paca-AI/api/internal/platform/cache"
 	"github.com/google/uuid"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
@@ -74,6 +77,12 @@ type HostServices struct {
 	// map) for the paca.permission_check host function. May be nil, in which
 	// case permission_check always returns false.
 	Authorizer *authz.Authorizer
+	// Cache backs the paca.cache_get/cache_set/cache_delete host functions
+	// with the host's shared Valkey/Redis instance. May be nil, in which case
+	// cache_get always misses and cache_set/cache_delete are no-ops — a
+	// plugin's Cache is meant for recomputable data, so a missing cache
+	// backend degrades to "always recompute" rather than failing calls.
+	Cache *cache.Store
 }
 
 // EventPublisher abstracts the messaging.Publisher to avoid a circular import.
@@ -432,6 +441,9 @@ func (r *Runtime) registerHostModule(ctx context.Context, rt wazero.Runtime, p p
 	// --- DB host functions (PLUG-BE-04) ------------------------------------
 	r.registerDBFunctions(builder, p)
 
+	// --- Cache host functions (Valkey/Redis-backed, TTL) --------------------
+	r.registerCacheFunctions(builder, p)
+
 	// --- Core read-only functions (PLUG-BE-05) -----------------------------
 	r.registerCoreFunctions(builder, p)
 
@@ -483,7 +495,7 @@ func (r *Runtime) registerDBFunctions(b wazero.HostModuleBuilder, p plugindom.Pl
 				return
 			}
 
-			result, err := r.execQuery(ctx, schema, sqlStr, paramsJSON)
+			result, err := r.execQuery(ctx, p, schema, sqlStr, paramsJSON)
 			if err != nil {
 				r.log.Error("paca.db_query: exec", "plugin", p.Name, "error", err)
 				return
@@ -494,6 +506,51 @@ func (r *Runtime) registerDBFunctions(b wazero.HostModuleBuilder, p plugindom.Pl
 		}), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64},
 			nil).
 		Export("db_query")
+
+	// paca.db_query2(sqlPtr, sqlLen, paramsPtr, paramsLen, resultPtrPtr, resultLenPtr, errPtrPtr, errLenPtr)
+	// Same as db_query but also reports execution errors back to the plugin.
+	// db_query's signature has no error channel, so a query that fails to
+	// execute (e.g. references a column that doesn't exist) silently looks
+	// like a zero-row success to the plugin — see the `return` with no
+	// output write in the error branch above. Exposed as a separate export
+	// rather than changing db_query in place: WASM import/export signatures
+	// are matched exactly at instantiation time, so widening db_query would
+	// break every already-compiled plugin binary that still imports the old
+	// 6-arg form. New/rebuilt plugins should call this one instead.
+	b.NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(func(ctx context.Context, m api.Module, stack []uint64) {
+			sqlStr, err := readString(m, stack[0], stack[1])
+			if err != nil {
+				r.log.Error("paca.db_query2: read sql", "plugin", p.Name, "error", err)
+				return
+			}
+			paramsJSON, err := readString(m, stack[2], stack[3])
+			if err != nil {
+				r.log.Error("paca.db_query2: read params", "plugin", p.Name, "error", err)
+				return
+			}
+
+			result, err := r.execQuery(ctx, p, schema, sqlStr, paramsJSON)
+			if err != nil {
+				errPtrLen, writeErr := writeToMemory(m, []byte(err.Error()))
+				if writeErr != nil {
+					r.log.Error("paca.db_query2: write error", "plugin", p.Name, "error", writeErr)
+					errPtrLen = []uint64{0, 0}
+				}
+				m.Memory().WriteUint32Le(uint32(stack[4]), 0)
+				m.Memory().WriteUint32Le(uint32(stack[5]), 0)
+				m.Memory().WriteUint32Le(uint32(stack[6]), uint32(errPtrLen[0]))
+				m.Memory().WriteUint32Le(uint32(stack[7]), uint32(errPtrLen[1]))
+				return
+			}
+			resultPtrLen := writeJSONResult(m, result)
+			m.Memory().WriteUint32Le(uint32(stack[4]), uint32(resultPtrLen[0]))
+			m.Memory().WriteUint32Le(uint32(stack[5]), uint32(resultPtrLen[1]))
+			m.Memory().WriteUint32Le(uint32(stack[6]), 0)
+			m.Memory().WriteUint32Le(uint32(stack[7]), 0)
+		}), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64},
+			nil).
+		Export("db_query2")
 
 	// paca.db_exec(sqlPtr, sqlLen, paramsPtr, paramsLen, rowsAffectedPtr, errPtrPtr, errLenPtr)
 	b.NewFunctionBuilder().
@@ -507,7 +564,7 @@ func (r *Runtime) registerDBFunctions(b wazero.HostModuleBuilder, p plugindom.Pl
 				return
 			}
 
-			rows, err := r.execStatement(ctx, schema, sqlStr, paramsJSON)
+			rows, err := r.execStatement(ctx, p, schema, sqlStr, paramsJSON)
 			if err != nil {
 				errBytes := []byte(err.Error())
 				ptrLen, _ := writeToMemory(m, errBytes)
@@ -542,7 +599,12 @@ func (r *Runtime) registerDBFunctions(b wazero.HostModuleBuilder, p plugindom.Pl
 				}
 				return
 			}
-			ptrLen, _ := writeToMemory(m, []byte(value))
+			ptrLen, err := writeToMemory(m, []byte(value))
+			if err != nil {
+				m.Memory().WriteUint32Le(uint32(stack[2]), 0)
+				m.Memory().WriteUint32Le(uint32(stack[3]), 0)
+				return
+			}
 			m.Memory().WriteUint32Le(uint32(stack[2]), uint32(ptrLen[0]))
 			m.Memory().WriteUint32Le(uint32(stack[3]), uint32(ptrLen[1]))
 		}), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64},
@@ -584,14 +646,128 @@ func (r *Runtime) registerDBFunctions(b wazero.HostModuleBuilder, p plugindom.Pl
 		Export("storage_delete")
 }
 
+// cacheKeyPrefix namespaces a plugin's cache entries within the shared
+// Valkey/Redis instance so two plugins can use the same logical key (e.g.
+// "view:abc123") without colliding. Unlike the DB/KV bridge, which gets
+// physical isolation for free from each plugin's own Postgres schema, Cache
+// has no per-plugin storage of its own — this prefix is the only thing
+// standing in for that. p.Name is the caller identity fixed at host-module
+// registration time (one module per plugin instance), never plugin-supplied,
+// so a plugin cannot forge another plugin's prefix.
+//
+// The name is embedded length-prefixed ("plugin:<len>:<name>:") rather than
+// as a bare "plugin:<name>:" so that decoding is unambiguous even if a
+// plugin name itself contains a colon: the length tells a reader exactly
+// how many bytes to consume for the name, so "plugin:3:a:b:x" (name "a:b",
+// key "x") can never collide with "plugin:1:a:b:x" (name "a", key "b:x") —
+// the two encode to different strings even though a naive "plugin:"+name+":"
+// scheme would make them collide.
+func cacheKeyPrefix(pluginName string) string {
+	return "plugin:" + strconv.Itoa(len(pluginName)) + ":" + pluginName + ":"
+}
+
+// registerCacheFunctions adds paca.cache_get, paca.cache_set, and
+// paca.cache_delete to the host module builder — a TTL-based cache backed by
+// the host's shared Valkey/Redis instance (see HostServices.Cache), as
+// opposed to storage_get/set/delete above which persist durably to the
+// plugin's own Postgres schema with no expiry. Intended for recomputable
+// data (e.g. expensive query results) that can tolerate being briefly stale;
+// callers must treat a miss as "not cached" rather than "does not exist".
+func (r *Runtime) registerCacheFunctions(b wazero.HostModuleBuilder, p plugindom.Plugin) {
+	prefix := cacheKeyPrefix(p.Name)
+
+	// paca.cache_get(keyPtr, keyLen, valuePtrPtr, valueLenPtr)
+	b.NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(func(ctx context.Context, m api.Module, stack []uint64) {
+			key, err := readString(m, stack[0], stack[1])
+			if err != nil || key == "" || r.services.Cache == nil {
+				m.Memory().WriteUint32Le(uint32(stack[2]), 0)
+				m.Memory().WriteUint32Le(uint32(stack[3]), 0)
+				return
+			}
+
+			var value string
+			hit, err := r.services.Cache.Get(ctx, prefix+key, &value)
+			if err != nil {
+				r.log.Error("paca.cache_get", "plugin", p.Name, "error", err)
+			}
+			if !hit {
+				m.Memory().WriteUint32Le(uint32(stack[2]), 0)
+				m.Memory().WriteUint32Le(uint32(stack[3]), 0)
+				return
+			}
+			ptrLen, err := writeToMemory(m, []byte(value))
+			if err != nil {
+				m.Memory().WriteUint32Le(uint32(stack[2]), 0)
+				m.Memory().WriteUint32Le(uint32(stack[3]), 0)
+				return
+			}
+			m.Memory().WriteUint32Le(uint32(stack[2]), uint32(ptrLen[0]))
+			m.Memory().WriteUint32Le(uint32(stack[3]), uint32(ptrLen[1]))
+		}), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64},
+			nil).
+		Export("cache_get")
+
+	// paca.cache_set(keyPtr, keyLen, valuePtr, valueLen, ttlSeconds i32) -> (ok i32)
+	// A ttlSeconds of 0 stores the value without expiry. A negative
+	// ttlSeconds is rejected (ok=0) rather than forwarded to Redis, which
+	// would otherwise reject it as an invalid expire time.
+	b.NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(func(ctx context.Context, m api.Module, stack []uint64) {
+			key, _ := readString(m, stack[0], stack[1])
+			value, _ := readString(m, stack[2], stack[3])
+			ttlSeconds := int32(stack[4])
+			if key == "" || r.services.Cache == nil || ttlSeconds < 0 {
+				stack[0] = 0
+				return
+			}
+
+			ttl := time.Duration(ttlSeconds) * time.Second
+			if err := r.services.Cache.Set(ctx, prefix+key, value, ttl); err != nil {
+				r.log.Error("paca.cache_set", "plugin", p.Name, "error", err)
+				stack[0] = 0
+				return
+			}
+			stack[0] = 1
+		}), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI32},
+			[]api.ValueType{api.ValueTypeI32}).
+		Export("cache_set")
+
+	// paca.cache_delete(keyPtr, keyLen) -> (ok i32)
+	b.NewFunctionBuilder().
+		WithGoModuleFunction(api.GoModuleFunc(func(ctx context.Context, m api.Module, stack []uint64) {
+			key, _ := readString(m, stack[0], stack[1])
+			if key == "" || r.services.Cache == nil {
+				stack[0] = 0
+				return
+			}
+			if err := r.services.Cache.Delete(ctx, prefix+key); err != nil {
+				r.log.Error("paca.cache_delete", "plugin", p.Name, "error", err)
+				stack[0] = 0
+				return
+			}
+			stack[0] = 1
+		}), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64},
+			[]api.ValueType{api.ValueTypeI32}).
+		Export("cache_delete")
+}
+
 // execQuery runs a SELECT statement scoped to the plugin schema and returns a
-// dbQueryResult JSON-encoded result.
-func (r *Runtime) execQuery(ctx context.Context, schema, sqlStr, paramsJSON string) (*dbQueryResult, error) {
+// dbQueryResult JSON-encoded result. caller is the requesting plugin, used to
+// redact sensitive columns (core, or declared by other plugins) the query
+// reaches, and to gate DML-with-RETURNING writes to sensitive tables (see
+// sensitiveColumnsForQuery and checkWriteAllowed).
+func (r *Runtime) execQuery(ctx context.Context, caller plugindom.Plugin, schema, sqlStr, paramsJSON string) (*dbQueryResult, error) {
 	// Allow SELECT and DML statements that use RETURNING.
 	trimmed := strings.TrimSpace(strings.ToUpper(sqlStr))
 	isDML := strings.HasPrefix(trimmed, "INSERT") || strings.HasPrefix(trimmed, "UPDATE") || strings.HasPrefix(trimmed, "DELETE")
 	if !strings.HasPrefix(trimmed, "SELECT") && (!isDML || !strings.Contains(trimmed, "RETURNING")) {
 		return nil, fmt.Errorf("paca.db_query: only SELECT and DML with RETURNING statements are allowed")
+	}
+	if isDML {
+		if err := r.checkWriteAllowed(caller, sqlStr, "paca.db_query"); err != nil {
+			return nil, err
+		}
 	}
 
 	var queryParams []any
@@ -657,16 +833,318 @@ func (r *Runtime) execQuery(ctx context.Context, schema, sqlStr, paramsJSON stri
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("paca.db_query: commit: %w", err)
 	}
+
+	if sensitive := r.sensitiveColumnsForQuery(caller, sqlStr); len(sensitive) > 0 {
+		redactColumns(result.Columns, result.Rows, sensitive)
+	}
+
 	return result, nil
 }
 
+// coreSensitiveFields lists platform database columns that
+// db_query/db_query2/db_exec must always treat as sensitive, regardless of
+// which schema a plugin's search_path resolves them through. Nobody "owns"
+// this data the way a plugin owns its own schema (declared via
+// BackendManifest.SensitiveFields) — a plugin may only read or write it if
+// it explicitly lists the field in its own manifest's
+// RequestedSensitiveFields, which must be surfaced to admins in the plugin
+// marketplace before install so the request is visible, not silently
+// granted.
+//
+// github_integrations/github_repositories used to live here too (they
+// predate the per-plugin schema model and lived in core `public`), but
+// migrations/000007_remove_github_tables.sql dropped them from public and
+// paca-plugin-github/backend/migrations/0001_create_github_tables.sql
+// recreates them under its own plugin_data_com_paca_github schema — so
+// they're now an ordinary plugin-owned-schema case, protected via that
+// plugin's own BackendManifest.SensitiveFields instead of this registry.
+var coreSensitiveFields = map[string][]string{
+	"users":                       {"password_hash"},
+	"api_keys":                    {"key_hash"},
+	"agents":                      {"llm_api_key_secret", "acp_bridge_token_hash"},
+	"agent_mcp_servers":           {"env"},
+	"agent_environment_variables": {"encrypted_value"},
+}
+
+// sqlCommentRe matches SQL line comments (-- ...) and block comments
+// (/* ... */, including ones spanning multiple lines). PostgreSQL treats a
+// comment as equivalent to whitespace during tokenization — e.g.
+// "FROM/*x*/table" parses identically to "FROM table" — so comments must be
+// stripped (replaced with a space, to keep tokens from merging) before
+// running the table-reference regexes below. Otherwise a plugin could
+// trivially defeat both read redaction and write blocking by inserting a
+// comment between a keyword and the table name it introduces.
+var sqlCommentRe = regexp.MustCompile(`(?s)/\*.*?\*/|--[^\n]*`)
+
+func stripSQLComments(sqlStr string) string {
+	return sqlCommentRe.ReplaceAllString(sqlStr, " ")
+}
+
+// tableRefRe extracts (schema, table) pairs referenced after FROM, JOIN,
+// INTO, or USING anywhere in a query's SQL text — covering SELECT/DELETE's
+// FROM, JOIN, INSERT's INTO, the source side of UPDATE ... FROM ..., and
+// DELETE ... USING .... It is intentionally unanchored (not tied to
+// statement start or type), so it also matches table references nested
+// inside WITH-CTE bodies and INSERT ... SELECT ... FROM subqueries. The
+// optional ONLY keyword (e.g. "DELETE FROM ONLY users") is skipped so it
+// isn't mistaken for the table name itself.
+//
+// Like paca-plugin-dashboard's own query guard, this is a lightweight
+// pattern match rather than a full SQL parser: adequate as a
+// defense-in-depth signal over plugin-authored SQL, not a guarantee for
+// arbitrarily obfuscated queries. Callers must run stripSQLComments on
+// sqlStr first.
+var tableRefRe = regexp.MustCompile(`(?i)\b(?:from|join|into|using)\s+(?:only\s+)?"?([A-Za-z_][A-Za-z0-9_]*)"?(?:\s*\.\s*"?([A-Za-z_][A-Za-z0-9_]*)"?)?`)
+
+// updateTargetRe extracts the (schema, table) pair immediately following
+// UPDATE — the write target of an UPDATE statement, which (unlike INSERT
+// and DELETE) isn't introduced by FROM/INTO/USING.
+var updateTargetRe = regexp.MustCompile(`(?i)\bupdate\s+(?:only\s+)?"?([A-Za-z_][A-Za-z0-9_]*)"?(?:\s*\.\s*"?([A-Za-z_][A-Za-z0-9_]*)"?)?`)
+
+// tableShorthandRe extracts the (schema, table) pair from PostgreSQL's
+// "TABLE name" shorthand for "SELECT * FROM name", which can appear as a
+// full statement or nested in a FROM clause (e.g. "FROM (TABLE users) u").
+var tableShorthandRe = regexp.MustCompile(`(?i)\btable\s+"?([A-Za-z_][A-Za-z0-9_]*)"?(?:\s*\.\s*"?([A-Za-z_][A-Za-z0-9_]*)"?)?`)
+
+// fromClauseRe captures the full comma-separated table list following a
+// FROM keyword, stopping at the next clause keyword that can legally follow
+// one (or a closing paren/semicolon/end of string). It exists to catch
+// old-style implicit joins ("FROM a, b, c"), where every table after the
+// first is introduced by a comma rather than by FROM/JOIN/INTO/USING and so
+// wouldn't otherwise be matched by tableRefRe.
+var fromClauseRe = regexp.MustCompile(`(?i)\bfrom\s+(.+?)(?:\s+(?:where|group\s+by|order\s+by|having|limit|offset|on|join|returning|union|except|intersect|window|fetch|for)\b|\)|;|$)`)
+
+// leadingTableRefRe extracts the (schema, table) pair at the start of a
+// single comma-separated FROM-list item, ignoring any trailing alias.
+var leadingTableRefRe = regexp.MustCompile(`(?i)^\s*(?:only\s+)?"?([A-Za-z_][A-Za-z0-9_]*)"?(?:\s*\.\s*"?([A-Za-z_][A-Za-z0-9_]*)"?)?`)
+
+// tableRef is a (possibly schema-qualified) table reference extracted from
+// SQL text. Schema is empty when the reference is unqualified.
+type tableRef struct {
+	schema string
+	table  string
+}
+
+// newTableRef builds a tableRef from a regex match's two capture groups:
+// first is always the leading identifier, second is only non-empty when the
+// reference was schema-qualified (first.second) — in which case first is
+// the schema, not the table.
+func newTableRef(first, second string) tableRef {
+	if second != "" {
+		return tableRef{schema: strings.ToLower(first), table: strings.ToLower(second)}
+	}
+	return tableRef{table: strings.ToLower(first)}
+}
+
+// commaJoinedTables splits a FROM clause's table list on top-level commas
+// (tracking paren depth, so a comma inside a nested subquery doesn't split
+// the list) and extracts the leading table reference from each item,
+// discarding any trailing alias.
+func commaJoinedTables(list string) []tableRef {
+	var refs []tableRef
+	depth, start := 0, 0
+	var items []string
+	for i, ch := range list {
+		switch ch {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		case ',':
+			if depth == 0 {
+				items = append(items, list[start:i])
+				start = i + 1
+			}
+		}
+	}
+	items = append(items, list[start:])
+	for _, item := range items {
+		if m := leadingTableRefRe.FindStringSubmatch(item); m != nil {
+			refs = append(refs, newTableRef(m[1], m[2]))
+		}
+	}
+	return refs
+}
+
+// referencedTables extracts every (schema, table) reference in sqlStr —
+// every FROM/JOIN/INTO/USING target, every UPDATE target, every TABLE
+// shorthand reference, and every table in a comma-separated FROM list —
+// regardless of where in the statement it appears. It deliberately
+// over-matches rather than trying to identify a single "primary" table,
+// since a single statement (UPDATE ... FROM, DELETE ... USING,
+// INSERT ... SELECT ... FROM, "FROM a, b, c") can touch more than one table
+// at once; every table it touches is treated the same way by both read
+// redaction and write blocking.
+func referencedTables(sqlStr string) []tableRef {
+	stripped := stripSQLComments(sqlStr)
+	var refs []tableRef
+	for _, m := range tableRefRe.FindAllStringSubmatch(stripped, -1) {
+		refs = append(refs, newTableRef(m[1], m[2]))
+	}
+	for _, m := range updateTargetRe.FindAllStringSubmatch(stripped, -1) {
+		refs = append(refs, newTableRef(m[1], m[2]))
+	}
+	for _, m := range tableShorthandRe.FindAllStringSubmatch(stripped, -1) {
+		refs = append(refs, newTableRef(m[1], m[2]))
+	}
+	for _, m := range fromClauseRe.FindAllStringSubmatch(stripped, -1) {
+		refs = append(refs, commaJoinedTables(m[1])...)
+	}
+	return refs
+}
+
+// sensitiveTableColumns returns the sensitive columns declared for a
+// resolved (schema, table) reference and, when the table belongs to another
+// plugin's own schema rather than being a core table, that plugin's name
+// (owner is "" for core fields, since nobody owns those). callerSchema is
+// the calling plugin's own schema: a reference into it is never sensitive,
+// since a plugin always has full access to its own data.
+//
+// An unqualified table name (schema == "") can only ever resolve to the
+// caller's own schema or the core `public` schema (search_path never
+// reaches another plugin's schema without explicit qualification), so it's
+// checked against the core registry directly. This means a plugin that
+// happens to name one of its own tables identically to a core table (e.g.
+// "users") would have that column over-redacted/write-blocked too — a
+// fail-safe false positive, not a false negative.
+func (r *Runtime) sensitiveTableColumns(callerSchema string, ref tableRef) (owner string, cols []string) {
+	if ref.schema != "" && strings.EqualFold(ref.schema, callerSchema) {
+		return "", nil
+	}
+	if ref.schema == "" || strings.EqualFold(ref.schema, "public") {
+		return "", coreSensitiveFields[ref.table]
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for name, inst := range r.plugins {
+		if !strings.EqualFold(schemaName(name), ref.schema) {
+			continue
+		}
+		if inst.plugin.Manifest.Backend == nil {
+			return name, nil
+		}
+		return name, inst.plugin.Manifest.Backend.SensitiveFields[ref.table]
+	}
+	return "", nil
+}
+
+// isRequestedSensitiveField reports whether caller's own manifest declares
+// wanting access to table.column, where owner is "" for a core field or the
+// owning plugin's ID for a field declared sensitive in that plugin's own
+// SensitiveFields.
+func isRequestedSensitiveField(caller plugindom.Plugin, owner, table, col string) bool {
+	if caller.Manifest.Backend == nil {
+		return false
+	}
+	var key string
+	if owner == "" {
+		key = table + "." + col
+	} else {
+		key = owner + ":" + table + "." + col
+	}
+	for _, f := range caller.Manifest.Backend.RequestedSensitiveFields {
+		if strings.EqualFold(f, key) {
+			return true
+		}
+	}
+	return false
+}
+
+// sensitiveColumnAliasRe finds "<col> AS <alias>" for a specific sensitive
+// column name — built per-column since the name is interpolated into the
+// pattern — so that redaction can key on the result column's alias, not
+// just its un-aliased name. redactColumns only ever sees the query's output
+// column names, so "SELECT password_hash AS ph FROM users" would otherwise
+// return "ph" unredacted even though sensitiveColumnsForQuery correctly
+// identified users.password_hash as sensitive: it never connects "ph" back
+// to "password_hash" without this. Requires the explicit AS keyword — an
+// implicit alias ("password_hash ph") isn't distinguishable by pattern
+// match alone from "password_hash FROM ..." (FROM would parse as the
+// "alias") without a real parser, so it isn't covered.
+func sensitiveColumnAliasRe(col string) *regexp.Regexp {
+	return regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(col) + `\s+as\s+"?([A-Za-z_][A-Za-z0-9_]*)"?`)
+}
+
+// sensitiveColumnsForQuery returns the set of lowercased column names that
+// must be redacted in the result of sqlStr run by caller: for every
+// FROM/JOIN table the query references, any sensitive column declared for
+// it (core, or another plugin's own SensitiveFields) that caller hasn't
+// explicitly requested access to via its own RequestedSensitiveFields —
+// plus any "AS alias" the query renames that column to, so the alias is
+// redacted in the result under its own name too (see sensitiveColumnAliasRe).
+func (r *Runtime) sensitiveColumnsForQuery(caller plugindom.Plugin, sqlStr string) map[string]struct{} {
+	callerSchema := schemaName(caller.Name)
+	stripped := stripSQLComments(sqlStr)
+	sensitive := make(map[string]struct{})
+	for _, ref := range referencedTables(sqlStr) {
+		owner, cols := r.sensitiveTableColumns(callerSchema, ref)
+		for _, col := range cols {
+			if isRequestedSensitiveField(caller, owner, ref.table, col) {
+				continue
+			}
+			sensitive[strings.ToLower(col)] = struct{}{}
+			for _, m := range sensitiveColumnAliasRe(col).FindAllStringSubmatch(stripped, -1) {
+				sensitive[strings.ToLower(m[1])] = struct{}{}
+			}
+		}
+	}
+	return sensitive
+}
+
+// checkWriteAllowed rejects an INSERT/UPDATE/DELETE statement outright when
+// any table it references — its write target, or a source table pulled in
+// via UPDATE ... FROM, DELETE ... USING, or INSERT ... SELECT ... FROM —
+// has a declared-sensitive column (core, or another plugin's own
+// SensitiveFields) that caller hasn't requested access to. A table's
+// sensitive columns must *all* be individually requested for that table to
+// be exempted: requesting access to one sensitive column of a table does
+// not grant access to that table's other, unrequested sensitive columns.
+//
+// Unlike reads, sensitivity can't be masked away column-by-column for a
+// write — the value could already have been copied into another column, or
+// into the caller's own schema, by the time the statement finishes — so
+// the whole statement is rejected before it ever reaches Postgres. A table
+// with no declared sensitive columns is unaffected (out of scope, same
+// boundary as read redaction). funcName is used only in the returned error
+// to name the host function that rejected the call.
+func (r *Runtime) checkWriteAllowed(caller plugindom.Plugin, sqlStr, funcName string) error {
+	callerSchema := schemaName(caller.Name)
+	for _, ref := range referencedTables(sqlStr) {
+		owner, cols := r.sensitiveTableColumns(callerSchema, ref)
+		for _, col := range cols {
+			if isRequestedSensitiveField(caller, owner, ref.table, col) {
+				continue
+			}
+			return fmt.Errorf("%s: table %q has sensitive fields this plugin has not requested access to (declare requestedSensitiveFields in plugin.json)", funcName, ref.table)
+		}
+	}
+	return nil
+}
+
+// redactColumns overwrites every row's value with "***" at each column index
+// whose lowercased name is in sensitive.
+func redactColumns(cols []string, rows [][]any, sensitive map[string]struct{}) {
+	for i, col := range cols {
+		if _, ok := sensitive[strings.ToLower(col)]; !ok {
+			continue
+		}
+		for _, row := range rows {
+			row[i] = "***"
+		}
+	}
+}
+
 // execStatement runs a non-SELECT DML statement scoped to the plugin schema.
-func (r *Runtime) execStatement(ctx context.Context, schema, sqlStr, paramsJSON string) (int64, error) {
+func (r *Runtime) execStatement(ctx context.Context, caller plugindom.Plugin, schema, sqlStr, paramsJSON string) (int64, error) {
 	trimmed := strings.TrimSpace(strings.ToUpper(sqlStr))
 	for _, banned := range []string{"DROP", "TRUNCATE", "ALTER", "CREATE", "GRANT", "REVOKE"} {
 		if strings.HasPrefix(trimmed, banned) {
 			return 0, fmt.Errorf("paca.db_exec: DDL/DCL statements are not allowed")
 		}
+	}
+	if err := r.checkWriteAllowed(caller, sqlStr, "paca.db_exec"); err != nil {
+		return 0, err
 	}
 
 	var queryParams []any

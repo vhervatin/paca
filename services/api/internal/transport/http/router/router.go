@@ -37,6 +37,7 @@ type Deps struct {
 	Notification         *handler.NotificationHandler
 	APIKey               *handler.APIKeyHandler
 	Plugin               *handler.PluginHandler
+	Skills               *handler.SkillsHandler
 	Agent                *handler.AgentHandler
 	Conversation         *handler.ConversationHandler
 	Workflow             *handler.WorkflowHandler
@@ -88,6 +89,11 @@ func New(deps Deps) http.Handler {
 					r.Get("/me", deps.User.GetMe)
 					r.Patch("/me", deps.User.UpdateMe)
 					r.Get("/me/global-permissions", deps.User.GetMyGlobalPermissions)
+
+					// Cross-project "assigned to me" tasks — home page widget.
+					if deps.Task != nil {
+						r.Get("/me/tasks", deps.Task.ListAssignedToMe)
+					}
 
 					// API key management — JWT/cookie auth only.
 					if deps.APIKey != nil {
@@ -588,6 +594,15 @@ func New(deps Deps) http.Handler {
 					})
 				}
 			})
+
+			// Bundled skills — public listing, same policy as /plugins below.
+			if deps.Skills != nil {
+				r.Group(func(r chi.Router) {
+					r.Use(httpmw.OptionalAuthn(deps.TokenManager, deps.APIKeyAuth))
+					r.Use(httpmw.RequireFreshPassword())
+					r.Get("/skills", deps.Skills.ListSkills)
+				})
+			}
 
 			// Plugin routes
 			if deps.Plugin != nil {

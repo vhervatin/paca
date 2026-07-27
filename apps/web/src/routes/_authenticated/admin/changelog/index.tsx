@@ -16,6 +16,24 @@ export const Route = createFileRoute("/_authenticated/admin/changelog/")({
 // Handles the common cases (headings, bullet lists, **bold**, `code`, links)
 // without pulling in a markdown dependency or using dangerouslySetInnerHTML.
 
+// Only http(s)/mailto links are allowed in release notes; anything else
+// (javascript:, data:, …) is rendered as plain text to avoid XSS.
+function safeHref(url: string): string | undefined {
+	try {
+		const u = new URL(url, window.location.origin);
+		if (
+			u.protocol === "http:" ||
+			u.protocol === "https:" ||
+			u.protocol === "mailto:"
+		) {
+			return url;
+		}
+	} catch {
+		// invalid URL → not rendered as a link
+	}
+	return undefined;
+}
+
 function renderInline(text: string): ReactNode[] {
 	const nodes: ReactNode[] = [];
 	const regex = /(\*\*([^*]+)\*\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))/g;
@@ -36,17 +54,22 @@ function renderInline(text: string): ReactNode[] {
 				</code>,
 			);
 		} else if (m[4] !== undefined) {
-			nodes.push(
-				<a
-					key={key++}
-					href={m[5]}
-					target="_blank"
-					rel="noopener noreferrer"
-					className="text-primary hover:underline"
-				>
-					{m[4]}
-				</a>,
-			);
+			const href = safeHref(m[5] ?? "");
+			if (href) {
+				nodes.push(
+					<a
+						key={key++}
+						href={href}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="text-primary hover:underline"
+					>
+						{m[4]}
+					</a>,
+				);
+			} else {
+				nodes.push(m[4]);
+			}
 		}
 		last = m.index + m[0].length;
 		m = regex.exec(text);
@@ -74,7 +97,7 @@ function renderNotes(body: string): ReactNode {
 		}
 	};
 
-	lines.forEach((line, i) => {
+	lines.forEach((line) => {
 		const t = line.trim();
 		if (!t) {
 			flush();
@@ -94,7 +117,9 @@ function renderNotes(body: string): ReactNode {
 		}
 		if (/^[-*]\s/.test(t)) {
 			bullets.push(
-				<li key={`li-${i}`}>{renderInline(t.replace(/^[-*]\s/, ""))}</li>,
+				<li key={`li-${blocks.length}-${bullets.length}`}>
+					{renderInline(t.replace(/^[-*]\s/, ""))}
+				</li>,
 			);
 			return;
 		}

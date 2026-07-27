@@ -207,18 +207,26 @@ func TestE2EListConversationPagination_CursorBased(t *testing.T) {
 		}
 	})
 
-	t.Run("page_size_zero_is_clamped_to_default", func(t *testing.T) {
-		data := listConversationsPage(t, env, client, token, projID, url.Values{"page_size": {"0"}})
-		if ps, _ := data["page_size"].(float64); ps != 20 {
-			t.Errorf("expected page_size=20 when 0 requested (out-of-range clamped), got %v", ps)
-		}
+	t.Run("page_size_zero_is_rejected", func(t *testing.T) {
+		q := url.Values{"page_size": {"0"}}
+		reqURL := fmt.Sprintf("%s/api/v1/projects/%s/conversations?%s", env.base, projID, q.Encode())
+		req := mustRequest(env.ctx, t, http.MethodGet, reqURL, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp := mustDo(t, client, req)
+		defer func() { _ = resp.Body.Close() }()
+		assertStatus(t, resp, http.StatusBadRequest)
+		assertErrorCode(t, resp, "BAD_REQUEST")
 	})
 
-	t.Run("page_size_over_max_is_clamped_to_default", func(t *testing.T) {
-		data := listConversationsPage(t, env, client, token, projID, url.Values{"page_size": {"201"}})
-		if ps, _ := data["page_size"].(float64); ps != 20 {
-			t.Errorf("expected page_size=20 when 201 requested (over max, clamped), got %v", ps)
-		}
+	t.Run("page_size_over_max_is_rejected", func(t *testing.T) {
+		q := url.Values{"page_size": {"201"}}
+		reqURL := fmt.Sprintf("%s/api/v1/projects/%s/conversations?%s", env.base, projID, q.Encode())
+		req := mustRequest(env.ctx, t, http.MethodGet, reqURL, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp := mustDo(t, client, req)
+		defer func() { _ = resp.Body.Close() }()
+		assertStatus(t, resp, http.StatusBadRequest)
+		assertErrorCode(t, resp, "BAD_REQUEST")
 	})
 
 	t.Run("invalid_cursor_returns_error", func(t *testing.T) {
@@ -354,6 +362,58 @@ func TestE2EListConversationPagination_AgentIDFilter(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// TestE2EListConversationEvents_OffsetLimitValidation
+// Mirrors the page_size validation coverage above, applied to this sibling
+// endpoint's offset/limit pair: an explicitly supplied out-of-range or
+// non-numeric value must be rejected rather than silently substituted, for
+// the same reason (a caller advancing offset by its requested limit would
+// otherwise skip or duplicate rows against its own math with no signal).
+// The conversation ID need not exist — invalid offset/limit is rejected
+// before the service layer is ever reached.
+// ---------------------------------------------------------------------------
+
+func TestE2EListConversationEvents_OffsetLimitValidation(t *testing.T) {
+	env := newE2EEnv(t)
+	client, token, projID, _, _ := seedConversationFixture(t, env)
+	convID := uuid.NewString()
+
+	eventsURL := func(q url.Values) string {
+		u := fmt.Sprintf("%s/api/v1/projects/%s/conversations/%s/events", env.base, projID, convID)
+		if len(q) > 0 {
+			u += "?" + q.Encode()
+		}
+		return u
+	}
+
+	t.Run("absent_offset_and_limit_default", func(t *testing.T) {
+		req := mustRequest(env.ctx, t, http.MethodGet, eventsURL(nil), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp := mustDo(t, client, req)
+		defer func() { _ = resp.Body.Close() }()
+		assertStatus(t, resp, http.StatusOK)
+	})
+
+	invalidCases := []url.Values{
+		{"offset": {"-1"}},
+		{"offset": {"abc"}},
+		{"limit": {"0"}},
+		{"limit": {"-5"}},
+		{"limit": {"201"}},
+		{"limit": {"abc"}},
+	}
+	for _, q := range invalidCases {
+		t.Run(q.Encode(), func(t *testing.T) {
+			req := mustRequest(env.ctx, t, http.MethodGet, eventsURL(q), nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			resp := mustDo(t, client, req)
+			defer func() { _ = resp.Body.Close() }()
+			assertStatus(t, resp, http.StatusBadRequest)
+			assertErrorCode(t, resp, "BAD_REQUEST")
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
 // TestE2EListConversationPagination_EmptyProject
 // ---------------------------------------------------------------------------
 
@@ -372,4 +432,130 @@ func TestE2EListConversationPagination_EmptyProject(t *testing.T) {
 	if nextCursorStr(data) != "" {
 		t.Error("expected no next_cursor for an empty result set")
 	}
+}
+
+// ---------------------------------------------------------------------------
+// TestE2EConversationIterationCount
+// ---------------------------------------------------------------------------
+
+// createConversationEvent inserts a conversation event directly via the
+// repository, mirroring how the ai-agent service persists SDK events.
+func createConversationEvent(t *testing.T, env *e2eEnv, convID string, index int, eventType string) {
+	t.Helper()
+	e := &agentdom.AgentConversationEvent{
+		ID:             uuid.New(),
+		ConversationID: uuid.MustParse(convID),
+		EventIndex:     index,
+		EventType:      eventType,
+		EventSource:    "agent",
+		Payload:        map[string]any{},
+	}
+	if err := env.agentRepo.CreateConversationEvent(env.ctx, e); err != nil {
+		t.Fatalf("create conversation event: %v", err)
+	}
+}
+
+// Regression coverage for https://github.com/Paca-AI/paca/issues/314 — see
+// conversationCols in agent_repository.go for the fix. Asserts the list and
+// single-conversation endpoints, plus the two other conversationCols call
+// sites, all reflect the live ActionEvent count rather than a stale stored
+// counter.
+func TestE2EConversationIterationCount(t *testing.T) {
+	env := newE2EEnv(t)
+	client, token, projID, agentID, memberID := seedConversationFixture(t, env)
+
+	convID := createConversationAt(t, env, projID, agentID, memberID, "finished", time.Now())
+	createConversationEvent(t, env, convID, 0, "SystemPromptEvent")
+	createConversationEvent(t, env, convID, 1, "ActionEvent")
+	createConversationEvent(t, env, convID, 2, "ObservationEvent")
+	createConversationEvent(t, env, convID, 3, "ActionEvent")
+	createConversationEvent(t, env, convID, 4, "ActionEvent")
+
+	t.Run("list_endpoint_reflects_action_event_count", func(t *testing.T) {
+		data := listConversationsPage(t, env, client, token, projID, nil)
+		items, _ := data["items"].([]any)
+		if len(items) != 1 {
+			t.Fatalf("expected 1 conversation, got %d", len(items))
+		}
+		item, _ := items[0].(map[string]any)
+		if got := item["iteration_count"]; got != float64(3) {
+			t.Errorf("expected iteration_count=3, got %v", got)
+		}
+	})
+
+	t.Run("get_endpoint_reflects_action_event_count", func(t *testing.T) {
+		reqURL := fmt.Sprintf("%s/api/v1/projects/%s/conversations/%s", env.base, projID, convID)
+		req := mustRequest(env.ctx, t, http.MethodGet, reqURL, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp := mustDo(t, client, req)
+		defer func() { _ = resp.Body.Close() }()
+		assertStatus(t, resp, http.StatusOK)
+		var envResp envelope
+		decodeJSON(t, resp, &envResp)
+		data := assertDataMap(t, envResp)
+		if got := data["iteration_count"]; got != float64(3) {
+			t.Errorf("expected iteration_count=3, got %v", got)
+		}
+	})
+
+	// FindLatestConversationByChatSession has no lightweight read-only HTTP
+	// endpoint of its own (it backs SendChatMessage's resume path, which
+	// needs a running conversation to resume), so it's checked directly
+	// against the repository instead — it shares conversationCols with the
+	// two HTTP-backed cases above, but exercises the WHERE chat_session_id
+	// = ... path rather than WHERE id = ... .
+	t.Run("find_latest_by_chat_session_reflects_action_event_count", func(t *testing.T) {
+		session := &agentdom.AgentChatSession{
+			ID:        uuid.New(),
+			AgentID:   agentID,
+			ProjectID: uuid.MustParse(projID),
+			MemberID:  memberID,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		if err := env.agentRepo.CreateChatSession(env.ctx, session); err != nil {
+			t.Fatalf("create chat session: %v", err)
+		}
+
+		conv := &agentdom.AgentConversation{
+			ID:            uuid.New(),
+			AgentID:       agentID,
+			ProjectID:     uuid.MustParse(projID),
+			TriggerType:   "chat_message",
+			ChatSessionID: &session.ID,
+			Status:        "paused",
+			CreatedAt:     time.Now(),
+			UpdatedAt:     time.Now(),
+		}
+		if err := env.agentRepo.CreateConversation(env.ctx, conv); err != nil {
+			t.Fatalf("create conversation: %v", err)
+		}
+		createConversationEvent(t, env, conv.ID.String(), 0, "ActionEvent")
+		createConversationEvent(t, env, conv.ID.String(), 1, "ObservationEvent")
+		createConversationEvent(t, env, conv.ID.String(), 2, "ActionEvent")
+
+		got, err := env.agentRepo.FindLatestConversationByChatSession(env.ctx, session.ID)
+		if err != nil {
+			t.Fatalf("find latest by chat session: %v", err)
+		}
+		if got == nil {
+			t.Fatal("expected a conversation, got nil")
+		}
+		if got.IterationCount != 2 {
+			t.Errorf("expected iteration_count=2, got %d", got.IterationCount)
+		}
+	})
+
+	t.Run("conversation_with_no_action_events_has_zero_iteration_count", func(t *testing.T) {
+		zeroConvID := createConversationAt(t, env, projID, agentID, memberID, "finished", time.Now())
+		createConversationEvent(t, env, zeroConvID, 0, "SystemPromptEvent")
+
+		got, err := env.agentRepo.FindConversationByID(env.ctx, uuid.MustParse(zeroConvID))
+		if err != nil {
+			t.Fatalf("find conversation: %v", err)
+		}
+		if got.IterationCount != 0 {
+			t.Errorf("expected iteration_count=0, got %d", got.IterationCount)
+		}
+	})
 }

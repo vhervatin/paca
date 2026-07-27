@@ -28,7 +28,13 @@ from ..models.agent import AgentConfig
 from ..models.conversation_status import ConversationStatus
 from ..repositories import conversation_repository
 from . import trigger_skills
-from .builder import build_llm, build_mcp_config, build_skills, load_default_skills
+from .builder import (
+    build_llm,
+    build_mcp_config,
+    build_skills,
+    load_default_skills,
+    load_plugin_skills,
+)
 from .docker_workspace import start_sandbox, stop_sandbox
 from .prompt import build_initial_prompt, build_project_context_suffix, build_trigger_suffix
 from .repo_tools import make_repository_tool_specs
@@ -86,14 +92,16 @@ def _wait_for_done_or_stop(
     reconcile,
     poll_interval: float = 2.0,
     timeout: float = 3600.0,
-) -> tuple[bool, bool, bool]:
+) -> tuple[bool, bool, bool, str | None]:
     """Poll the remote conversation until it finishes or a stop/pause is signaled.
 
-    Returns (stopped, errored, shutdown):
-      stopped  — True if the loop exited because stop_event or pause_event fired.
-      errored  — True if the conversation ended with ERROR or STUCK status.
-      shutdown — True if it was stop_event (full shutdown) rather than
-                 pause_event (interrupt-only) that fired.
+    Returns (stopped, errored, shutdown, error_detail):
+      stopped      — True if the loop exited because stop_event or pause_event fired.
+      errored      — True if the conversation ended with ERROR or STUCK status.
+      shutdown     — True if it was stop_event (full shutdown) rather than
+                     pause_event (interrupt-only) that fired.
+      error_detail — The ConversationErrorEvent detail when errored is True,
+                     else None.
     """
     start = time.monotonic()
     last_reconcile = start
@@ -119,13 +127,13 @@ def _wait_for_done_or_stop(
             # Catch up on anything the dead WS thread missed before we stop
             # watching this conversation entirely.
             reconcile(conversation)
-            return True, False, shutdown
+            return True, False, shutdown, None
 
         now = time.monotonic()
         if now - start > timeout:
             logger.warning("Conversation polling timed out after %.0f seconds", timeout)
             reconcile(conversation)
-            return False, False, False
+            return False, False, False, None
 
         if now - last_status_check < poll_interval:
             continue
@@ -154,8 +162,8 @@ def _wait_for_done_or_stop(
 
             if status.is_terminal():
                 errored = status in _ERROR_STATUSES
+                detail = _get_conversation_error_detail(conversation) if errored else None
                 if errored:
-                    detail = _get_conversation_error_detail(conversation)
                     logger.error(
                         "Conversation ended with status %s — %s",
                         status.value,
@@ -164,7 +172,7 @@ def _wait_for_done_or_stop(
                 # Final catch-up so the run never ends with an un-persisted
                 # tail from the last reconcile_interval stretch.
                 reconcile(conversation)
-                return False, errored, False
+                return False, errored, False, detail
         except Exception as exc:
             logger.debug("Failed to read conversation execution status: %s", exc)
 
@@ -502,8 +510,18 @@ async def run_conversation(trigger: TriggerMessage, agent_config: AgentConfig) -
 
     try:
         llm = build_llm(agent_config)
-        # User-configured skills win on a name collision with a default.
-        skills = merge_skills_by_name(build_skills(agent_config.skills), load_default_skills())
+        # Precedence on a name collision: agent-configured skills win over
+        # plugin-contributed skills, which win over bundled defaults. The two
+        # fetches are independent (different sources, no shared state), so
+        # run them concurrently rather than paying both round trips serially
+        # on every conversation start.
+        plugin_skills, default_skills = await asyncio.gather(
+            load_plugin_skills(agent_config.plugin_skills), load_default_skills()
+        )
+        skills = merge_skills_by_name(
+            build_skills(agent_config.skills),
+            merge_skills_by_name(plugin_skills, default_skills),
+        )
         trigger_skills.append_trigger_skill(
             skills, trigger.trigger_type, trigger.task_id, trigger.conversation_id
         )
@@ -583,8 +601,8 @@ async def run_conversation(trigger: TriggerMessage, agent_config: AgentConfig) -
             system_suffix += build_trigger_suffix(trigger, all_repos_info)
         agent_context = AgentContext(skills=skills, system_message_suffix=system_suffix)
 
-        def _run_sync() -> tuple[bool, bool, bool]:
-            """Returns (stopped, errored, shutdown) — see `_wait_for_done_or_stop`."""
+        def _run_sync() -> tuple[bool, bool, bool, str | None]:
+            """Returns (stopped, errored, shutdown, error_detail) — see `_wait_for_done_or_stop`."""
             if resume_state is not None:
                 handle = resume_state.handle
             else:
@@ -654,7 +672,7 @@ async def run_conversation(trigger: TriggerMessage, agent_config: AgentConfig) -
                     # SDK timeout.
                     conversation.run(blocking=False)
                     reconcile = _make_reconciler(trigger, loop, counter, seen_events)
-                    stopped, errored, shutdown = _wait_for_done_or_stop(
+                    stopped, errored, shutdown, error_detail = _wait_for_done_or_stop(
                         conversation, stop_event, pause_event, reconcile
                     )
                 finally:
@@ -692,14 +710,18 @@ async def run_conversation(trigger: TriggerMessage, agent_config: AgentConfig) -
                 chat_sandboxes.pop(trigger.conversation_id, None)
                 stop_sandbox(handle)
 
-            return stopped, errored, shutdown
+            return stopped, errored, shutdown, error_detail
 
-        stopped, errored, shutdown = await asyncio.get_event_loop().run_in_executor(None, _run_sync)
+        stopped, errored, shutdown, error_detail = await asyncio.get_event_loop().run_in_executor(
+            None, _run_sync
+        )
         result = _post_turn_status(is_chat, stopped, errored, shutdown)
         if result is not None:
             status, event_type = result
             await conversation_repository.update_conversation_status(
-                trigger.conversation_id, status
+                trigger.conversation_id,
+                status,
+                error_message=error_detail if errored else None,
             )
             await stream_store.publish_realtime(
                 project_id=trigger.project_id,
@@ -751,7 +773,14 @@ async def teardown_paused_chat_sandbox(conversation_id: str) -> bool:
     entry = chat_sandboxes.pop(conversation_id, None)
     if entry is None:
         return False
-    stop_sandbox(entry.handle)
+    # stop_sandbox() blocks on container.stop(timeout=30) — a synchronous
+    # Docker Engine API call that can take several seconds. Unlike
+    # run_conversation's teardown (inside _run_sync, already offloaded via
+    # run_in_executor), this coroutine runs directly on the worker's shared
+    # event loop, so calling stop_sandbox() here inline would stall every
+    # other concurrent coroutine (including the trigger-stream Valkey read in
+    # worker.run_worker) for the container's full shutdown time.
+    await asyncio.get_event_loop().run_in_executor(None, stop_sandbox, entry.handle)
     await conversation_repository.update_conversation_status(
         conversation_id, ConversationStatus.STOPPED
     )

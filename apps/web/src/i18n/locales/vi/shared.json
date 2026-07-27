@@ -18,6 +18,8 @@
 	"contentDiff": {
 		"emptyLine": "(dòng trống)",
 		"noDifferences": "Không có khác biệt về văn bản",
+		"diffTooLarge": "Khác biệt quá lớn để xem trước ({{lines}} dòng)",
+		"collapsedLines": "Đã ẩn {{count}} dòng không thay đổi",
 		"changeDiff": "Thay đổi nội dung",
 		"removed": "Đã xóa",
 		"added": "Đã thêm"
@@ -54,6 +56,15 @@
 				"label": "AI Agent",
 				"sub": "Chưa cấu hình"
 			}
+		},
+		"myTasks": {
+			"title": "Nhiệm vụ của tôi",
+			"subtitle": "Nhiệm vụ đang mở được giao cho bạn, trên tất cả dự án",
+			"emptyTitle": "Bạn đã xử lý xong hết",
+			"emptyDescription": "Hiện không có nhiệm vụ đang mở nào được giao cho bạn.",
+			"loadError": "Không thể tải nhiệm vụ của bạn. Vui lòng thử lại.",
+			"loadMore": "Tải thêm",
+			"loading": "Đang tải…"
 		},
 		"projectsSection": {
 			"title": "Dự án",

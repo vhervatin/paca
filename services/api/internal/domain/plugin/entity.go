@@ -7,10 +7,14 @@ package plugindom
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+
+	agentdom "github.com/Paca-AI/api/internal/domain/agent"
+	"github.com/Paca-AI/api/internal/platform/bundledskills"
 )
 
 // Plugin represents one installed plugin in the registry.
@@ -43,6 +47,8 @@ type PluginManifest struct {
 	Frontend *FrontendManifest `json:"frontend,omitempty"`
 	// MCP holds MCP-server-specific manifest settings.
 	MCP *MCPManifest `json:"mcp,omitempty"`
+	// Skills holds Agent-Skills-specific manifest settings.
+	Skills *SkillsManifest `json:"skills,omitempty"`
 	// Permissions lists the host function scopes the plugin requires.
 	Permissions []string `json:"permissions,omitempty"`
 	// CustomPermissions lists project/global-scoped permission keys the
@@ -73,6 +79,11 @@ type CustomPermission struct {
 	Scope string `json:"scope,omitempty"`
 }
 
+// skillNamePattern mirrors the AgentSkills name convention enforced by the
+// OpenHands SDK (openhands/sdk/skills/utils.py's SKILL_NAME_PATTERN):
+// lowercase alphanumeric segments joined by single hyphens.
+var skillNamePattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
 // pluginKeyNamespace derives the required custom-permission key prefix from a
 // plugin's reverse-DNS ID: its last dot-separated segment, snake_cased (e.g.
 // "com.paca.time-logging" -> "time_logging").
@@ -101,6 +112,11 @@ func (m PluginManifest) Validate() error {
 			return fmt.Errorf("customPermissions: key %q has invalid scope %q", perm.Key, perm.Scope)
 		}
 	}
+	if m.Skills != nil {
+		if err := m.Skills.validate(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -112,6 +128,63 @@ type MCPManifest struct {
 	// The module must be a Node.js-compatible ESM bundle that exports a
 	// PluginMCPEntry as its default export (see @paca-ai/plugin-sdk-mcp).
 	RemoteEntryURL string `json:"remoteEntryUrl"`
+}
+
+// SkillsManifest describes the Agent Skills a plugin contributes. When
+// present, the skills bundle is extracted from the plugin's install
+// artifact to a directory served statically at BaseURL, with each skill at
+// <BaseURL>/<name>/SKILL.md (AgentSkills format: YAML frontmatter +
+// markdown body) — the same format as services/ai-agent's default skills.
+// This mirrors MCPManifest's RemoteEntryURL pattern, adapted for a
+// directory of skills instead of a single JS module.
+type SkillsManifest struct {
+	// BaseURL is the root URL of the plugin's extracted skills bundle.
+	BaseURL string `json:"baseUrl"`
+	// Names lists the skill directory names available under BaseURL.
+	// Declared explicitly because the static file server does not support
+	// directory listing.
+	Names []string `json:"names"`
+}
+
+// validate checks that the skills manifest is well-formed: a base URL and at
+// least one uniquely-named skill, each name following the AgentSkills naming
+// convention and none colliding with a reserved trigger-skill name (see
+// agentdom.ReservedSkillNames) or one of Paca's own bundled skill names (see
+// bundledskills.IsBuiltinName) — the latter would otherwise let a plugin
+// silently shadow a bundled skill users already trust, since neither the
+// GET /api/v1/skills merge nor scripts/install-paca-skills.sh's by-name file
+// writes dedupe against that list.
+func (m SkillsManifest) validate() error {
+	if strings.TrimSpace(m.BaseURL) == "" {
+		return fmt.Errorf("skills: baseUrl is required")
+	}
+	if len(m.Names) == 0 {
+		return fmt.Errorf("skills: at least one name is required")
+	}
+	seen := make(map[string]bool, len(m.Names))
+	for _, name := range m.Names {
+		if !skillNamePattern.MatchString(name) {
+			return fmt.Errorf("skills: name %q must be lowercase alphanumeric with single hyphens (e.g. \"paca-my-skill\")", name)
+		}
+		// Every skill in the Paca ecosystem — bundled or plugin-contributed —
+		// shares the "paca-" namespace (see docs/plugins/skills-plugin-system.md),
+		// distinct from MCP tool naming, which prefixes with the plugin's own
+		// name instead to avoid inter-plugin tool collisions.
+		if !strings.HasPrefix(name, "paca-") {
+			return fmt.Errorf("skills: name %q must start with \"paca-\"", name)
+		}
+		if agentdom.IsReservedSkillName(name) {
+			return fmt.Errorf("skills: name %q is reserved", name)
+		}
+		if bundledskills.IsBuiltinName(name) {
+			return fmt.Errorf("skills: name %q collides with a bundled Paca skill", name)
+		}
+		if seen[name] {
+			return fmt.Errorf("skills: duplicate name %q", name)
+		}
+		seen[name] = true
+	}
+	return nil
 }
 
 // BackendManifest describes the backend (WASM) side of the plugin.
@@ -131,6 +204,23 @@ type BackendManifest struct {
 	// AllowedConfigKeys is the list of host config keys the plugin may read via
 	// paca.config_get. Keys not listed here are not exposed to the plugin.
 	AllowedConfigKeys []string `json:"allowedConfigKeys,omitempty"`
+	// SensitiveFields declares which columns in this plugin's own database
+	// schema contain sensitive data, keyed by unqualified table name. When a
+	// different plugin's db_query/db_query2 call reads from this plugin's
+	// schema (via an explicit schema-qualified table reference), the host
+	// replaces these columns' values with "***" in the result. Queries this
+	// plugin runs against its own schema are never redacted.
+	SensitiveFields map[string][]string `json:"sensitiveFields,omitempty"`
+	// RequestedSensitiveFields declares which sensitive fields outside this
+	// plugin's own schema it needs read/write access to via
+	// db_query/db_query2/db_exec. Entries are "table.column" for a core
+	// (platform-owned) field, or "<owningPluginID>:table.column" for a field
+	// another plugin declared in its own SensitiveFields. A field is exempt
+	// from redaction/write-blocking for this plugin only if it's listed
+	// here — everything else stays masked/blocked. This list must be
+	// surfaced to admins in the plugin marketplace before install, the same
+	// way an OAuth scope or mobile app permission prompt would be.
+	RequestedSensitiveFields []string `json:"requestedSensitiveFields,omitempty"`
 }
 
 // FrontendManifest describes the frontend (Module Federation) side of the plugin.
@@ -211,6 +301,10 @@ type ExtensionPointRegistration struct {
 	Point string `json:"point"`
 	// Component is the exported React component name from the remote entry.
 	Component string `json:"component"`
+	// Label is the human-readable name shown where the host lists this
+	// registration as a user-facing choice (e.g. the "New view" picker for
+	// the "view" extension point). Falls back to Component when omitted.
+	Label string `json:"label,omitempty"`
 	// Order is the default display order within the extension point.
 	Order int `json:"order,omitempty"`
 }

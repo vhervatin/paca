@@ -3,7 +3,8 @@
 Drives the real executor.run_conversation() against a REAL OpenHands
 agent-server sandbox container (the same image used in production) and a
 fake, scriptable OpenAI-compatible LLM server — only the Postgres/Valkey
-persistence calls are mocked. This exercises what a pure unit test can't:
+persistence calls and the default-skills fetch (which hits a real Paca API
+this suite doesn't spin up) are mocked. This exercises what a pure unit test can't:
 that openhands-sdk's RemoteConversation really does deliver events through
 the `callbacks` channel, since `token_callbacks` is never invoked for remote
 workspaces (confirmed by reading
@@ -120,6 +121,17 @@ def persistence(monkeypatch) -> MockedPersistence:
     return mocks
 
 
+@pytest.fixture(autouse=True)
+def stub_default_skills(monkeypatch):
+    """load_default_skills() fetches Paca's bundled skill set from the API
+    over HTTP (GET /api/v1/skills) — this suite runs only the sandbox and a
+    fake LLM, no real Paca API, so the real call would fail with a DNS/
+    connection error on every conversation. Skill content itself is covered
+    by tests/test_builder.py; this suite's subject is the conversation/
+    persistence pipeline, not skill fetching."""
+    monkeypatch.setattr(executor, "load_default_skills", AsyncMock(return_value=()))
+
+
 def _agent_config(
     base_url: str, *, max_iterations: int = 3
 ) -> AgentConfig:
@@ -177,7 +189,9 @@ async def test_agent_reply_is_persisted_through_real_sandbox(make_fake_llm, pers
 
         # Chat conversations pause (not finish) after a natural per-turn
         # completion — the sandbox stays alive for the next reply.
-        persistence.update_status.assert_any_call(trigger.conversation_id, "paused")
+        persistence.update_status.assert_any_call(
+            trigger.conversation_id, "paused", error_message=None
+        )
     finally:
         await executor.teardown_paused_chat_sandbox(trigger.conversation_id)
 
@@ -216,7 +230,9 @@ async def test_agent_tool_call_then_reply_persists_full_flow(make_fake_llm, pers
 
         # Chat conversations pause (not finish) after a natural per-turn
         # completion — the sandbox stays alive for the next reply.
-        persistence.update_status.assert_any_call(trigger.conversation_id, "paused")
+        persistence.update_status.assert_any_call(
+            trigger.conversation_id, "paused", error_message=None
+        )
     finally:
         await executor.teardown_paused_chat_sandbox(trigger.conversation_id)
 
@@ -230,7 +246,19 @@ async def test_llm_failure_marks_conversation_failed(make_fake_llm, persistence)
 
     await executor.run_conversation(trigger, _agent_config(base_url))
 
-    persistence.update_status.assert_any_call(trigger.conversation_id, "failed")
+    failed_calls = [
+        call
+        for call in persistence.update_status.call_args_list
+        if call.args[:2] == (trigger.conversation_id, "failed")
+    ]
+    assert failed_calls, (
+        f"no 'failed' status update recorded: {persistence.update_status.call_args_list}"
+    )
+    error_message = failed_calls[0].kwargs.get("error_message")
+    assert error_message and "fake upstream failure" in error_message, (
+        f"error detail was not propagated to error_message: {error_message!r}"
+    )
+
     failed_events = [
         call
         for call in persistence.publish_realtime.call_args_list

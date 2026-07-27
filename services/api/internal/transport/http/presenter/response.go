@@ -175,6 +175,8 @@ func statusAndCodeFor(err error) (int, apierr.Code) {
 		return http.StatusConflict, apierr.CodeViewIsLastView
 	case errors.Is(err, sprintdom.ErrViewReorderInvalid):
 		return http.StatusBadRequest, apierr.CodeViewReorderInvalid
+	case errors.Is(err, sprintdom.ErrViewPluginConfigRequired):
+		return http.StatusBadRequest, apierr.CodeViewPluginConfigRequired
 	case errors.Is(err, taskdom.ErrCustomFieldNotFound):
 		return http.StatusNotFound, apierr.CodeCustomFieldNotFound
 	case errors.Is(err, taskdom.ErrCustomFieldKeyInvalid):
@@ -288,6 +290,8 @@ func statusAndCodeFor(err error) (int, apierr.Code) {
 		return http.StatusNotFound, apierr.CodeAgentSkillNotFound
 	case errors.Is(err, agentdom.ErrSkillNameReserved):
 		return http.StatusBadRequest, apierr.CodeAgentSkillNameReserved
+	case errors.Is(err, agentdom.ErrNotSupportedForACPAgent):
+		return http.StatusBadRequest, apierr.CodeAgentNotSupportedForACPAgent
 	case errors.Is(err, agentdom.ErrConversationNotFound):
 		return http.StatusNotFound, apierr.CodeAgentConversationNotFound
 	case errors.Is(err, agentdom.ErrConversationNotRunning):
@@ -435,6 +439,7 @@ func httpStatusForCode(code apierr.Code) int {
 		apierr.CodeViewNameInvalid,
 		apierr.CodeViewTypeInvalid,
 		apierr.CodeViewReorderInvalid,
+		apierr.CodeViewPluginConfigRequired,
 		apierr.CodeCustomFieldKeyInvalid,
 		apierr.CodeCustomFieldTypeInvalid,
 		apierr.CodeCustomFieldNameInvalid,
@@ -529,6 +534,7 @@ func httpStatusForCode(code apierr.Code) int {
 		apierr.CodeAgentEnvVarKeyInvalid,
 		apierr.CodeAgentEnvVarKeyReserved,
 		apierr.CodeAgentSkillNameReserved,
+		apierr.CodeAgentNotSupportedForACPAgent,
 		apierr.CodeAgentConversationInvalidCursor:
 		return http.StatusBadRequest
 	case apierr.CodeWorkflowNotFound,

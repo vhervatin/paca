@@ -8,6 +8,7 @@ import {
 	Search,
 	Server,
 	Trash2,
+	Wand2,
 	Zap,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -129,6 +130,7 @@ function PluginCard({
 	const hasFrontend = !!artifacts.frontend_tar_gz_url;
 	const hasMigrations = !!artifacts.migrations_tar_gz_url;
 	const hasMCP = !!artifacts.mcp_tar_gz_url;
+	const hasSkills = !!artifacts.skills_tar_gz_url;
 
 	let upgradeAvailable = false;
 	if (isInstalled && installedVersion) {
@@ -206,6 +208,12 @@ function PluginCard({
 						<FeatureBadge
 							icon={<Zap className="size-3" />}
 							label={t("marketplace.card.features.mcp")}
+						/>
+					)}
+					{hasSkills && (
+						<FeatureBadge
+							icon={<Wand2 className="size-3" />}
+							label={t("marketplace.card.features.skills")}
 						/>
 					)}
 				</div>
@@ -289,8 +297,26 @@ export function PluginMarketplacePanel() {
 		return marketplace.filter((plugin) => matchesQuery(plugin, query));
 	}, [marketplace, query]);
 
+	const [installingNames, setInstallingNames] = useState<Set<string>>(
+		new Set(),
+	);
+	const [uninstallingIds, setUninstallingIds] = useState<Set<string>>(
+		new Set(),
+	);
+	const [upgradingIds, setUpgradingIds] = useState<Set<string>>(new Set());
+
 	const installMutation = useMutation({
 		mutationFn: installMarketplacePlugin,
+		onMutate: (variables) => {
+			setInstallingNames((prev) => new Set(prev).add(variables.name));
+		},
+		onSettled: (_data, _error, variables) => {
+			setInstallingNames((prev) => {
+				const next = new Set(prev);
+				next.delete(variables.name);
+				return next;
+			});
+		},
 		onSuccess: async () => {
 			await Promise.all([
 				qc.invalidateQueries({ queryKey: ["plugins"] }),
@@ -301,6 +327,16 @@ export function PluginMarketplacePanel() {
 
 	const uninstallMutation = useMutation({
 		mutationFn: uninstallPlugin,
+		onMutate: (pluginId) => {
+			setUninstallingIds((prev) => new Set(prev).add(pluginId));
+		},
+		onSettled: (_data, _error, pluginId) => {
+			setUninstallingIds((prev) => {
+				const next = new Set(prev);
+				next.delete(pluginId);
+				return next;
+			});
+		},
 		onSuccess: async () => {
 			await Promise.all([
 				qc.invalidateQueries({ queryKey: ["plugins"] }),
@@ -311,6 +347,16 @@ export function PluginMarketplacePanel() {
 
 	const upgradeMutation = useMutation({
 		mutationFn: upgradePlugin,
+		onMutate: (pluginId) => {
+			setUpgradingIds((prev) => new Set(prev).add(pluginId));
+		},
+		onSettled: (_data, _error, pluginId) => {
+			setUpgradingIds((prev) => {
+				const next = new Set(prev);
+				next.delete(pluginId);
+				return next;
+			});
+		},
 		onSuccess: async () => {
 			await qc.invalidateQueries({ queryKey: ["plugins"] });
 		},
@@ -342,41 +388,31 @@ export function PluginMarketplacePanel() {
 				</div>
 			) : (
 				<div className="grid grid-cols-1 gap-3">
-					{filtered.map((plugin) => (
-						<PluginCard
-							key={plugin.name}
-							plugin={plugin}
-							isInstalled={installedByName.has(plugin.name)}
-							installedVersion={installedByName.get(plugin.name)?.version}
-							isInstalling={
-								installMutation.isPending &&
-								installMutation.variables?.name === plugin.name
-							}
-							isUninstalling={
-								uninstallMutation.isPending &&
-								uninstallMutation.variables ===
-									installedByName.get(plugin.name)?.id
-							}
-							isUpgrading={
-								upgradeMutation.isPending &&
-								upgradeMutation.variables ===
-									installedByName.get(plugin.name)?.id
-							}
-							onInstall={(name) =>
-								installMutation.mutate({ name, enabled: true })
-							}
-							onUninstall={(name) => {
-								const pluginId = installedByName.get(name)?.id;
-								if (!pluginId) return;
-								uninstallMutation.mutate(pluginId);
-							}}
-							onUpgrade={(name) => {
-								const pluginId = installedByName.get(name)?.id;
-								if (!pluginId) return;
-								upgradeMutation.mutate(pluginId);
-							}}
-						/>
-					))}
+					{filtered.map((plugin) => {
+						const pluginId = installedByName.get(plugin.name)?.id;
+						return (
+							<PluginCard
+								key={plugin.name}
+								plugin={plugin}
+								isInstalled={installedByName.has(plugin.name)}
+								installedVersion={installedByName.get(plugin.name)?.version}
+								isInstalling={installingNames.has(plugin.name)}
+								isUninstalling={!!pluginId && uninstallingIds.has(pluginId)}
+								isUpgrading={!!pluginId && upgradingIds.has(pluginId)}
+								onInstall={(name) =>
+									installMutation.mutate({ name, enabled: true })
+								}
+								onUninstall={() => {
+									if (!pluginId) return;
+									uninstallMutation.mutate(pluginId);
+								}}
+								onUpgrade={() => {
+									if (!pluginId) return;
+									upgradeMutation.mutate(pluginId);
+								}}
+							/>
+						);
+					})}
 				</div>
 			)}
 		</div>

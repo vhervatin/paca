@@ -7,17 +7,69 @@ import (
 	"time"
 
 	sprintdom "github.com/Paca-AI/api/internal/domain/sprint"
+	"github.com/Paca-AI/api/internal/events"
+	"github.com/Paca-AI/api/internal/platform/messaging"
 	"github.com/google/uuid"
 )
 
 // ViewService is the concrete implementation of sprintdom.ViewService.
 type ViewService struct {
-	repo sprintdom.ViewRepository
+	repo      sprintdom.ViewRepository
+	publisher *messaging.Publisher
 }
 
-// NewViewService returns a configured ViewService.
-func NewViewService(repo sprintdom.ViewRepository) *ViewService {
-	return &ViewService{repo: repo}
+// NewViewService returns a configured ViewService. publisher may be nil;
+// real-time events are then skipped silently.
+func NewViewService(repo sprintdom.ViewRepository, publisher *messaging.Publisher) *ViewService {
+	return &ViewService{repo: repo, publisher: publisher}
+}
+
+// publish sends a real-time pub/sub notification for a view change. Errors
+// are silently swallowed so a messaging failure never blocks the primary
+// HTTP response — this is how the frontend learns to refresh its sprint/
+// backlog/timeline view list instead of relying on query staleTime.
+func (s *ViewService) publish(ctx context.Context, topic string, payload map[string]any) {
+	if s.publisher == nil {
+		return
+	}
+	_ = s.publisher.Publish(ctx, events.ChannelRealtime, map[string]any{
+		"type":    topic,
+		"payload": payload,
+	})
+}
+
+// viewPayload builds the common event payload fields shared by all view
+// events: project_id, view_id, view_context, and — for sprint-context views
+// — sprint_id.
+func viewPayload(v *sprintdom.SprintView) map[string]any {
+	payload := map[string]any{
+		"project_id":   v.ProjectID.String(),
+		"view_id":      v.ID.String(),
+		"view_context": string(v.ViewContext),
+	}
+	if v.SprintID != nil {
+		payload["sprint_id"] = v.SprintID.String()
+	}
+	return payload
+}
+
+// hasPluginConfig reports whether cfg carries the plugin binding required for
+// a "plugin" view_type. Non-plugin view types are always valid here — this
+// only guards against a "plugin" view being persisted without the
+// PluginID/PluginComponent pair the frontend needs to resolve its extension
+// point (see apps/web's InteractionLayout, which falls back to a "Plugin not
+// available" empty state when either is missing or doesn't match a
+// registered plugin). Enforced server-side so no caller — MCP client, stale
+// tool version, or otherwise — can persist a broken plugin view even when it
+// skips (or predates) the equivalent client-side check.
+func hasPluginConfig(vt sprintdom.ViewType, cfg *sprintdom.ViewConfig) bool {
+	if vt != sprintdom.ViewTypePlugin {
+		return true
+	}
+	if cfg == nil {
+		return false
+	}
+	return strings.TrimSpace(cfg.PluginID) != "" && strings.TrimSpace(cfg.PluginComponent) != ""
 }
 
 // ListViews returns all views for a sprint.
@@ -56,6 +108,9 @@ func (s *ViewService) CreateView(ctx context.Context, in sprintdom.CreateViewInp
 	if !sprintdom.ValidViewTypes[vt] {
 		return nil, sprintdom.ErrViewTypeInvalid
 	}
+	if !hasPluginConfig(vt, &in.Config) {
+		return nil, sprintdom.ErrViewPluginConfigRequired
+	}
 
 	now := time.Now()
 	v := &sprintdom.SprintView{
@@ -74,6 +129,7 @@ func (s *ViewService) CreateView(ctx context.Context, in sprintdom.CreateViewInp
 	if err := s.repo.CreateView(ctx, v); err != nil {
 		return nil, err
 	}
+	s.publish(ctx, events.TopicViewCreated, viewPayload(v))
 	return v, nil
 }
 
@@ -107,11 +163,15 @@ func (s *ViewService) UpdateView(ctx context.Context, projectID, id uuid.UUID, i
 	if in.Position != nil {
 		v.Position = *in.Position
 	}
+	if !hasPluginConfig(v.ViewType, &v.Config) {
+		return nil, sprintdom.ErrViewPluginConfigRequired
+	}
 	v.UpdatedAt = time.Now()
 
 	if err := s.repo.UpdateView(ctx, v); err != nil {
 		return nil, err
 	}
+	s.publish(ctx, events.TopicViewUpdated, viewPayload(v))
 	return v, nil
 }
 
@@ -139,7 +199,11 @@ func (s *ViewService) DeleteView(ctx context.Context, projectID, id uuid.UUID) e
 		return sprintdom.ErrViewIsLastView
 	}
 
-	return s.repo.DeleteView(ctx, id)
+	if err := s.repo.DeleteView(ctx, id); err != nil {
+		return err
+	}
+	s.publish(ctx, events.TopicViewDeleted, viewPayload(v))
+	return nil
 }
 
 // MoveTask updates the manual position of a task within a view,
@@ -205,7 +269,18 @@ func (s *ViewService) ReorderViews(ctx context.Context, sprintID uuid.UUID, view
 	if err != nil {
 		return err
 	}
-	return s.validateAndReorder(ctx, existing, viewIDs)
+	if err := s.validateAndReorder(ctx, existing, viewIDs); err != nil {
+		return err
+	}
+	if len(existing) > 0 {
+		payload := map[string]any{
+			"project_id":   existing[0].ProjectID.String(),
+			"view_context": string(existing[0].ViewContext),
+			"sprint_id":    sprintID.String(),
+		}
+		s.publish(ctx, events.TopicViewReordered, payload)
+	}
+	return nil
 }
 
 // ReorderProjectViews reorders all views for a project+context.
@@ -215,7 +290,16 @@ func (s *ViewService) ReorderProjectViews(ctx context.Context, projectID uuid.UU
 	if err != nil {
 		return err
 	}
-	return s.validateAndReorder(ctx, existing, viewIDs)
+	if err := s.validateAndReorder(ctx, existing, viewIDs); err != nil {
+		return err
+	}
+	if len(existing) > 0 {
+		s.publish(ctx, events.TopicViewReordered, map[string]any{
+			"project_id":   projectID.String(),
+			"view_context": string(viewCtx),
+		})
+	}
+	return nil
 }
 
 // validateAndReorder checks that viewIDs exactly matches the IDs of existing

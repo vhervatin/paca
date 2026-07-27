@@ -5,6 +5,12 @@
 //
 //   useProjectRealtime(projectId);
 //
+// It's safe to mount this hook more than once for the same projectId at the
+// same time (e.g. once in the persistent project layout and again in a
+// nested conversations layout) — `joinProject`/`leaveProject` in
+// socket-client.ts are reference-counted, so one instance unmounting won't
+// evict room membership that another mounted instance still needs.
+//
 // The hook:
 //   1. Joins the project rooms on mount (server grants tasks/docs room
 //      access based on the caller's permissions).
@@ -20,6 +26,15 @@
 // doc.* events   → invalidate ["projects", projectId, "docs"]
 //                  This covers docFoldersQueryOptions, docListQueryOptions,
 //                  docQueryOptions, etc.
+// sprint.* events → invalidate ["projects", projectId, "sprints"]
+//                  This covers sprintsQueryOptions and sprintQueryOptions —
+//                  replaces the sidebar's old refetchInterval polling.
+// view.* events  → invalidate ["projects", projectId, "views"]
+//                  viewsByContextQueryOptions keys every context (sprint/
+//                  backlog/timeline) under this shared "views" prefix with a
+//                  trailing { context, sprintId } filter object, so one
+//                  prefix invalidation covers all three regardless of which
+//                  context changed.
 // workflow.* events → invalidate ["projects", projectId, "workflows"] (the
 //                  automation list/graph queries) and ["projects", projectId,
 //                  "tasks"] (covers workflowsForTaskQueryOptions, which hangs
@@ -38,6 +53,7 @@ import {
 	joinProject,
 	leaveProject,
 	type RealtimeEvent,
+	rejoinProject,
 } from "@/lib/socket-client";
 
 export function useProjectRealtime(projectId: string): void {
@@ -62,6 +78,20 @@ export function useProjectRealtime(projectId: string): void {
 			if (type.startsWith("doc.")) {
 				void queryClient.invalidateQueries({
 					queryKey: ["projects", projectId, "docs"],
+				});
+				return;
+			}
+
+			if (type.startsWith("sprint.")) {
+				void queryClient.invalidateQueries({
+					queryKey: ["projects", projectId, "sprints"],
+				});
+				return;
+			}
+
+			if (type.startsWith("view.")) {
+				void queryClient.invalidateQueries({
+					queryKey: ["projects", projectId, "views"],
 				});
 				return;
 			}
@@ -151,9 +181,11 @@ export function useProjectRealtime(projectId: string): void {
 		// just the initial connection. A reconnect starts a new server-side
 		// session with no room membership until we "join" again — without
 		// this, a network blip silently stops delivering invalidations while
-		// the socket still reports connected.
+		// the socket still reports connected. Uses `rejoinProject` (not
+		// `joinProject`) since this isn't a new subscriber — it must not bump
+		// the reference count that `leaveProject` decrements on unmount.
 		function handleConnect() {
-			joinProject(projectId);
+			rejoinProject(projectId);
 		}
 		socket.on("connect", handleConnect);
 

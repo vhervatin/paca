@@ -206,9 +206,9 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 	projectService := projectsvc.New(projectRepo, taskRepo)
 	taskService := tasksvc.New(taskRepo)
 	sprintRepo := pgRepo.NewSprintRepository(db)
-	sprintService := sprintsvc.New(sprintRepo, taskRepo)
+	sprintService := sprintsvc.New(sprintRepo, taskRepo, nil)
 	viewRepo := pgRepo.NewViewRepository(db)
-	viewService := sprintsvc.NewViewService(viewRepo)
+	viewService := sprintsvc.NewViewService(viewRepo, nil)
 	attachmentRepo := pgRepo.NewAttachmentRepository(db)
 	apiKeyRepo := pgRepo.NewAPIKeyRepository(db)
 	apiKeyService := apikeysvc.New(apiKeyRepo)
@@ -262,7 +262,7 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 		User:                 handler.NewUserHandler(userService),
 		GlobalRole:           handler.NewGlobalRoleHandler(globalRoleService),
 		Project:              handler.NewProjectHandler(projectService, authz.NewAuthorizer(authzStore)),
-		Task:                 handler.NewTaskHandler(taskService, viewService, activityService),
+		Task:                 handler.NewTaskHandler(taskService, viewService, activityService, handler.WithTaskAssignedProjectService(projectService)),
 		Sprint:               handler.NewSprintHandler(sprintService, viewService),
 		View:                 handler.NewViewHandler(viewService),
 		Attachment:           handler.NewAttachmentHandler(attachmentService),

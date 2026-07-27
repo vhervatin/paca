@@ -142,8 +142,8 @@ func New(cfg *config.Config) (*App, error) {
 	globalRoleService := globalrolesvc.NewCachedService(globalrolesvc.New(globalRoleRepo), cacheStore, cfg.Cache.ConfigTTL, log)
 	projectService := projectsvc.NewCachedService(projectsvc.New(projectRepo, taskRepo), cacheStore, cfg.Cache.ProjectTTL, cfg.Cache.ConfigTTL, log)
 	taskService := tasksvc.NewCachedService(tasksvc.New(taskRepo).WithWorkflowStatusChecker(rawWorkflowRepo), cacheStore, cfg.Cache.ConfigTTL, log)
-	sprintService := sprintsvc.NewCachedSprintService(sprintsvc.New(sprintRepo, taskRepo), cacheStore, cfg.Cache.SprintTTL, log)
-	viewService := sprintsvc.NewCachedViewService(sprintsvc.NewViewService(viewRepo), cacheStore, cfg.Cache.SprintTTL, log)
+	sprintService := sprintsvc.NewCachedSprintService(sprintsvc.New(sprintRepo, taskRepo, publisher), cacheStore, cfg.Cache.SprintTTL, log)
+	viewService := sprintsvc.NewCachedViewService(sprintsvc.NewViewService(viewRepo, publisher), cacheStore, cfg.Cache.SprintTTL, log)
 	notificationService := notificationsvc.New(notificationRepo, projectRepo, publisher)
 	agentRepo := pgRepo.NewAgentRepository(db)
 	agentService := agentsvc.New(agentRepo, projectService, publisher, pluginRepo)
@@ -157,6 +157,14 @@ func New(cfg *config.Config) (*App, error) {
 			agentService = agentService.WithEncryptor(enc)
 			log.Info("agent LLM API key at-rest encryption enabled")
 		}
+	} else {
+		// Not fatal — deployments using only ACP-type agents and no plugins
+		// with stored secrets have nothing to encrypt. But when this is
+		// unintentional, the effect is silent: encryptKey() falls back to
+		// storing the plaintext unchanged when no encryptor is configured, so
+		// LLM API keys and plugin secrets end up in the database in plaintext
+		// with no error or signal anywhere. Surface it once at startup.
+		log.Warn("ENCRYPTION_KEY not set: agent LLM API keys and plugin secrets will be stored in plaintext, not encrypted")
 	}
 	activityService := tasksvc.NewActivityService(activityRepo, projectRepo, publisher).
 		WithNotificationService(notificationService).
@@ -225,6 +233,7 @@ func New(cfg *config.Config) (*App, error) {
 		Publisher:  publisher,
 		HTTPClient: &http.Client{Timeout: 30 * time.Second},
 		Authorizer: authorizer,
+		Cache:      cacheStore,
 		Config: map[string]string{
 			"ENCRYPTION_KEY": cfg.Security.EncryptionKey,
 			"PUBLIC_URL":     cfg.Server.PublicURL,
@@ -236,7 +245,7 @@ func New(cfg *config.Config) (*App, error) {
 	}, log)
 	marketplaceClient := pluginrt.NewMarketplaceClient(cfg.Plugins.MarketplaceCatalogURL, cfg.Plugins.MarketplaceTimeout)
 	installerHTTPClient := &http.Client{Timeout: cfg.Plugins.MarketplaceTimeout}
-	pluginInstaller := pluginrt.NewInstaller(cfg.Plugins.WASMDir, cfg.Plugins.FrontendDir, cfg.Plugins.MCPDir, installerHTTPClient, log)
+	pluginInstaller := pluginrt.NewInstaller(cfg.Plugins.WASMDir, cfg.Plugins.FrontendDir, cfg.Plugins.MCPDir, cfg.Plugins.SkillsDir, installerHTTPClient, log)
 
 	pluginService := pluginsvc.New(pluginRepo)
 
@@ -300,7 +309,8 @@ func New(cfg *config.Config) (*App, error) {
 			handler.WithProjectStatsServices(taskService, agentService),
 		),
 		Task: handler.NewTaskHandler(taskService, viewService, activityService,
-			handler.WithTaskPublisher(publisher)),
+			handler.WithTaskPublisher(publisher),
+			handler.WithTaskAssignedProjectService(projectService)),
 		Sprint: handler.NewSprintHandler(sprintService, viewService,
 			handler.WithSprintDefaultTaskTypes(taskService),
 			handler.WithSprintDefaultTaskStatuses(taskService),
@@ -311,6 +321,7 @@ func New(cfg *config.Config) (*App, error) {
 		DocFile:            handler.NewDocFileHandler(attachmentService),
 		Notification:       handler.NewNotificationHandler(notificationService),
 		APIKey:             handler.NewAPIKeyHandler(apiKeyService),
+		Skills:             handler.NewSkillsHandler(pluginService, cfg.Plugins.SkillsDir),
 		Plugin:             pluginHandler,
 		Agent:              agentHandler,
 		Conversation:       convHandler,

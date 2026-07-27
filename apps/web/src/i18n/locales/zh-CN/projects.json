@@ -107,7 +107,7 @@
 			"copied": "已复制！",
 			"step3Title": "安装 Paca 技能",
 			"step3Description": "让您的 CLI 通过 Paca 的 MCP 工具路由请求 — 默认情况下会通过 /paca 添加到每个提示词中。",
-			"step3NotAvailable": "自动安装目前仅适用于 Claude Code。{{provider}} 尚无已知的自定义提示词安装程序 — 即使没有它，下方的 Paca MCP 工具仍然可以使用。",
+			"step3NotAvailable": "自动安装目前适用于 Claude Code、Gemini CLI 和 Codex。{{provider}} 尚无已知的自定义提示词安装程序 — 即使没有它，下方的 Paca MCP 工具仍然可以使用。",
 			"step3ViewContent": "查看技能说明",
 			"step4Title": "连接 MCP 服务器",
 			"step4Description": "使用个人 API 密钥，以便 CLI 可以直接调用 Paca 的工具。",
@@ -930,6 +930,20 @@
 			"epicLabel": "史诗",
 			"noEpic": "无史诗",
 			"storyPointsTitle": "故事点"
+		},
+		"taskContextMenu": {
+			"open": "打开任务",
+			"moveTo": "移动到",
+			"status": "状态",
+			"assignee": "指派人",
+			"unassigned": "未分配",
+			"type": "类型",
+			"priority": "优先级",
+			"epic": "史诗",
+			"noEpic": "无史诗",
+			"copyId": "复制任务 ID ({{id}})",
+			"copyLink": "复制链接",
+			"delete": "删除任务"
 		},
 		"listGroup": {
 			"columnHeaders": {

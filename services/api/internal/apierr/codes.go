@@ -116,6 +116,8 @@ const (
 	CodeViewIsLastView Code = "VIEW_IS_LAST_VIEW"
 	// CodeViewReorderInvalid indicates the provided view IDs do not match the interaction's views.
 	CodeViewReorderInvalid Code = "VIEW_REORDER_INVALID"
+	// CodeViewPluginConfigRequired indicates a view_type "plugin" was saved without a plugin_id/plugin_component pair.
+	CodeViewPluginConfigRequired Code = "VIEW_PLUGIN_CONFIG_REQUIRED"
 
 	// CodeCustomFieldNotFound indicates the requested custom field definition does not exist.
 	CodeCustomFieldNotFound Code = "CUSTOM_FIELD_NOT_FOUND"
@@ -280,6 +282,8 @@ const (
 	CodeAgentSkillNotFound Code = "AGENT_SKILL_NOT_FOUND"
 	// CodeAgentSkillNameReserved indicates the skill name collides with a name reserved for internal agent scaffolding.
 	CodeAgentSkillNameReserved Code = "AGENT_SKILL_NAME_RESERVED"
+	// CodeAgentNotSupportedForACPAgent indicates an MCP server/skill/env var operation was attempted on an ACP-type agent.
+	CodeAgentNotSupportedForACPAgent Code = "AGENT_NOT_SUPPORTED_FOR_ACP_AGENT"
 	// CodeAgentConversationNotFound indicates the requested conversation does not exist.
 	CodeAgentConversationNotFound Code = "AGENT_CONVERSATION_NOT_FOUND"
 	// CodeAgentConversationNotRunning indicates the conversation is not in a runnable state.

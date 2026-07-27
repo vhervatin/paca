@@ -18,6 +18,8 @@
 	"contentDiff": {
 		"emptyLine": "(ligne vide)",
 		"noDifferences": "Aucune différence de texte",
+		"diffTooLarge": "Différence trop volumineuse pour un aperçu ({{lines}} lignes)",
+		"collapsedLines": "{{count}} lignes inchangées masquées",
 		"changeDiff": "Différences des modifications",
 		"removed": "Supprimé",
 		"added": "Ajouté"
@@ -54,6 +56,15 @@
 				"label": "Agents IA",
 				"sub": "Aucun configuré"
 			}
+		},
+		"myTasks": {
+			"title": "Mes tâches",
+			"subtitle": "Tâches ouvertes qui vous sont assignées, tous projets confondus",
+			"emptyTitle": "Vous êtes à jour",
+			"emptyDescription": "Aucune tâche ouverte ne vous est actuellement assignée.",
+			"loadError": "Impossible de charger vos tâches. Veuillez réessayer.",
+			"loadMore": "Charger plus",
+			"loading": "Chargement…"
 		},
 		"projectsSection": {
 			"title": "Projets",

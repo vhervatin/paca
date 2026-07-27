@@ -18,6 +18,8 @@
 	"contentDiff": {
 		"emptyLine": "（空行）",
 		"noDifferences": "无文本差异",
+		"diffTooLarge": "差异过大，无法预览（{{lines}} 行）",
+		"collapsedLines": "已隐藏 {{count}} 行未更改内容",
 		"changeDiff": "更改差异",
 		"removed": "已删除",
 		"added": "已添加"
@@ -54,6 +56,15 @@
 				"label": "AI 智能体",
 				"sub": "尚未配置"
 			}
+		},
+		"myTasks": {
+			"title": "我的任务",
+			"subtitle": "分配给你的未完成任务，覆盖所有项目",
+			"emptyTitle": "全部处理完毕",
+			"emptyDescription": "目前没有分配给你的未完成任务。",
+			"loadError": "无法加载你的任务，请重试。",
+			"loadMore": "加载更多",
+			"loading": "加载中…"
 		},
 		"projectsSection": {
 			"title": "项目",
