@@ -155,10 +155,11 @@ services:
       PLUGINS_FRONTEND_DIR: /plugins-frontend
       PLUGINS_MCP_DIR: /plugins-mcp
       PLUGINS_SKILLS_DIR: /plugins-skills
-      # Version check (home "new version" banner). PACA_VERSION defaults to an
-      # older tag in dev so the banner is demonstrable; set it to the real build
-      # tag in production. RELEASE_FORK_REPO enables the fork check.
-      PACA_VERSION: ${PACA_VERSION:-v0.9.0}
+      # Version check (home "new version" banner). Defaults to the current build
+      # tag so dev reflects the real version; override PACA_VERSION with an older
+      # value (e.g. v0.9.0) to demo the update banner. RELEASE_FORK_REPO enables
+      # the fork check.
+      PACA_VERSION: ${PACA_VERSION:-v0.10.7-evup.1}
       RELEASE_UPSTREAM_REPO: ${RELEASE_UPSTREAM_REPO:-Paca-AI/paca}
       RELEASE_FORK_REPO: ${RELEASE_FORK_REPO:-vhervatin/paca}
     volumes:
