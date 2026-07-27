@@ -1,5 +1,5 @@
-# Gerado para EasyPanel (Compose): Caddyfile embutido como config,
-# sem portas de host (Traefik roteia), sem ai-agent/db-backup.
+# Gerado para EasyPanel (Compose): Caddyfile embutido, sem portas de host,
+# sem ai-agent/db-backup. NÃO editar à mão — regerar com este script.
 
 services:
   postgres:
@@ -78,6 +78,7 @@ services:
       PLUGINS_WASM_DIR: /plugins
       PLUGINS_FRONTEND_DIR: /plugins-frontend
       PLUGINS_MCP_DIR: /plugins-mcp
+      PLUGINS_SKILLS_DIR: /plugins-skills
       AGENT_API_KEY: ${AGENT_API_KEY:-}
       PACA_VERSION: ${PACA_VERSION:-dev}
       RELEASE_UPSTREAM_REPO: ${RELEASE_UPSTREAM_REPO:-Paca-AI/paca}
@@ -106,6 +107,7 @@ services:
     - backend_plugins:/plugins
     - frontend_plugins:/plugins-frontend
     - mcp_plugins:/plugins-mcp
+    - skills_plugins:/plugins-skills
   web:
     image: ${PACA_WEB_IMAGE:-pacaai/paca-web:latest}
     restart: unless-stopped
@@ -133,6 +135,7 @@ services:
     volumes:
     - frontend_plugins:/var/www/plugins:ro
     - mcp_plugins:/var/www/plugins-mcp:ro
+    - skills_plugins:/var/www/plugins-skills:ro
     - caddy_data:/data
     - caddy_config:/config
     depends_on:
@@ -154,6 +157,7 @@ volumes:
   backend_plugins: null
   frontend_plugins: null
   mcp_plugins: null
+  skills_plugins: null
   caddy_data: null
   caddy_config: null
 configs:
@@ -164,43 +168,52 @@ configs:
       \    \u2192  Realtime service        (Socket.IO, /ws stripped)\n#   /agent-bridge/ws \u2192 AI-agent local ACP bridge\
       \ WebSocket (forwarded as-is)\n#   /storage/*      \u2192  MinIO                   (/storage stripped)\n#   /plugins/*\
       \      \u2192  Plugin frontend assets  (static files)\n#   /plugins-mcp/*  \u2192  Plugin MCP bundles      (static files)\n\
-      #   /*              \u2192  Web application         (SPA with client-side routing)\n#\n# This file is mounted at /etc/caddy/Caddyfile\
-      \ inside the gateway container.\n#\n# SITE_ADDRESS controls automatic HTTPS\n# ---------------------------------------\n\
-      #   - A bare port (the default, \":80\") serves plain HTTP with no TLS at all.\n#     Caddy can't safely provision a\
-      \ certificate for an unbounded catch-all\n#     address, so use this only when something else terminates TLS in front\n\
-      #     of this gateway.\n#   - Any concrete address \u2014 a domain name, an IP address, \"localhost\", a\n#     \"*.localhost\"\
-      \ name, etc. \u2014 gets HTTPS automatically:\n#       \u2022 A real domain name with DNS already pointed here (e.g.\n\
-      #         \"paca.example.com\") gets a trusted Let's Encrypt certificate,\n#         renewed automatically. Ports 80\
-      \ and 443 must both be reachable\n#         from the internet for the ACME challenge to succeed.\n#       \u2022 Anything\
-      \ else (an IP address, \"localhost\", \"*.localhost\", ...)\n#         gets a certificate from Caddy's own local certificate\
-      \ authority\n#         instead. Traffic is still encrypted, but browsers will show a\n#         trust warning since\
-      \ that CA isn't publicly trusted.\n#     Either way, certificates persist in the caddy_data volume so they\n#     survive\
-      \ container restarts/recreations.\n#   install.sh enables HTTPS by default and prompts for this address.\n# =============================================================================\n\
-      \n:80 {\n\tencode gzip\n\n\tlog {\n\t\toutput stdout\n\t}\n\n\theader {\n\t\tX-Frame-Options \"DENY\"\n\t\tX-Content-Type-Options\
-      \ \"nosniff\"\n\t\tReferrer-Policy \"strict-origin-when-cross-origin\"\n\t\tPermissions-Policy \"camera=(), microphone=(),\
-      \ geolocation=()\"\n\t\tX-XSS-Protection \"0\"\n\t\t-Server\n\t}\n\n\t# Reject oversized request bodies at the gateway\
-      \ before they reach\n\t# upstreams. Object storage uploads (handled below) are exempt.\n\t@notStorage not path /storage/*\n\
-      \trequest_body @notStorage {\n\t\tmax_size 10MB\n\t}\n\n\t# -- Object storage (MinIO) ------------------------------------------------\n\
-      \t#\n\t# The Host header is rewritten to the internal MinIO address so that AWS\n\t# Signature V4 validation succeeds:\
-      \ MinIO re-derives the HMAC using the\n\t# Host it receives, which must match the host that was used when the\n\t# presigned\
-      \ URL was generated (minio:9000).\n\t#\n\t# The API rewrites presigned URL hosts from \"minio:9000\" to\n\t# STORAGE_PUBLIC_URL\
-      \ (e.g. \"http://localhost/storage\") before returning\n\t# them to clients, so browsers always receive routable URLs.\n\
-      \thandle_path /storage/* {\n\t\treverse_proxy minio:9000 {\n\t\t\theader_up Host minio:9000\n\t\t}\n\t}\n\n\t# -- Realtime\
-      \ service (Socket.IO) ------------------------------------------\n\t#\n\t# WebSocket upgrade requests are detected and\
-      \ proxied automatically.\n\t#\n\t# Client-side connection:\n\t#   io(\"http://localhost\", { path: \"/ws/socket.io\"\
-      , withCredentials: true })\n\thandle_path /ws/* {\n\t\treverse_proxy realtime:3001\n\t}\n\n\t# -- Local plugin frontend\
-      \ assets -------------------------------------------\n\t#\n\t# Serves statically-built micro-frontend bundles for locally\
-      \ installed\n\t# plugins. Only plugins/local/frontend is mounted here (plugins/local/backend\n\t# is mounted exclusively\
-      \ to the API container), so WASM binaries and SQL\n\t# migrations are never reachable over HTTP.\n\t#\n\t# Set remoteEntryUrl\
-      \ in each plugin's plugin.json to:\n\t#   /plugins/<plugin-id>/assets/remoteEntry.js\n\thandle_path /plugins/* {\n\t\
-      \troot * /var/www/plugins\n\n\t\t@wasm path *.wasm\n\t\theader @wasm Content-Type \"application/wasm\"\n\n\t\t# Fingerprinted\
-      \ assets can be cached immutably for a long time.\n\t\theader Cache-Control \"public, max-age=900, immutable\"\n\t\t\
-      file_server\n\t}\n\n\t# -- MCP plugin bundles -------------------------------------------------------\n\t#\n\t# Self-contained\
-      \ ESM bundles loaded at runtime by the MCP server. Kept on a\n\t# separate path from frontend assets so WASM/CSS concerns\
-      \ from the block\n\t# above don't bleed into MCP serving.\n\t#\n\t# Set remoteEntryUrl in each plugin's plugin.json\
-      \ mcp section to an\n\t# absolute URL, for example:\n\t#   ${PUBLIC_URL}/plugins-mcp/<plugin-id>/mcp.js\n\thandle_path\
-      \ /plugins-mcp/* {\n\t\troot * /var/www/plugins-mcp\n\t\theader Cache-Control \"public, max-age=900, immutable\"\n\t\
-      \tfile_server\n\t}\n\n\t# -- API routes ---------------------------------------------------------------\n\t#\n\t# Forwards\
+      #   /plugins-skills/* \u2192 Plugin Agent Skills bundles (static files)\n#   /*              \u2192  Web application\
+      \         (SPA with client-side routing)\n#\n# This file is mounted at /etc/caddy/Caddyfile inside the gateway container.\n\
+      #\n# SITE_ADDRESS controls automatic HTTPS\n# ---------------------------------------\n#   - A bare port (the default,\
+      \ \":80\") serves plain HTTP with no TLS at all.\n#     Caddy can't safely provision a certificate for an unbounded\
+      \ catch-all\n#     address, so use this only when something else terminates TLS in front\n#     of this gateway.\n#\
+      \   - Any concrete address \u2014 a domain name, an IP address, \"localhost\", a\n#     \"*.localhost\" name, etc. \u2014\
+      \ gets HTTPS automatically:\n#       \u2022 A real domain name with DNS already pointed here (e.g.\n#         \"paca.example.com\"\
+      ) gets a trusted Let's Encrypt certificate,\n#         renewed automatically. Ports 80 and 443 must both be reachable\n\
+      #         from the internet for the ACME challenge to succeed.\n#       \u2022 Anything else (an IP address, \"localhost\"\
+      , \"*.localhost\", ...)\n#         gets a certificate from Caddy's own local certificate authority\n#         instead.\
+      \ Traffic is still encrypted, but browsers will show a\n#         trust warning since that CA isn't publicly trusted.\n\
+      #     Either way, certificates persist in the caddy_data volume so they\n#     survive container restarts/recreations.\n\
+      #   install.sh enables HTTPS by default and prompts for this address.\n# =============================================================================\n\
+      \n(mcp_skills_routes) {\n\t# -- MCP plugin bundles -------------------------------------------------------\n\t#\n\t\
+      # Self-contained ESM bundles loaded at runtime by the MCP server. Kept on a\n\t# separate path from frontend assets\
+      \ so WASM/CSS concerns from the\n\t# /plugins/* block don't bleed into MCP serving.\n\t#\n\t# Set remoteEntryUrl in\
+      \ each plugin's plugin.json mcp section to an\n\t# absolute URL, for example:\n\t#   ${PUBLIC_URL}/plugins-mcp/<plugin-id>/mcp.js\n\
+      \thandle_path /plugins-mcp/* {\n\t\troot * /var/www/plugins-mcp\n\t\theader Cache-Control \"public, max-age=900, immutable\"\
+      \n\t\tfile_server\n\t}\n\n\t# -- Plugin Agent Skills bundles ----------------------------------------------\n\t#\n\t\
+      # SKILL.md directories loaded at conversation start by the ai-agent service.\n\t# Kept on a separate path from frontend/MCP\
+      \ assets for the same reason as\n\t# the MCP block above.\n\t#\n\t# Set baseUrl in each plugin's plugin.json skills\
+      \ section to an absolute\n\t# URL, for example:\n\t#   ${PUBLIC_URL}/plugins-skills/<plugin-id>\n\thandle_path /plugins-skills/*\
+      \ {\n\t\troot * /var/www/plugins-skills\n\t\theader Cache-Control \"public, max-age=900, immutable\"\n\t\tfile_server\n\
+      \t}\n}\n\n:80 {\n\tencode gzip\n\n\tlog {\n\t\toutput stdout\n\t}\n\n\theader {\n\t\tX-Frame-Options \"DENY\"\n\t\t\
+      X-Content-Type-Options \"nosniff\"\n\t\tReferrer-Policy \"strict-origin-when-cross-origin\"\n\t\tPermissions-Policy\
+      \ \"camera=(), microphone=(), geolocation=()\"\n\t\tX-XSS-Protection \"0\"\n\t\t-Server\n\t}\n\n\t# Reject oversized\
+      \ request bodies at the gateway before they reach\n\t# upstreams. Object storage uploads (handled below) are exempt.\n\
+      \t@notStorage not path /storage/*\n\trequest_body @notStorage {\n\t\tmax_size 10MB\n\t}\n\n\t# -- Object storage (MinIO)\
+      \ ------------------------------------------------\n\t#\n\t# The Host header is rewritten to the internal MinIO address\
+      \ so that AWS\n\t# Signature V4 validation succeeds: MinIO re-derives the HMAC using the\n\t# Host it receives, which\
+      \ must match the host that was used when the\n\t# presigned URL was generated (minio:9000).\n\t#\n\t# The API rewrites\
+      \ presigned URL hosts from \"minio:9000\" to\n\t# STORAGE_PUBLIC_URL (e.g. \"http://localhost/storage\") before returning\n\
+      \t# them to clients, so browsers always receive routable URLs.\n\thandle_path /storage/* {\n\t\treverse_proxy minio:9000\
+      \ {\n\t\t\theader_up Host minio:9000\n\t\t}\n\t}\n\n\t# -- Realtime service (Socket.IO) ------------------------------------------\n\
+      \t#\n\t# WebSocket upgrade requests are detected and proxied automatically.\n\t#\n\t# Client-side connection:\n\t# \
+      \  io(\"http://localhost\", { path: \"/ws/socket.io\", withCredentials: true })\n\thandle_path /ws/* {\n\t\treverse_proxy\
+      \ realtime:3001\n\t}\n\n\t# -- Local plugin frontend assets -------------------------------------------\n\t#\n\t# Serves\
+      \ statically-built micro-frontend bundles for locally installed\n\t# plugins. Only plugins/local/frontend is mounted\
+      \ here (plugins/local/backend\n\t# is mounted exclusively to the API container), so WASM binaries and SQL\n\t# migrations\
+      \ are never reachable over HTTP.\n\t#\n\t# Set remoteEntryUrl in each plugin's plugin.json to:\n\t#   /plugins/<plugin-id>/assets/remoteEntry.js\n\
+      \thandle_path /plugins/* {\n\t\troot * /var/www/plugins\n\n\t\t@wasm path *.wasm\n\t\theader @wasm Content-Type \"application/wasm\"\
+      \n\n\t\t# Fingerprinted assets can be cached immutably for a long time.\n\t\theader Cache-Control \"public, max-age=900,\
+      \ immutable\"\n\t\tfile_server\n\t}\n\n\t# -- MCP plugin bundles + Plugin Agent Skills bundles -------------------------\n\
+      \t#\n\t# See the `mcp_skills_routes` snippet above. Also served on the internal\n\t# :8080 block below, which the MCP\
+      \ server / ai-agent use instead of this\n\t# public port for their own fetches \u2014 see that block for why.\n\timport\
+      \ mcp_skills_routes\n\n\t# -- API routes ---------------------------------------------------------------\n\t#\n\t# Forwards\
       \ the /api prefix as-is to the upstream:\n\t#   /api/v1/users  \u2192  /api/v1/users\n\t#   /api/healthz   \u2192  /api/healthz\n\
       \thandle /api/* {\n\t\treverse_proxy api:8080\n\t}\n\n\t# -- AI agent local ACP bridge -------------------------------------------------\n\
       \t#\n\t# The only part of services/ai-agent exposed publicly: the WebSocket a\n\t# user's local `paca-acp-bridge` daemon\
@@ -210,4 +223,14 @@ configs:
       \ and must not be\n\t# reachable from here.\n\thandle /agent-bridge/ws {\n\t\treverse_proxy ai-agent:8080\n\t}\n\n\t\
       # -- Web application (SPA) -----------------------------------------------------\n\t#\n\t# WebSocket upgrades are detected\
       \ and proxied automatically, so Vite HMR\n\t# and any future realtime traffic through this path work unmodified.\n\t\
-      handle {\n\t\treverse_proxy web:3000\n\t}\n}\n"
+      handle {\n\t\treverse_proxy web:3000\n\t}\n}\n\n# -- Internal MCP/Skills bundle port ------------------------------------------\n\
+      #\n# The MCP server and ai-agent fetch plugin MCP/skills bundles via\n# GATEWAY_BASE_URL over plain http:// on the docker-internal\
+      \ network.\n# services/ai-agent/src/config.py reads GATEWAY_BASE_URL and forwards it to\n# the spawned MCP subprocess\
+      \ as PACA_GATEWAY_URL (see\n# services/ai-agent/src/agent/builder.py), which apps/mcp/src/plugin-loader.ts\n# then uses\
+      \ to resolve plugin bundle URLs. When SITE_ADDRESS above is a real\n# domain, Caddy enables automatic HTTPS for it,\n\
+      # which installs a catch-all HTTP\u2192HTTPS redirect on port 80 for *any* Host\n# header \u2014 including these internal\
+      \ requests. Caddy has no certificate for\n# the \"gateway\" hostname, so the followed redirect's TLS handshake fails.\n\
+      #\n# A bare port never gets automatic HTTPS (see the SITE_ADDRESS comment at the\n# top of this file), so this dedicated\
+      \ internal port sidesteps the redirect\n# entirely. It is not published to the host in docker-compose \u2014 only reachable\n\
+      # from other containers on the compose network. GATEWAY_BASE_URL must point\n# here (http://gateway:8080), not at the\
+      \ public port.\n:8080 {\n\timport mcp_skills_routes\n}\n"
