@@ -159,7 +159,7 @@ services:
       # tag so dev reflects the real version; override PACA_VERSION with an older
       # value (e.g. v0.9.0) to demo the update banner. RELEASE_FORK_REPO enables
       # the fork check.
-      PACA_VERSION: ${PACA_VERSION:-v0.10.7-evup.1}
+      PACA_VERSION: ${PACA_VERSION:-v0.10.8-evup.1}
       RELEASE_UPSTREAM_REPO: ${RELEASE_UPSTREAM_REPO:-Paca-AI/paca}
       RELEASE_FORK_REPO: ${RELEASE_FORK_REPO:-vhervatin/paca}
     volumes:
