@@ -78,6 +78,17 @@ check("agents/llm-models 200 (nunca 500)", code == 200, f"HTTP {code} {body[:120
 code, body = req("GET", API + "/admin/global-roles")
 check("admin/global-roles 200", code == 200, f"HTTP {code}")
 
+# member picker (bug: "nenhum usuário disponível") — a listagem que alimenta o
+# dialog "Adicionar membro" tem que responder 200 com itens. A causa raiz era o
+# front pedir page_size acima do cap do backend (100) → 400 → lista vazia.
+if not API_KEY:
+    code, body = req("GET", API + "/admin/users?page=1&page_size=20")
+    ok = code == 200 and '"items"' in body
+    check("admin/users (picker de membro) 200 + items", ok, f"HTTP {code}")
+    # guarda o cap: pedir acima de 100 tem que ser rejeitado (não pode voltar a passar)
+    code, _ = req("GET", API + "/admin/users?page=1&page_size=500")
+    check("admin/users respeita cap de page_size (400 acima de 100)", code == 400, f"HTTP {code}")
+
 # roles de um projeto (agents page carrega)
 pid = None
 _, pbody = req("GET", API + "/projects")
