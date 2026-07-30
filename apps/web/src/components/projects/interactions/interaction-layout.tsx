@@ -1,4 +1,5 @@
 import {
+	useInfiniteQuery,
 	useMutation,
 	useQueries,
 	useQuery,
@@ -53,7 +54,7 @@ import {
 	createViewByContext,
 	deleteTask,
 	deleteViewById,
-	epicTasksQueryOptions,
+	epicTasksInfiniteQueryOptions,
 	type FilterConfig,
 	type InteractionView,
 	type ListTasksOptions,
@@ -65,6 +66,7 @@ import {
 	sprintsQueryOptions,
 	type Task,
 	type TaskListResult,
+	taskQueryOptions,
 	updateSprint,
 	updateTask,
 	updateViewById,
@@ -97,6 +99,7 @@ import { RoadmapView } from "./roadmap-view";
 import { TaskDetailModal } from "./task-detail-modal";
 import { UNASSIGNED_FILTER_ID, ViewSettingsPanel } from "./view-settings-panel";
 import {
+	type EpicsPagination,
 	getColumnGroupDefs,
 	getDefaultInitialPageSize,
 	getDefaultPageSize,
@@ -550,12 +553,33 @@ export function InteractionLayout({
 
 	const { data: sprints = [] } = useQuery(sprintsQueryOptions(projectId));
 
-	// Fetch Epic tasks for display in the epic field on task cards/rows
+	// Fetch Epic tasks for display in the epic field on task cards/rows.
+	// Paginated 20-per-page (see epicTasksInfiniteQueryOptions) — every epic
+	// picker app-wide (task detail, board/list-view cards & rows, the
+	// right-click context menu) shares this single query and its
+	// fetchNextPage/hasNextPage via the epicsPagination object below.
 	const epicType = findEpicType(taskTypes);
-	const { data: epicTasks = [] } = useQuery({
-		...epicTasksQueryOptions(projectId, epicType?.id ?? ""),
+	const {
+		data: epicPages,
+		fetchNextPage: fetchNextEpicsPage,
+		hasNextPage: hasMoreEpics,
+		isFetchingNextPage: isFetchingMoreEpics,
+	} = useInfiniteQuery({
+		...epicTasksInfiniteQueryOptions(projectId, epicType?.id ?? ""),
 		enabled: !!epicType?.id,
 	});
+	const epicTasks = useMemo(
+		() => epicPages?.pages.flatMap((page) => page.items) ?? [],
+		[epicPages],
+	);
+	const epicsPagination: EpicsPagination = useMemo(
+		() => ({
+			hasMore: !!hasMoreEpics,
+			isLoadingMore: isFetchingMoreEpics,
+			onLoadMore: () => void fetchNextEpicsPage(),
+		}),
+		[hasMoreEpics, isFetchingMoreEpics, fetchNextEpicsPage],
+	);
 
 	const isRealView = !!activeViewId && !activeViewId.startsWith("__default-");
 	const effectiveViewId = isManualSort && isRealView ? activeViewId : undefined;
@@ -998,6 +1022,55 @@ export function InteractionLayout({
 		fallbackQuery.data,
 		globalExtraTasks,
 	]);
+
+	// Epics referenced by tasks currently on screen but not yet among the
+	// paginated epicTasks pages (the picker loads 20 at a time — a task's
+	// epic may sort past that window even though it hasn't been "loaded
+	// more" by anyone). Fetch those specific epics directly so the epic
+	// badge on cards/rows resolves instead of silently rendering as unset.
+	const loadedEpicIds = useMemo(
+		() => new Set(epicTasks.map((e) => e.id)),
+		[epicTasks],
+	);
+	const missingEpicIds = useMemo(() => {
+		// Once every epic page has been loaded, any parent_task_id that's
+		// still absent from loadedEpicIds is guaranteed to be a non-epic
+		// parent (story/task nesting) rather than an unpaginated epic — skip
+		// fetching it. This keeps the direct-fetch fallback scoped to the
+		// (typically brief) window before pagination catches up, instead of
+		// firing for every non-epic parent on every board/list render.
+		if (!hasMoreEpics) return [];
+		const ids = new Set<string>();
+		for (const task of tasks) {
+			if (task.parent_task_id && !loadedEpicIds.has(task.parent_task_id)) {
+				ids.add(task.parent_task_id);
+			}
+		}
+		return Array.from(ids);
+	}, [tasks, loadedEpicIds, hasMoreEpics]);
+	// `combine` gives the filtered result structural-sharing/memoization
+	// across renders (plain useQueries() returns a new array every render,
+	// which would otherwise defeat displayEpics' useMemo below).
+	const missingEpics = useQueries({
+		queries: missingEpicIds.map((epicId) => ({
+			...taskQueryOptions(projectId, epicId),
+			enabled: !!epicType?.id,
+		})),
+		combine: (results) =>
+			// parent_task_id also links non-epic parents (story/task nesting), so
+			// only fold fetched tasks in here when they're actually Epic-typed —
+			// otherwise a task's non-epic parent could render as its "epic".
+			results
+				.map((r) => r.data)
+				.filter(
+					(task): task is Task => !!task && task.task_type_id === epicType?.id,
+				),
+	});
+	const displayEpics = useMemo(
+		() =>
+			missingEpics.length > 0 ? [...epicTasks, ...missingEpics] : epicTasks,
+		[epicTasks, missingEpics],
+	);
 
 	const tasksLoading =
 		viewsQuery.isLoading ||
@@ -1701,7 +1774,8 @@ export function InteractionLayout({
 						members={members}
 						customFields={customFields}
 						sprints={sprints}
-						epics={epicTasks}
+						epics={displayEpics}
+						epicsPagination={epicsPagination}
 						viewConfig={activeViewConfig}
 						canCreate={canCreate}
 						canEdit={canEdit}
@@ -1751,7 +1825,8 @@ export function InteractionLayout({
 						taskTypes={creatableTaskTypes}
 						members={members}
 						customFields={customFields}
-						epics={epicTasks}
+						epics={displayEpics}
+						epicsPagination={epicsPagination}
 						viewConfig={activeViewConfig}
 						canCreate={canCreate}
 						columnPagination={columnPagination}

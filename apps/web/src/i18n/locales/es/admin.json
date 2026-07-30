@@ -266,7 +266,7 @@
 		"title": "Novedades",
 		"description": "Sigue las mejoras y novedades de las últimas versiones de Paca.",
 		"current": "Versión actual",
-		"error": "No se pudo cargar el registro de cambios ahora. Inténtalo de nuevo más tarde.",
-		"empty": "Aún no hay notas de la versión."
+		"error": "No se pudieron cargar las novedades en este momento. Inténtalo de nuevo más tarde.",
+		"empty": "Aún no hay notas de versión disponibles."
 	}
 }

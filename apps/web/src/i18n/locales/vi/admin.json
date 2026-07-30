@@ -264,9 +264,9 @@
 	},
 	"changelog": {
 		"title": "Có gì mới",
-		"description": "Theo dõi các cải tiến và điểm nổi bật từ các phiên bản Paca mới nhất.",
+		"description": "Theo dõi các cải tiến và điểm nổi bật từ những phiên bản Paca mới nhất.",
 		"current": "Phiên bản hiện tại",
-		"error": "Không thể tải nhật ký thay đổi ngay bây giờ. Vui lòng thử lại sau.",
+		"error": "Hiện không thể tải nhật ký thay đổi. Vui lòng thử lại sau.",
 		"empty": "Chưa có ghi chú phát hành nào."
 	}
 }

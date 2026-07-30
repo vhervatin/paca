@@ -264,9 +264,9 @@
 	},
 	"changelog": {
 		"title": "Nouveautés",
-		"description": "Suivez les améliorations et nouveautés des dernières versions de Paca.",
+		"description": "Suivez les améliorations et les nouveautés des dernières versions de Paca.",
 		"current": "Version actuelle",
-		"error": "Impossible de charger le journal des modifications pour le moment. Réessayez plus tard.",
-		"empty": "Aucune note de version pour le moment."
+		"error": "Impossible de charger les nouveautés pour le moment. Veuillez réessayer plus tard.",
+		"empty": "Aucune note de version disponible pour le moment."
 	}
 }

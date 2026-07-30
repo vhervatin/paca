@@ -24,7 +24,9 @@ export interface ReleasesResponse {
 
 export async function getReleases(): Promise<ReleasesResponse> {
 	const { data } =
-		await apiClient.instance.get<SuccessEnvelope<ReleasesResponse>>("/releases");
+		await apiClient.instance.get<SuccessEnvelope<ReleasesResponse>>(
+			"/releases",
+		);
 	return data.data;
 }
 
