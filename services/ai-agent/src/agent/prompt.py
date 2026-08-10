@@ -8,6 +8,7 @@ _ACTION_TYPE_LABELS = {
     "task_assigned": "Task assignment",
     "chat_message": "Direct chat message",
     "description_write": "Write task description",
+    "automation_message": "Automation-triggered message",
 }
 
 
@@ -15,6 +16,10 @@ def _action_type_label(trigger: TriggerMessage) -> str:
     if trigger.trigger_type == "comment_mention":
         # task_id is set for task-comment mentions; absent for doc-comment mentions.
         return "Task comment mention" if trigger.task_id else "Document comment mention"
+    # actor_member_id is None when the automation-workflow engine fired this
+    # trigger rather than a human — see agent_service.go's TriggerTaskAssigned.
+    if trigger.trigger_type == "task_assigned" and trigger.actor_member_id is None:
+        return "Automation-triggered task assignment"
     return _ACTION_TYPE_LABELS.get(trigger.trigger_type, trigger.trigger_type)
 
 
@@ -45,7 +50,24 @@ def build_initial_prompt(trigger: TriggerMessage) -> str:
     return trigger.message
 
 
-def build_project_context_suffix(project_id: str) -> str:
+_GLOBAL_CONTEXT_SUFFIX = (
+    "\n\n## Current Context\n"
+    "You are a global Paca agent, not scoped to any single project. You may "
+    "have been invited into one or more projects and can act in any of "
+    "them, plus admin-level tools (managing users, global roles, projects) "
+    "if your own role grants them.\n"
+    "**Always pass an explicit `projectId` in any MCP tool call that "
+    "requires it** — call `list_projects` first if you don't already know "
+    "which project the user means; never assume a single current project.\n"
+)
+
+
+def build_project_context_suffix(project_id: str | None) -> str:
+    """project_id is None for a global-chat conversation (home page / admin
+    pages, no fixed project) — see TriggerMessage.project_id.
+    """
+    if project_id is None:
+        return _GLOBAL_CONTEXT_SUFFIX
     return (
         f"\n\n## Current Project Context\n"
         f"You are working inside project `{project_id}`.\n"

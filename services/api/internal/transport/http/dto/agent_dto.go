@@ -1,25 +1,35 @@
 package dto
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
-	agentdom "github.com/Paca-AI/api/internal/domain/agent"
 	"github.com/google/uuid"
+
+	agentdom "github.com/Paca-AI/api/internal/domain/agent"
 )
 
 // =========================================================================
 // Agent DTOs
 // =========================================================================
 
-// AgentResponse is the public view of an agent.
+// AgentResponse is the public view of an agent. ProjectID is nil for a
+// global-scope agent (AgentScope == "global"); GlobalRoleID is only ever
+// set for a global-scope agent.
 type AgentResponse struct {
-	ID                uuid.UUID                `json:"id"`
-	ProjectID         uuid.UUID                `json:"project_id"`
-	MemberID          *uuid.UUID               `json:"member_id,omitempty"`
-	Name              string                   `json:"name"`
-	Handle            string                   `json:"handle"`
+	ID           uuid.UUID  `json:"id"`
+	ProjectID    *uuid.UUID `json:"project_id,omitempty"`
+	AgentScope   string     `json:"agent_scope"`
+	GlobalRoleID *uuid.UUID `json:"global_role_id,omitempty"`
+	MemberID     *uuid.UUID `json:"member_id,omitempty"`
+	Name         string     `json:"name"`
+	Handle       string     `json:"handle"`
+	// AvatarURL/AvatarThumbURL are presigned GET URLs, populated by the
+	// handler (not this mapper) via attachmentdom.AvatarService — nil when
+	// no avatar has been uploaded.
 	AvatarURL         *string                  `json:"avatar_url,omitempty"`
+	AvatarThumbURL    *string                  `json:"avatar_thumb_url,omitempty"`
 	AgentType         string                   `json:"agent_type"`
 	LLMProvider       string                   `json:"llm_provider"`
 	LLMModel          string                   `json:"llm_model"`
@@ -27,6 +37,7 @@ type AgentResponse struct {
 	ACPProvider       *string                  `json:"acp_provider,omitempty"`
 	ACPCommand        []string                 `json:"acp_command,omitempty"`
 	HasACPBridgeToken bool                     `json:"has_acp_bridge_token"`
+	HasMCPAPIKey      bool                     `json:"has_mcp_api_key"`
 	SystemPrompt      string                   `json:"system_prompt"`
 	MaxIterations     int                      `json:"max_iterations"`
 	TimeoutMinutes    int                      `json:"timeout_minutes"`
@@ -44,6 +55,8 @@ type AgentResponse struct {
 // LLM fields are required when agent_type is "llm" (the default when
 // omitted); ACP fields are required when agent_type is "acp" — validated in
 // the handler since it depends on the value of AgentType itself.
+// SystemPrompt, GitCommitterName, and GitCommitterEmail are LLM-only too —
+// the service silently drops them for "acp" agents (see agent.CreateAgent).
 type CreateAgentRequest struct {
 	Name              string    `json:"name" binding:"required"`
 	Handle            string    `json:"handle" binding:"required"`
@@ -62,21 +75,46 @@ type CreateAgentRequest struct {
 	ProjectRoleID     uuid.UUID `json:"project_role_id" binding:"required"`
 }
 
-// UpdateAgentRequest is the body for PATCH /projects/:projectId/agents/:agentId.
+// UpdateAgentRequest is the body for PATCH /projects/:projectId/agents/:agentId
+// and PATCH /admin/agents/:agentId. GlobalRoleID is only meaningful for the
+// latter (global agents) — pass a zero UUID to clear an assigned role.
 type UpdateAgentRequest struct {
-	Name              *string  `json:"name"`
-	Handle            *string  `json:"handle"`
-	LLMProvider       *string  `json:"llm_provider"`
-	LLMModel          *string  `json:"llm_model"`
-	LLMAPIKey         *string  `json:"llm_api_key"`
-	LLMBaseURL        *string  `json:"llm_base_url"`
-	ACPProvider       *string  `json:"acp_provider"`
-	ACPCommand        []string `json:"acp_command"`
-	SystemPrompt      *string  `json:"system_prompt"`
-	MaxIterations     *int     `json:"max_iterations"`
-	TimeoutMinutes    *int     `json:"timeout_minutes"`
-	GitCommitterName  *string  `json:"git_committer_name"`
-	GitCommitterEmail *string  `json:"git_committer_email"`
+	Name              *string    `json:"name"`
+	Handle            *string    `json:"handle"`
+	LLMProvider       *string    `json:"llm_provider"`
+	LLMModel          *string    `json:"llm_model"`
+	LLMAPIKey         *string    `json:"llm_api_key"`
+	LLMBaseURL        *string    `json:"llm_base_url"`
+	ACPProvider       *string    `json:"acp_provider"`
+	ACPCommand        []string   `json:"acp_command"`
+	SystemPrompt      *string    `json:"system_prompt"`
+	MaxIterations     *int       `json:"max_iterations"`
+	TimeoutMinutes    *int       `json:"timeout_minutes"`
+	GitCommitterName  *string    `json:"git_committer_name"`
+	GitCommitterEmail *string    `json:"git_committer_email"`
+	GlobalRoleID      *uuid.UUID `json:"global_role_id"`
+}
+
+// CreateGlobalAgentRequest is the body for POST /admin/agents. Mirrors
+// CreateAgentRequest minus ProjectRoleID (nothing to assign at creation
+// time — a global agent gets a project role only later, when invited into a
+// project), plus GlobalRoleID.
+type CreateGlobalAgentRequest struct {
+	Name              string     `json:"name" binding:"required"`
+	Handle            string     `json:"handle" binding:"required"`
+	AgentType         string     `json:"agent_type"`
+	LLMProvider       string     `json:"llm_provider"`
+	LLMModel          string     `json:"llm_model"`
+	LLMAPIKey         string     `json:"llm_api_key"`
+	LLMBaseURL        string     `json:"llm_base_url"`
+	ACPProvider       string     `json:"acp_provider"`
+	ACPCommand        []string   `json:"acp_command"`
+	SystemPrompt      string     `json:"system_prompt"`
+	MaxIterations     int        `json:"max_iterations"`
+	TimeoutMinutes    int        `json:"timeout_minutes"`
+	GitCommitterName  string     `json:"git_committer_name"`
+	GitCommitterEmail string     `json:"git_committer_email"`
+	GlobalRoleID      *uuid.UUID `json:"global_role_id"`
 }
 
 // GenerateACPBridgeTokenResponse is the body returned for POST
@@ -87,15 +125,32 @@ type GenerateACPBridgeTokenResponse struct {
 	RunCommand string `json:"run_command"`
 }
 
+// GenerateMCPAgentKeyResponse is the body returned for POST
+// /projects/:projectId/agents/:agentId/mcp-agent-key (and its
+// /admin/agents/:agentId/mcp-agent-key global sibling). Token is shown once
+// and cannot be retrieved again — only its hash is persisted, and
+// generating a new one invalidates whatever key was live before (same
+// one-live-key-at-a-time behavior as GenerateACPBridgeTokenResponse). Used
+// as PACA_API_KEY alongside PACA_AGENT_ID in the agent's MCP connect
+// command so tool calls are attributed to the agent, not to whichever human
+// requested this.
+type GenerateMCPAgentKeyResponse struct {
+	Token string `json:"token"`
+}
+
 // AgentFromEntity maps an Agent entity to AgentResponse.
 func AgentFromEntity(a *agentdom.Agent) AgentResponse {
+	scope := string(a.AgentScope)
+	if scope == "" {
+		scope = string(agentdom.AgentScopeProject)
+	}
 	resp := AgentResponse{
 		ID:                a.ID,
-		ProjectID:         a.ProjectID,
+		AgentScope:        scope,
+		GlobalRoleID:      a.GlobalRoleID,
 		MemberID:          a.MemberID,
 		Name:              a.Name,
 		Handle:            a.Handle,
-		AvatarURL:         a.AvatarURL,
 		AgentType:         a.AgentType,
 		LLMProvider:       a.LLMProvider,
 		LLMModel:          a.LLMModel,
@@ -103,6 +158,7 @@ func AgentFromEntity(a *agentdom.Agent) AgentResponse {
 		ACPProvider:       a.ACPProvider,
 		ACPCommand:        a.ACPCommand,
 		HasACPBridgeToken: a.HasACPBridgeToken,
+		HasMCPAPIKey:      a.HasMCPAPIKey,
 		SystemPrompt:      a.SystemPrompt,
 		MaxIterations:     a.MaxIterations,
 		TimeoutMinutes:    a.TimeoutMinutes,
@@ -111,6 +167,10 @@ func AgentFromEntity(a *agentdom.Agent) AgentResponse {
 		CreatedBy:         a.CreatedBy,
 		CreatedAt:         a.CreatedAt,
 		UpdatedAt:         a.UpdatedAt,
+	}
+	if a.ProjectID != uuid.Nil {
+		id := a.ProjectID
+		resp.ProjectID = &id
 	}
 	if len(a.MCPServers) > 0 {
 		resp.MCPServers = make([]AgentMCPServerResponse, 0, len(a.MCPServers))
@@ -316,15 +376,18 @@ type WriteWithAIRequest struct {
 // Conversation DTOs
 // =========================================================================
 
-// AgentConversationResponse is the public view of a conversation.
+// AgentConversationResponse is the public view of a conversation. ProjectID
+// is nil for a global-chat conversation, which carries ActorUserID instead
+// of TriggeredByMemberID.
 type AgentConversationResponse struct {
 	ID                  uuid.UUID  `json:"id"`
 	AgentID             uuid.UUID  `json:"agent_id"`
-	ProjectID           uuid.UUID  `json:"project_id"`
+	ProjectID           *uuid.UUID `json:"project_id,omitempty"`
 	TriggerType         string     `json:"trigger_type"`
 	TaskID              *uuid.UUID `json:"task_id,omitempty"`
 	ChatSessionID       *uuid.UUID `json:"chat_session_id,omitempty"`
 	TriggeredByMemberID *uuid.UUID `json:"triggered_by_member_id,omitempty"`
+	ActorUserID         *uuid.UUID `json:"actor_user_id,omitempty"`
 	Status              string     `json:"status"`
 	IterationCount      int        `json:"iteration_count"`
 	BranchName          *string    `json:"branch_name,omitempty"`
@@ -354,14 +417,14 @@ type SendMessageRequest struct {
 
 // ConversationFromEntity maps an AgentConversation entity to its DTO.
 func ConversationFromEntity(c *agentdom.AgentConversation) AgentConversationResponse {
-	return AgentConversationResponse{
+	resp := AgentConversationResponse{
 		ID:                  c.ID,
 		AgentID:             c.AgentID,
-		ProjectID:           c.ProjectID,
 		TriggerType:         c.TriggerType,
 		TaskID:              c.TaskID,
 		ChatSessionID:       c.ChatSessionID,
 		TriggeredByMemberID: c.TriggeredByMemberID,
+		ActorUserID:         c.ActorUserID,
 		Status:              c.Status,
 		IterationCount:      c.IterationCount,
 		BranchName:          c.BranchName,
@@ -371,6 +434,44 @@ func ConversationFromEntity(c *agentdom.AgentConversation) AgentConversationResp
 		CreatedAt:           c.CreatedAt,
 		AgentName:           c.AgentName,
 		AgentHandle:         c.AgentHandle,
+	}
+	if c.ProjectID != uuid.Nil {
+		id := c.ProjectID
+		resp.ProjectID = &id
+	}
+	return resp
+}
+
+// AgentActivityResponse is the public view of one item in an agent's unified
+// task+doc activity feed.
+type AgentActivityResponse struct {
+	ID            uuid.UUID       `json:"id"`
+	SourceType    string          `json:"source_type"`
+	SourceID      uuid.UUID       `json:"source_id"`
+	SourceTitle   string          `json:"source_title"`
+	SourceDeleted bool            `json:"source_deleted"`
+	ActivityType  string          `json:"activity_type"`
+	Content       json.RawMessage `json:"content"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+}
+
+// AgentActivityFromEntity maps a domain ActivityFeedItem to an AgentActivityResponse DTO.
+func AgentActivityFromEntity(a *agentdom.ActivityFeedItem) AgentActivityResponse {
+	content := a.Content
+	if len(content) == 0 {
+		content = json.RawMessage("{}")
+	}
+	return AgentActivityResponse{
+		ID:            a.ID,
+		SourceType:    string(a.SourceType),
+		SourceID:      a.SourceID,
+		SourceTitle:   a.SourceTitle,
+		SourceDeleted: a.SourceDeleted,
+		ActivityType:  a.ActivityType,
+		Content:       content,
+		CreatedAt:     a.CreatedAt,
+		UpdatedAt:     a.UpdatedAt,
 	}
 }
 
@@ -395,12 +496,15 @@ func ConversationEventFromEntity(e *agentdom.AgentConversationEvent) AgentConver
 // Chat Session DTOs
 // =========================================================================
 
-// AgentChatSessionResponse is the public view of a chat session.
+// AgentChatSessionResponse is the public view of a chat session. ProjectID
+// and MemberID are nil for a global chat session, which carries
+// ActorUserID instead.
 type AgentChatSessionResponse struct {
 	ID            uuid.UUID  `json:"id"`
 	AgentID       uuid.UUID  `json:"agent_id"`
-	ProjectID     uuid.UUID  `json:"project_id"`
-	MemberID      uuid.UUID  `json:"member_id"`
+	ProjectID     *uuid.UUID `json:"project_id,omitempty"`
+	MemberID      *uuid.UUID `json:"member_id,omitempty"`
+	ActorUserID   *uuid.UUID `json:"actor_user_id,omitempty"`
 	Title         *string    `json:"title,omitempty"`
 	LastMessageAt *time.Time `json:"last_message_at,omitempty"`
 	CreatedAt     time.Time  `json:"created_at"`
@@ -418,15 +522,23 @@ type SendChatMessageRequest struct {
 
 // ChatSessionFromEntity maps an AgentChatSession entity to its DTO.
 func ChatSessionFromEntity(s *agentdom.AgentChatSession) AgentChatSessionResponse {
-	return AgentChatSessionResponse{
+	resp := AgentChatSessionResponse{
 		ID:            s.ID,
 		AgentID:       s.AgentID,
-		ProjectID:     s.ProjectID,
-		MemberID:      s.MemberID,
+		ActorUserID:   s.ActorUserID,
 		Title:         s.Title,
 		LastMessageAt: s.LastMessageAt,
 		CreatedAt:     s.CreatedAt,
 	}
+	if s.ProjectID != uuid.Nil {
+		id := s.ProjectID
+		resp.ProjectID = &id
+	}
+	if s.MemberID != uuid.Nil {
+		id := s.MemberID
+		resp.MemberID = &id
+	}
+	return resp
 }
 
 // =========================================================================

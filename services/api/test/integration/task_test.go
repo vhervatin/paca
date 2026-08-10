@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
 	sprintdom "github.com/Paca-AI/api/internal/domain/sprint"
 	taskdom "github.com/Paca-AI/api/internal/domain/task"
@@ -29,7 +31,6 @@ import (
 	usersvc "github.com/Paca-AI/api/internal/service/user"
 	"github.com/Paca-AI/api/internal/transport/http/handler"
 	"github.com/Paca-AI/api/internal/transport/http/router"
-	"github.com/google/uuid"
 )
 
 // ---------------------------------------------------------------------------
@@ -621,6 +622,10 @@ func (r *fakeTaskRepo) ListAssignedTasks(_ context.Context, _ []uuid.UUID, _ int
 	return nil, false, nil
 }
 
+func (r *fakeTaskRepo) CountOpenTasksByProjects(_ context.Context, _ []uuid.UUID) (int64, error) {
+	return 0, nil
+}
+
 // ---------------------------------------------------------------------------
 // In-memory fake activity repository
 // ---------------------------------------------------------------------------
@@ -726,7 +731,7 @@ func buildTaskTestRouterWithSprints(taskRepo *fakeTaskRepo, sprintRepo *fakeSpri
 	authService := authsvc.New(userRepo, tm, refreshStore, 168*time.Hour, 24*time.Hour)
 	userService := usersvc.New(userRepo)
 	projectRepo := newFakeProjectRepo()
-	projectService := projectsvc.New(projectRepo, taskRepo)
+	projectService := projectsvc.New(projectRepo, taskRepo, nil)
 	taskService := tasksvc.New(taskRepo)
 	sprintService := sprintsvc.New(sprintRepo, taskRepo, nil)
 	viewService := sprintsvc.NewViewService(viewRepo, nil)

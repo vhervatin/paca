@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
+	attachmentdom "github.com/Paca-AI/api/internal/domain/attachment"
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
 	"github.com/Paca-AI/api/internal/platform/cache"
 	projectsvc "github.com/Paca-AI/api/internal/service/project"
@@ -117,12 +118,26 @@ func (s *stubProjectSvc) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (s *stubProjectSvc) InitiateAvatarUpload(context.Context, uuid.UUID, string, string, int64, uuid.UUID) (*attachmentdom.UploadSession, error) {
+	return &attachmentdom.UploadSession{}, nil
+}
+func (s *stubProjectSvc) CompleteAvatarUpload(context.Context, uuid.UUID, uuid.UUID) (*projectdom.Project, error) {
+	return nil, projectdom.ErrNotFound
+}
+func (s *stubProjectSvc) RemoveAvatar(context.Context, uuid.UUID) (*projectdom.Project, error) {
+	return nil, projectdom.ErrNotFound
+}
+
 func (s *stubProjectSvc) ListMembers(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectMember, error) {
 	s.listMembersCalls++
 	if s.listMembers != nil {
 		return s.listMembers(ctx, projectID)
 	}
 	return []*projectdom.ProjectMember{{ID: uuid.New(), ProjectID: projectID}}, nil
+}
+
+func (s *stubProjectSvc) CountDistinctAgentsByProjects(_ context.Context, _ []uuid.UUID) (int64, error) {
+	return 0, nil
 }
 
 func (s *stubProjectSvc) AddMember(ctx context.Context, projectID uuid.UUID, in projectdom.AddMemberInput) (*projectdom.ProjectMember, error) {

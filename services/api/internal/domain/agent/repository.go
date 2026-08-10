@@ -2,6 +2,7 @@ package agentdom
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -14,12 +15,25 @@ type Repository interface {
 	EnvVarRepository
 	ConversationRepository
 	ChatSessionRepository
+	ActivityFeedRepository
 }
 
 // AgentRepository defines storage operations for agents.
 type AgentRepository interface {
-	ListAgents(ctx context.Context, projectID uuid.UUID) ([]*Agent, error)
+	// ListAgents returns agents visible in the given project. scope narrows
+	// the result to just that AgentScope ("project" or "global"); the zero
+	// value (AgentScope("")) returns both — its own project-scoped agents
+	// plus any global agents currently invited into it.
+	ListAgents(ctx context.Context, projectID uuid.UUID, scope AgentScope) ([]*Agent, error)
 	FindAgentByID(ctx context.Context, id uuid.UUID) (*Agent, error)
+	// FindVisibleAgentInProject returns a single agent by ID, but only if it
+	// is visible in projectID — its own project-scoped agent, or a global
+	// agent currently invited into it (same project_members join as
+	// ListAgents/FindAgentByHandle). Returns ErrAgentNotFound otherwise, so
+	// a project-scoped detail page (GET /projects/:id/agents/:agentId) can
+	// resolve an invited global agent the same way the project's agent list
+	// already does, instead of 404ing on it.
+	FindVisibleAgentInProject(ctx context.Context, projectID, agentID uuid.UUID) (*Agent, error)
 	FindAgentByHandle(ctx context.Context, projectID uuid.UUID, handle string) (*Agent, error)
 	CreateAgent(ctx context.Context, a *Agent) error
 	UpdateAgent(ctx context.Context, a *Agent) error
@@ -35,6 +49,35 @@ type AgentRepository interface {
 	// SetACPBridgeTokenHash stores the SHA-256 hash of a newly generated
 	// local-bridge auth token, replacing any previous one.
 	SetACPBridgeTokenHash(ctx context.Context, agentID uuid.UUID, hash string) error
+	// SetMCPAPIKeyHash stores the SHA-256 hash of a newly generated MCP API
+	// key, replacing any previous one — only one key is ever live per agent,
+	// so the previous key stops authenticating the moment this is called.
+	SetMCPAPIKeyHash(ctx context.Context, agentID uuid.UUID, hash string) error
+	// FindAgentByMCPAPIKeyHash resolves the agent whose current MCP API key
+	// hashes to hash, for the authn middleware to identify the caller
+	// directly from the key it presented — no separate identity claim
+	// needed. Returns ErrAgentNotFound if no live agent matches.
+	FindAgentByMCPAPIKeyHash(ctx context.Context, hash string) (*Agent, error)
+
+	// -- Global agents (AgentScope == AgentScopeGlobal, ProjectID == uuid.Nil).
+
+	ListGlobalAgents(ctx context.Context) ([]*Agent, error)
+	// FindGlobalAgentByHandle looks up a global agent by its instance-wide
+	// unique handle (uq_agents_global_handle). Distinct from
+	// FindAgentByHandle, which resolves within one project's visible agents
+	// (its own project-scoped agents plus any global agents invited into it)
+	// via the project_members join and would never match on projectID ==
+	// uuid.Nil.
+	FindGlobalAgentByHandle(ctx context.Context, handle string) (*Agent, error)
+	CreateGlobalAgent(ctx context.Context, a *Agent) error
+	// SoftDeleteGlobalAgentCascade soft-deletes the agent row and every
+	// active project_members row referencing it, across every project it
+	// was invited into, in one transaction.
+	SoftDeleteGlobalAgentCascade(ctx context.Context, agentID uuid.UUID) error
+	// ListInvitedProjectIDs returns the IDs of every project a global agent
+	// currently has an active project_members row in — used to invalidate
+	// each project's member-list cache when the agent is deleted.
+	ListInvitedProjectIDs(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
 }
 
 // MCPServerRepository defines storage for agent MCP server configurations.
@@ -82,7 +125,10 @@ type ConversationRepository interface {
 	// another caller already moved the conversation out of fromStatus).
 	ClaimConversationStatus(ctx context.Context, id uuid.UUID, fromStatus, toStatus string) (bool, error)
 	UpdateConversation(ctx context.Context, c *AgentConversation) error
-	ListConversationEvents(ctx context.Context, conversationID uuid.UUID, offset, limit int) ([]*AgentConversationEvent, int64, error)
+	// ListConversationEvents returns one page of a conversation's events per
+	// window (see ConversationEventWindow), plus the conversation's current
+	// total event count.
+	ListConversationEvents(ctx context.Context, conversationID uuid.UUID, window ConversationEventWindow) ([]*AgentConversationEvent, int64, error)
 	CreateConversationEvent(ctx context.Context, e *AgentConversationEvent) error
 }
 
@@ -92,13 +138,65 @@ type ChatSessionRepository interface {
 	FindChatSessionByID(ctx context.Context, id uuid.UUID) (*AgentChatSession, error)
 	CreateChatSession(ctx context.Context, s *AgentChatSession) error
 	UpdateChatSession(ctx context.Context, s *AgentChatSession) error
+	// ListGlobalChatSessions is ListChatSessions' sibling for global chat
+	// sessions, keyed by actor_user_id instead of member_id.
+	ListGlobalChatSessions(ctx context.Context, agentID, actorUserID uuid.UUID) ([]*AgentChatSession, error)
+	// HasActiveGlobalChatSession reports whether agentID has ever started a
+	// global chat session with actorUserID. Used by the agent-API-key
+	// authentication middleware (middleware.AgentIdentityVerifier) to verify
+	// an X-Actor-User-ID claim is backed by a real session rather than an
+	// arbitrary value riding on the single shared static agent API key —
+	// see that type's doc comment for the full threat model.
+	HasActiveGlobalChatSession(ctx context.Context, agentID, actorUserID uuid.UUID) (bool, error)
 }
 
 // ListConversationsFilter carries optional filters for listing conversations.
 type ListConversationsFilter struct {
-	AgentID     *uuid.UUID
-	ProjectID   *uuid.UUID
-	TaskID      *uuid.UUID
-	Status      *string
+	AgentIDs  []uuid.UUID
+	ProjectID *uuid.UUID
+	// GlobalOnly, when true, restricts the listing to global-chat
+	// conversations (project_id IS NULL) — used by the "my global
+	// conversations" endpoint. Mutually exclusive with ProjectID; callers
+	// should set at most one.
+	GlobalOnly bool
+	// ActorUserID, when set, restricts the listing to conversations with
+	// this actor_user_id — used by ListGlobalConversations to scope the
+	// "my global conversations" endpoint to the caller only, since global
+	// chat has no project-team visibility to share it with.
+	ActorUserID  *uuid.UUID
+	TaskID       *uuid.UUID
+	Statuses     []string
+	TriggerTypes []string
+	// CreatedAfter/CreatedBefore bound created_at as [CreatedAfter,
+	// CreatedBefore) — inclusive lower bound, exclusive upper bound. Both are
+	// resolved to absolute instants by the handler (see
+	// parseCreatedAfterBound/parseCreatedBeforeBound) before reaching here,
+	// so the query can compare them directly against the TIMESTAMPTZ column
+	// without any date-cast/timezone ambiguity.
+	CreatedAfter  *time.Time
+	CreatedBefore *time.Time
+	// Search matches conversations that have at least one event whose
+	// extracted text (see agent_conversation_event_search_text in migration
+	// 000028) contains this text.
+	Search      *string
 	CursorAfter *string // opaque base64 cursor; when set, resumes after this conversation
+}
+
+// ConversationEventWindow selects one keyset-paginated page of a single
+// conversation's events (always returned ascending by event_index). At most
+// one of After/Before is set:
+//   - Neither set: the newest Limit events — opens a conversation on its
+//     tail without needing to know its length upfront.
+//   - After set: events with event_index > After's, ascending — pages
+//     forward, e.g. catching up to events realtime has reported.
+//   - Before set: the Limit events immediately preceding Before's
+//     event_index — pages backward into older history.
+//
+// After/Before carry opaque cursors produced by EncodeConversationEventCursor
+// (mirroring ListConversationsFilter.CursorAfter above); the repository
+// decodes them.
+type ConversationEventWindow struct {
+	After  *string
+	Before *string
+	Limit  int
 }

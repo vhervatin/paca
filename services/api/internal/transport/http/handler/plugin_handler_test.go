@@ -12,11 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+
 	plugindom "github.com/Paca-AI/api/internal/domain/plugin"
 	pluginrt "github.com/Paca-AI/api/internal/platform/plugin"
 	"github.com/Paca-AI/api/internal/transport/http/handler"
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 // ---------------------------------------------------------------------------
@@ -25,8 +26,10 @@ import (
 
 type mockPluginSvc struct {
 	install                func(ctx context.Context, in plugindom.InstallInput) (*plugindom.Plugin, error)
+	update                 func(ctx context.Context, id uuid.UUID, in plugindom.UpdateInput) (*plugindom.Plugin, error)
 	updateExtensionSetting func(ctx context.Context, in plugindom.UpdateExtensionSettingInput) (*plugindom.PluginExtensionSetting, error)
 	listPlugins            func(ctx context.Context) ([]*plugindom.Plugin, error)
+	checkHostCompatibility func(manifest plugindom.PluginManifest) error
 }
 
 func (m *mockPluginSvc) ListPlugins(ctx context.Context) ([]*plugindom.Plugin, error) {
@@ -41,10 +44,19 @@ func (m *mockPluginSvc) InstallPlugin(ctx context.Context, in plugindom.InstallI
 	}
 	return nil, errors.New("mock: install not configured")
 }
-func (m *mockPluginSvc) UpdatePlugin(_ context.Context, _ uuid.UUID, _ plugindom.UpdateInput) (*plugindom.Plugin, error) {
+func (m *mockPluginSvc) UpdatePlugin(ctx context.Context, id uuid.UUID, in plugindom.UpdateInput) (*plugindom.Plugin, error) {
+	if m.update != nil {
+		return m.update(ctx, id, in)
+	}
 	return nil, errors.New("not found")
 }
 func (m *mockPluginSvc) DeletePlugin(_ context.Context, _ uuid.UUID) error { return nil }
+func (m *mockPluginSvc) CheckHostCompatibility(manifest plugindom.PluginManifest) error {
+	if m.checkHostCompatibility != nil {
+		return m.checkHostCompatibility(manifest)
+	}
+	return nil
+}
 func (m *mockPluginSvc) UpdateExtensionSetting(ctx context.Context, in plugindom.UpdateExtensionSettingInput) (*plugindom.PluginExtensionSetting, error) {
 	if m.updateExtensionSetting != nil {
 		return m.updateExtensionSetting(ctx, in)

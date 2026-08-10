@@ -24,6 +24,25 @@ name: cd
 #     docker-compose.yml — standalone compose (no source tree required)
 #     Caddyfile          — Caddy gateway configuration
 #     .env.production.example — environment variable template
+#
+# "Latest" tag sequencing (promote-release, the last job below): no image is
+# pushed with a :latest Docker tag until every job in this workflow has
+# succeeded, so :latest keeps pointing at the previous, fully-shipped release
+# for the whole ~20-30 minute build window instead of a half-published one.
+# install.sh/upgrade.sh are also stamped with this exact release's tag as
+# their default target, so a plain `bash install.sh` never depends on the
+# :latest tag being current.
+#
+# The GitHub release page itself is NOT held back the same way: GitHub marks
+# a release "Latest" (and /releases/latest resolves to it) the instant it's
+# published, before this workflow even starts, and there is no reliable way
+# to make that not so (see git history of this file for why the previous
+# hold-release-label job that tried was removed — `--latest=false` on the
+# just-published release doesn't actually demote it). So for the whole build
+# window, the release page can say "Latest" while its Docker images are still
+# on the old :latest tag and /releases/latest/download/* still 404s. Keep
+# that in mind when publishing: the release isn't actually ready just because
+# GitHub calls it "Latest".
 
 on:
   release:
@@ -37,10 +56,10 @@ permissions:
 env:
   REGISTRY: ghcr.io
 
-# ─────────────────────────────────────────────────────────────────────────────
-# API service image
-# ─────────────────────────────────────────────────────────────────────────────
 jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # API service image
+  # ─────────────────────────────────────────────────────────────────────────────
   api-image:
     name: Build and push API image
     runs-on: ubuntu-latest
@@ -48,27 +67,27 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/paca-api
@@ -76,16 +95,20 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+          flavor: |
+            latest=false
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: services/api
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
             PACA_VERSION=${{ github.event.release.tag_name }}
+            GOMAXPROCS=4
+            GOMEMLIMIT=6GiB
+            GOBUILD_P=4
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -101,27 +124,27 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/paca-realtime
@@ -129,10 +152,11 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+          flavor: |
+            latest=false
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: services/realtime
           platforms: linux/amd64,linux/arm64
@@ -155,27 +179,27 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/paca-web
@@ -183,10 +207,11 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+          flavor: |
+            latest=false
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: apps/web
           platforms: linux/amd64,linux/arm64
@@ -206,27 +231,27 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/paca-ai-agent
@@ -234,10 +259,11 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+          flavor: |
+            latest=false
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: services/ai-agent
           file: services/ai-agent/Dockerfile
@@ -258,27 +284,27 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/paca-agent-server
@@ -286,10 +312,11 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+          flavor: |
+            latest=false
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: services/agent-server
           platforms: linux/amd64,linux/arm64
@@ -316,7 +343,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -324,7 +351,7 @@ jobs:
           bun-version: "1.2.23"
 
       - name: Cache Bun packages
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-mcp-${{ hashFiles('apps/mcp/bun.lock') }}
@@ -346,7 +373,7 @@ jobs:
         run: bun run build
 
       - name: Setup Node.js with npm registry
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
@@ -391,10 +418,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
 
@@ -425,6 +452,13 @@ jobs:
   # End-users download and run:
   #   curl -fsSL https://github.com/Paca-AI/paca/releases/latest/download/install.sh -o install.sh
   #   bash install.sh
+  #
+  # Waits for every image/package job so these assets — and the exact version
+  # they're stamped with below — are never uploaded for a release that isn't
+  # fully shippable. If any of those jobs fail, this job is skipped, so
+  # /releases/latest/download/* keeps 404ing on this release's assets even
+  # though GitHub already labeled it "Latest" at publish time (see the note
+  # at the top of this file) until the underlying issue is fixed.
   # ─────────────────────────────────────────────────────────────────────────────
   release-assets:
     name: Upload deployment assets to release
@@ -444,7 +478,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Prepare assets
         run: |
@@ -455,6 +489,17 @@ jobs:
           cp scripts/install.sh                    install.sh
           cp scripts/upgrade.sh                    upgrade.sh
           chmod +x install.sh upgrade.sh
+
+          # Stamp this release's own tag as the scripts' default version. A
+          # plain `bash install.sh` / `bash upgrade.sh` downloaded from this
+          # release then pins to a version that's guaranteed to exist,
+          # instead of the floating :latest Docker tag, which promote-release
+          # only updates once this job has already succeeded. Targets the
+          # single `PACA_DEFAULT_VERSION="latest"` line each script keeps for
+          # exactly this purpose — see the comment above it in install.sh /
+          # upgrade.sh before changing this pattern.
+          VERSION="${{ github.event.release.tag_name }}"
+          sed -i "s/^PACA_DEFAULT_VERSION=\"latest\"$/PACA_DEFAULT_VERSION=\"${VERSION}\"/" install.sh upgrade.sh
 
       - name: Upload assets to GitHub Release
         env:
@@ -467,3 +512,80 @@ jobs:
             Caddyfile \
             .env.production.example \
             --clobber
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Promote release to "Latest"
+  #
+  # Runs only once every image/package job AND release-assets have succeeded,
+  # so this never fires for a partially-shipped release. Skipped entirely for
+  # pre-releases, which should never become the default install/upgrade
+  # target. Two things happen together here, deliberately in the same job:
+  #   1. Every image gets a :latest tag pointing at this version's manifest,
+  #      via `imagetools create` (a registry-side copy, no rebuild needed).
+  #   2. The GitHub release is (re-)marked "Latest". GitHub already marked it
+  #      "Latest" at publish time regardless (see the note at the top of this
+  #      file), so this step is a no-op on the happy path — it only matters
+  #      if this specific release ever needs re-promoting after a fix.
+  # Tags before label so /releases/latest never resolves to a release whose
+  # :latest images aren't there yet, for the (now purely cosmetic) window
+  # where this step hasn't run.
+  # ─────────────────────────────────────────────────────────────────────────────
+  promote-release:
+    name: Promote release to "Latest"
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.release.prerelease }}
+    needs:
+      [
+        api-image,
+        realtime-image,
+        web-image,
+        ai-agent-image,
+        agent-server-image,
+        publish-mcp,
+        publish-acp-bridge,
+        release-assets,
+      ]
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to DockerHub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Retag images as :latest
+        run: |
+          set -euo pipefail
+          VERSION="${{ github.event.release.tag_name }}"
+          TAG="${VERSION#v}"
+          # ghcr.io repository paths must be lowercase. github.repository_owner
+          # preserves the org's display casing (Paca-AI), which fails here, so
+          # hardcode the lowercase form instead of deriving it at runtime.
+          OWNER="paca-ai"
+          for image in paca-api paca-realtime paca-web paca-ai-agent paca-agent-server; do
+            docker buildx imagetools create \
+              -t "${{ env.REGISTRY }}/${OWNER}/${image}:latest" \
+              "${{ env.REGISTRY }}/${OWNER}/${image}:${TAG}"
+            docker buildx imagetools create \
+              -t "${{ secrets.DOCKERHUB_USERNAME }}/${image}:latest" \
+              "${{ secrets.DOCKERHUB_USERNAME }}/${image}:${TAG}"
+          done
+
+      - name: Mark release as "Latest"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: gh release edit "$TAG_NAME" --repo "${{ github.repository }}" --latest

@@ -6,9 +6,10 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
+
 	taskdom "github.com/Paca-AI/api/internal/domain/task"
 	"github.com/Paca-AI/api/internal/platform/cache"
-	"github.com/google/uuid"
 )
 
 // CachedService decorates a taskdom.Service with a Valkey/Redis-backed cache.
@@ -232,6 +233,11 @@ func (c *CachedService) ListTasks(ctx context.Context, projectID uuid.UUID, filt
 // CountTasks delegates to the underlying service without caching.
 func (c *CachedService) CountTasks(ctx context.Context, projectID uuid.UUID, filter taskdom.TaskFilter) (int64, error) {
 	return c.svc.CountTasks(ctx, projectID, filter)
+}
+
+// CountOpenTasksByProjects delegates to the underlying service without caching.
+func (c *CachedService) CountOpenTasksByProjects(ctx context.Context, projectIDs []uuid.UUID) (int64, error) {
+	return c.svc.CountOpenTasksByProjects(ctx, projectIDs)
 }
 
 // SumTaskField delegates to the underlying service without caching.

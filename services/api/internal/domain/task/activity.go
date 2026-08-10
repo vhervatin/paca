@@ -48,15 +48,13 @@ const (
 	// conversation session triggered by a task assignment.
 	ActivityTypeAgentSessionStarted ActivityType = "agent.session.started"
 
-	// --- Automation workflow events -------------------------------------------
+	// --- Automation events -----------------------------------------------------
 
-	// ActivityTypeWorkflowAssigned is recorded when the automation-workflow
-	// engine reassigns a task, either because the task's own status matched
-	// one of its node's rules, or because a predecessor node just finished.
-	// Content carries {workflow_id, workflow_name, reason, old_assignee,
-	// new_assignee} so the activity feed can attribute the change to the
-	// workflow instead of a human actor.
-	ActivityTypeWorkflowAssigned ActivityType = "workflow.assigned"
+	// ActivityTypeAutomationApplied is recorded when the automation graph
+	// engine mutates a task via an Action node. Content carries
+	// {automation_name, ...action-specific fields} so the activity feed can
+	// attribute the change to the automation instead of a human actor.
+	ActivityTypeAutomationApplied ActivityType = "automation.applied"
 )
 
 // Activity is a single entry in a task's activity log.  It represents either
@@ -67,11 +65,15 @@ type Activity struct {
 	ActorID       *uuid.UUID // nil when the actor account has been deleted
 	ActorName     string     // denormalised full name (populated on read)
 	ActorUsername string     // denormalised username   (populated on read)
-	ActivityType  ActivityType
-	Content       json.RawMessage
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     *time.Time // non-nil for soft-deleted comments
+	// ActorAvatarKey/ActorAvatarThumbKey are the actor's avatar object-storage
+	// keys (populated on read). Both nil when the actor has no avatar.
+	ActorAvatarKey      *string
+	ActorAvatarThumbKey *string
+	ActivityType        ActivityType
+	Content             json.RawMessage
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	DeletedAt           *time.Time // non-nil for soft-deleted comments
 }
 
 // FieldChange records a single before/after value for task.updated events.

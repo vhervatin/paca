@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
-	userdom "github.com/Paca-AI/api/internal/domain/user"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
+
+	userdom "github.com/Paca-AI/api/internal/domain/user"
 )
 
 // openUserRepoTestDB sets up an in-memory SQLite DB for user repository tests.
@@ -38,6 +39,8 @@ func openUserRepoTestDB(t *testing.T) (*sqlx.DB, uuid.UUID) {
 			full_name TEXT NOT NULL,
 			role_id TEXT NOT NULL,
 			must_change_password INTEGER NOT NULL DEFAULT 0,
+			avatar_key TEXT,
+			avatar_thumb_key TEXT,
 			created_at DATETIME,
 			updated_at DATETIME,
 			deleted_at DATETIME

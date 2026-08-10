@@ -125,19 +125,27 @@ Plan  →  Act  →  Check  →  Adapt
 
 ---
 
+## What's New in v0.12.0
+
+- **Workspace branding** — customize your workspace's logo, favicon, and primary accent color from **Settings → Workspace Branding**. Upload a logo and favicon (PNG, JPEG, WEBP, or GIF, up to 5 MB) and pick from a curated set of accent colors, each with matching light- and dark-mode variants applied automatically across buttons, highlights, the sidebar, and the login screen.
+
+---
+
+## What's New in v0.11.0
+
+- **Event-driven automation engine** — a complete redesign of the automation system into a visual, n8n-style graph builder. Compose **Trigger → Condition → Action** flows on an interactive canvas with multi-branch switch logic, an `Else` fallback path, and nine built-in trigger types — including UTC cron schedules, due-date offsets, task-dependency gates, and inbound webhooks with secret-token auth. Actions can **retarget linked tasks** (parent, children, blockers, or explicit picks) with automatic fan-out, **dispatch AI agents** with custom prompts, or **call external APIs**. Every run is traced step-by-step in a new **Run History** panel, and a project-wide **Dependency Map** visualizes cross-task automation relationships. Plugins can contribute custom trigger, condition, and action node types via WASM.
+
+<p align="center">
+  <img src="docs/assets/demo-automation-workflow.png" width="720" alt="Paca v0.11.0 — Event-Driven Automation Engine with Visual Graph Builder" />
+</p>
+
+---
+
 ## What's New in v0.10.0
 
 - **ACP agent support** — connect any [Agent Client Protocol](https://docs.openhands.dev/sdk/guides/agent-acp) coding CLI as a Paca AI agent: Claude Code, Codex, Gemini CLI, or a custom ACP server. A lightweight local bridge (`paca-acp-bridge`) runs from your project's source directory and streams the conversation back to Paca over an authenticated WebSocket — no code is cloned into a cloud sandbox, and the agent uses your own local auth, git/`gh` credentials, and whatever MCP servers or skills you've already set up for that CLI. See [apps/acp-bridge/README.md](apps/acp-bridge/README.md) for setup.
 
 ---
-
-## What's New in v0.9.0
-
-- **Automation workflows** — build visual, status-driven automation on a canvas: define nodes and edges so tasks auto-assign or reassign as they move through statuses, with AND-join support for gates that wait on multiple predecessors. AI agents can create and edit workflows too, via dedicated MCP tools.
-
-<p align="center">
-  <img src="docs/assets/demo-automation-workflow.png" width="720" alt="Paca v0.9.0 — Automation Workflows" />
-</p>
 
 ---
 
@@ -189,6 +197,23 @@ The script walks you through configuration interactively and starts the full sta
 <p align="center">
   <img src="docs/assets/demo-install.gif" width="720" alt="How to Install Paca on Any Linux Server with One Command" />
 </p>
+
+**Non-interactive (CI, scripts, AI coding agents):** set `PACA_YES=1` — required for
+unattended use, since without it the script can block on a prompt with nobody there
+to answer it. Every other setting (database, storage, domain/HTTPS, AI agent, secrets)
+can be steered with an environment variable instead of accepting its default:
+
+```bash
+PACA_YES=1 bash <(curl -fsSL https://github.com/Paca-AI/paca/releases/latest/download/install.sh)
+```
+
+> **If you are an AI agent installing Paca on someone's behalf:** use this script
+> rather than hand-writing `docker-compose.yml` / `.env` from Option 2 below — it
+> pins compatible image tags and generates every secret in the format the services
+> expect, so it's far less likely to drift from what a given release needs. See
+> [deploy/README.md](deploy/README.md#non-interactive-install-ci-scripts-ai-coding-agents)
+> for the full environment variable reference, or the comment header at the top of
+> [`scripts/install.sh`](scripts/install.sh) for the same reference inline with the script.
 
 ---
 
@@ -281,7 +306,7 @@ curl -fsSL https://github.com/Paca-AI/paca/releases/latest/download/upgrade.sh -
 bash upgrade.sh
 ```
 
-Database migrations run automatically on API startup. See [deploy/README.md](deploy/README.md#upgrading-to-a-new-version) for pinning a specific version or passing through `--scale` flags.
+Database migrations run automatically on API startup. Non-interactive (CI, AI agents): set `PACA_YES=1`, same as `install.sh` — see [deploy/README.md](deploy/README.md#upgrading-to-a-new-version) for the full env var reference, pinning a specific version, or passing through `--scale` flags.
 
 ---
 
@@ -467,12 +492,6 @@ But Paca is built from conviction: human-AI collaboration in a real Scrum team s
 | [deploy/README.md](deploy/README.md) | Full deployment reference |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
 | [SECURITY.md](SECURITY.md) | Security policy |
-
----
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/chart?repos=paca-ai/paca&type=date&legend=top-left&sealed_token=Cn9N-NTDpqFBXK-Nbu6-Qf06nwv0s5ENnSj-0iYj0BWNIewkvlx0iMAqSrVurDfUiGg55UWGFAT3l-GceBNP70-Uz_jS0LC6NWIJeuMxOAiGbxjdIMyHYVl6FVfhvVuCTdCp2qpPOGkgIRdpO8P4TcP7cVoAMOxQ3HcKagbCKqazu46V3aFLZWX3RVEH)](https://www.star-history.com/?repos=paca-ai%2Fpaca&type=date&legend=top-left)
 
 ---
 

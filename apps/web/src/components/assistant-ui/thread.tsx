@@ -34,6 +34,7 @@ import {
 	createContext,
 	type FC,
 	type PropsWithChildren,
+	type ReactNode,
 	useContext,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -69,6 +70,9 @@ export type ThreadGroupPart = MessagePrimitive.GroupedParts.GroupPart;
 export type ThreadComponents = {
 	AssistantMessage?: ComponentType | undefined;
 	Welcome?: ComponentType | undefined;
+	/** Rendered at the start of the composer's action row (left of the mic/send
+	 * controls) — e.g. an agent picker shown inline while starting a new chat. */
+	ComposerStart?: ComponentType | undefined;
 	ToolFallback?: ToolCallMessagePartComponent | undefined;
 	ToolGroup?:
 		| ComponentType<PropsWithChildren<{ group: ThreadGroupPart }>>
@@ -80,6 +84,22 @@ export type ThreadComponents = {
 
 export type ThreadProps = {
 	components?: ThreadComponents | undefined;
+	/** Rendered inside the viewport, above the messages. */
+	viewportHeader?: ReactNode | undefined;
+	/** Rendered inside the viewport, below the messages. */
+	viewportOverlay?: ReactNode | undefined;
+	/**
+	 * "bottom" gives classic chat behaviour: opens on the newest message and
+	 * stays pinned there while the reader is at the bottom. "top" anchors each
+	 * new user message at the top of the viewport and disables auto-scroll.
+	 */
+	turnAnchor?: "top" | "bottom" | undefined;
+	/**
+	 * Whether a starting run scrolls to the newest message. Queues a scroll the
+	 * viewport re-applies on every content resize until it is cleared, which
+	 * overrides a caller that is positioning the scroll itself.
+	 */
+	scrollToBottomOnRunStart?: boolean | undefined;
 };
 
 const EMPTY_COMPONENTS: ThreadComponents = {};
@@ -93,17 +113,41 @@ const isNewChatView = (s: AssistantState) =>
 	s.thread.messages.length === 0 &&
 	(!s.thread.isLoading || s.threads.isLoading);
 
-export const Thread: FC<ThreadProps> = ({ components = EMPTY_COMPONENTS }) => {
+export const Thread: FC<ThreadProps> = ({
+	components = EMPTY_COMPONENTS,
+	viewportHeader,
+	viewportOverlay,
+	turnAnchor = "top",
+	scrollToBottomOnRunStart = true,
+}) => {
 	const isEmpty = useAuiState(isNewChatView);
 
 	return (
 		<ThreadComponentsContext.Provider value={components}>
-			<ThreadRoot isEmpty={isEmpty} />
+			<ThreadRoot
+				isEmpty={isEmpty}
+				viewportHeader={viewportHeader}
+				viewportOverlay={viewportOverlay}
+				turnAnchor={turnAnchor}
+				scrollToBottomOnRunStart={scrollToBottomOnRunStart}
+			/>
 		</ThreadComponentsContext.Provider>
 	);
 };
 
-const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
+const ThreadRoot: FC<{
+	isEmpty: boolean;
+	viewportHeader?: ReactNode | undefined;
+	viewportOverlay?: ReactNode | undefined;
+	turnAnchor: "top" | "bottom";
+	scrollToBottomOnRunStart: boolean;
+}> = ({
+	isEmpty,
+	viewportHeader,
+	viewportOverlay,
+	turnAnchor,
+	scrollToBottomOnRunStart,
+}) => {
 	const { Welcome = ThreadWelcome } = useContext(ThreadComponentsContext);
 
 	return (
@@ -118,19 +162,22 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 			}}
 		>
 			<ThreadPrimitive.Viewport
-				turnAnchor="top"
+				turnAnchor={turnAnchor}
+				scrollToBottomOnRunStart={scrollToBottomOnRunStart}
 				data-slot="aui_thread-viewport"
 				className="relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth [scrollbar-gutter:stable]"
 			>
 				<div
 					className={cn(
-						"mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-4",
+						"mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col pl-4 pr-1 pt-4",
 						isEmpty && "justify-center",
 					)}
 				>
 					<AuiIf condition={isNewChatView}>
 						<Welcome />
 					</AuiIf>
+
+					{viewportHeader}
 
 					<div
 						data-slot="aui_message-group"
@@ -141,9 +188,11 @@ const ThreadRoot: FC<{ isEmpty: boolean }> = ({ isEmpty }) => {
 						</ThreadPrimitive.Messages>
 					</div>
 
+					{viewportOverlay}
+
 					<ThreadPrimitive.ViewportFooter
 						className={cn(
-							"aui-thread-viewport-footer bg-background flex flex-col gap-4 overflow-visible pb-4 md:pb-6",
+							"aui-thread-viewport-footer bg-background flex flex-col overflow-visible pb-4",
 							!isEmpty &&
 								"sticky bottom-0 mt-auto rounded-t-(--composer-radius)",
 						)}
@@ -260,8 +309,10 @@ const Composer: FC = () => {
 
 const ComposerAction: FC = () => {
 	const { t } = useTranslation("projects");
+	const { ComposerStart } = useContext(ThreadComponentsContext);
 	return (
-		<div className="aui-composer-action-wrapper relative flex items-center justify-end">
+		<div className="aui-composer-action-wrapper relative flex items-center justify-between gap-2">
+			{ComposerStart ? <ComposerStart /> : <div />}
 			<div className="flex items-center gap-1.5">
 				<AuiIf condition={(s) => s.thread.capabilities.dictation}>
 					<AuiIf condition={(s) => s.composer.dictation == null}>

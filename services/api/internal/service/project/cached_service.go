@@ -6,9 +6,11 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
+
+	attachmentdom "github.com/Paca-AI/api/internal/domain/attachment"
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
 	"github.com/Paca-AI/api/internal/platform/cache"
-	"github.com/google/uuid"
 )
 
 // CachedService decorates a projectdom.Service with a Valkey/Redis-backed
@@ -137,6 +139,35 @@ func (c *CachedService) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// InitiateAvatarUpload delegates directly to the underlying service (nothing to cache).
+func (c *CachedService) InitiateAvatarUpload(ctx context.Context, projectID uuid.UUID, fileName, contentType string, fileSize int64, uploadedBy uuid.UUID) (*attachmentdom.UploadSession, error) {
+	return c.svc.InitiateAvatarUpload(ctx, projectID, fileName, contentType, fileSize, uploadedBy)
+}
+
+// CompleteAvatarUpload delegates to the underlying service and invalidates the project cache entry.
+func (c *CachedService) CompleteAvatarUpload(ctx context.Context, projectID, fileID uuid.UUID) (*projectdom.Project, error) {
+	p, err := c.svc.CompleteAvatarUpload(ctx, projectID, fileID)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.st.Delete(ctx, projectKey(projectID)); err != nil {
+		c.log.WarnContext(ctx, "cache: CompleteAvatarUpload delete", "err", err)
+	}
+	return p, nil
+}
+
+// RemoveAvatar delegates to the underlying service and invalidates the project cache entry.
+func (c *CachedService) RemoveAvatar(ctx context.Context, projectID uuid.UUID) (*projectdom.Project, error) {
+	p, err := c.svc.RemoveAvatar(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.st.Delete(ctx, projectKey(projectID)); err != nil {
+		c.log.WarnContext(ctx, "cache: RemoveAvatar delete", "err", err)
+	}
+	return p, nil
+}
+
 // --- Members -----------------------------------------------------------------
 
 // ListMembers returns all members of a project, reading from cache when
@@ -161,6 +192,13 @@ func (c *CachedService) ListMembers(ctx context.Context, projectID uuid.UUID) ([
 		c.log.WarnContext(ctx, "cache: ListMembers set", "err", err)
 	}
 	return result, nil
+}
+
+// CountDistinctAgentsByProjects delegates to the underlying service without
+// caching — like GetMyProjectPermissions, an arbitrary-project-ID-set
+// aggregate isn't a good fit for this cache's per-project key scheme.
+func (c *CachedService) CountDistinctAgentsByProjects(ctx context.Context, projectIDs []uuid.UUID) (int64, error) {
+	return c.svc.CountDistinctAgentsByProjects(ctx, projectIDs)
 }
 
 // AddMember delegates to the underlying service and invalidates the members cache.

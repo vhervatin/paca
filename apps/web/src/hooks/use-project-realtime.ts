@@ -23,9 +23,16 @@
 // task.* events  → invalidate ["projects", projectId, "tasks"]
 //                  This covers allTasksQueryOptions, taskQueryOptions,
 //                  sprintTasksQueryOptions, epicTasksQueryOptions, etc.
+//                  Also invalidates ["projects", projectId, "agentActivities"]
+//                  (agentActivitiesQueryOptions) — task activity changes can
+//                  belong to any agent, so every agent's activity feed cache
+//                  is invalidated rather than trying to parse which agent
+//                  from the payload.
 // doc.* events   → invalidate ["projects", projectId, "docs"]
 //                  This covers docFoldersQueryOptions, docListQueryOptions,
-//                  docQueryOptions, etc.
+//                  docQueryOptions, etc. Also invalidates
+//                  ["projects", projectId, "agentActivities"], same reasoning
+//                  as task.* above.
 // sprint.* events → invalidate ["projects", projectId, "sprints"]
 //                  This covers sprintsQueryOptions and sprintQueryOptions —
 //                  replaces the sidebar's old refetchInterval polling.
@@ -49,6 +56,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import {
+	type ConversationEventsTail,
+	conversationEventsTailKey,
+} from "@/lib/agent-api";
+import {
 	connectSocket,
 	joinProject,
 	leaveProject,
@@ -56,42 +67,58 @@ import {
 	rejoinProject,
 } from "@/lib/socket-client";
 
-export function useProjectRealtime(projectId: string): void {
+// projectId may be undefined for a component that's reused at both project
+// and global scope (e.g. the Conversations page) — the hook is a no-op in
+// that case rather than requiring the caller to conditionally call it, which
+// would violate the rules of hooks.
+export function useProjectRealtime(projectId: string | undefined): void {
 	const queryClient = useQueryClient();
 
 	useEffect(() => {
+		if (!projectId) return;
+		// Narrowed to a plain non-optional const: TS's control-flow narrowing
+		// of the guard above doesn't carry into the named function
+		// declarations below (handleEvent/handleConnect are hoisted, so TS
+		// can't prove they're only ever called after the guard runs).
+		const currentProjectId = projectId;
 		const socket = connectSocket();
 
 		// Subscribe to the project rooms.
-		joinProject(projectId);
+		joinProject(currentProjectId);
 
 		function handleEvent(event: RealtimeEvent) {
 			const { type } = event;
 
 			if (type.startsWith("task.")) {
 				void queryClient.invalidateQueries({
-					queryKey: ["projects", projectId, "tasks"],
+					queryKey: ["projects", currentProjectId, "tasks"],
+				});
+				void queryClient.invalidateQueries({
+					queryKey: ["projects", currentProjectId, "agentActivities"],
 				});
 				return;
 			}
 
 			if (type.startsWith("doc.")) {
 				void queryClient.invalidateQueries({
-					queryKey: ["projects", projectId, "docs"],
+					queryKey: ["projects", currentProjectId, "docs"],
+				});
+				void queryClient.invalidateQueries({
+					queryKey: ["projects", currentProjectId, "agentActivities"],
 				});
 				return;
 			}
 
 			if (type.startsWith("sprint.")) {
 				void queryClient.invalidateQueries({
-					queryKey: ["projects", projectId, "sprints"],
+					queryKey: ["projects", currentProjectId, "sprints"],
 				});
 				return;
 			}
 
 			if (type.startsWith("view.")) {
 				void queryClient.invalidateQueries({
-					queryKey: ["projects", projectId, "views"],
+					queryKey: ["projects", currentProjectId, "views"],
 				});
 				return;
 			}
@@ -103,10 +130,10 @@ export function useProjectRealtime(projectId: string): void {
 			// rather than branching per sub-type.
 			if (type.startsWith("workflow.")) {
 				void queryClient.invalidateQueries({
-					queryKey: ["projects", projectId, "workflows"],
+					queryKey: ["projects", currentProjectId, "workflows"],
 				});
 				void queryClient.invalidateQueries({
-					queryKey: ["projects", projectId, "tasks"],
+					queryKey: ["projects", currentProjectId, "tasks"],
 				});
 				return;
 			}
@@ -120,7 +147,7 @@ export function useProjectRealtime(projectId: string): void {
 						: null;
 				if (taskId) {
 					void queryClient.invalidateQueries({
-						queryKey: ["projects", projectId, "tasks", taskId, "github"],
+						queryKey: ["projects", currentProjectId, "tasks", taskId, "github"],
 					});
 				}
 				return;
@@ -137,39 +164,71 @@ export function useProjectRealtime(projectId: string): void {
 						: null;
 				if (agentId && typeof event.payload.connected === "boolean") {
 					queryClient.setQueryData(
-						["projects", projectId, "agents", agentId, "acp-bridge-status"],
+						[
+							"projects",
+							currentProjectId,
+							"agents",
+							agentId,
+							"acp-bridge-status",
+						],
 						{ connected: event.payload.connected },
 					);
 				}
 				return;
 			}
 
-			// agent.* events: invalidate conversation list/events and task activities
+			// agent.* events: conversation caches and task activities
 			// (agent.session.started is recorded as a task activity).
 			if (type.startsWith("agent.")) {
-				void queryClient.invalidateQueries({
-					queryKey: ["projects", projectId, "conversations"],
-				});
-				// agent.session.started shows up in task activity feeds
-				if (type === "agent.session.started" || type.startsWith("task.")) {
-					void queryClient.invalidateQueries({
-						queryKey: ["projects", projectId, "tasks"],
-					});
-				}
 				const conversationId =
 					typeof event.payload.conversation_id === "string"
 						? event.payload.conversation_id
 						: null;
+				// A persisted event carries its index. Such an event changes only the
+				// conversation's event stream — its own fields change on the lifecycle
+				// messages, which arrive separately — so the list and the detail are
+				// left alone. A run of a few hundred events would otherwise refetch
+				// both a few hundred times.
+				const eventIndex = Number.parseInt(
+					String(event.payload.event_index ?? ""),
+					10,
+				);
+				const isPersistedEvent = Number.isFinite(eventIndex);
+
 				if (conversationId) {
+					// How far the stream has grown, for views holding a window of
+					// events.
+					queryClient.setQueryData(
+						conversationEventsTailKey(conversationId),
+						(prev: ConversationEventsTail | undefined) => ({
+							tick: (prev?.tick ?? 0) + 1,
+							index: isPersistedEvent
+								? Math.max(prev?.index ?? -1, eventIndex)
+								: (prev?.index ?? null),
+						}),
+					);
+					// For views that read the whole event list.
 					void queryClient.invalidateQueries({
 						queryKey: [
 							"projects",
-							projectId,
+							currentProjectId,
 							"conversations",
 							conversationId,
 							"events",
 						],
 					});
+				}
+
+				if (!isPersistedEvent) {
+					void queryClient.invalidateQueries({
+						queryKey: ["projects", currentProjectId, "conversations"],
+					});
+					// agent.session.started shows up in task activity feeds
+					if (type === "agent.session.started" || type.startsWith("task.")) {
+						void queryClient.invalidateQueries({
+							queryKey: ["projects", currentProjectId, "tasks"],
+						});
+					}
 				}
 				return;
 			}
@@ -185,14 +244,14 @@ export function useProjectRealtime(projectId: string): void {
 		// `joinProject`) since this isn't a new subscriber — it must not bump
 		// the reference count that `leaveProject` decrements on unmount.
 		function handleConnect() {
-			rejoinProject(projectId);
+			rejoinProject(currentProjectId);
 		}
 		socket.on("connect", handleConnect);
 
 		return () => {
 			socket.off("event", handleEvent);
 			socket.off("connect", handleConnect);
-			leaveProject(projectId);
+			leaveProject(currentProjectId);
 		};
 	}, [projectId, queryClient]);
 }

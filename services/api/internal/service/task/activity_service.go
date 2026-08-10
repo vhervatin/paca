@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	agentdom "github.com/Paca-AI/api/internal/domain/agent"
 	notificationdom "github.com/Paca-AI/api/internal/domain/notification"
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
@@ -15,7 +17,6 @@ import (
 	"github.com/Paca-AI/api/internal/events"
 	mentionpkg "github.com/Paca-AI/api/internal/pkg/mention"
 	"github.com/Paca-AI/api/internal/platform/messaging"
-	"github.com/google/uuid"
 )
 
 // memberLookup is the minimal interface ActivitySvc needs to resolve an actor
@@ -149,6 +150,12 @@ func (s *ActivitySvc) AddComment(ctx context.Context, in taskdom.AddCommentInput
 				if s.agentTrigger != nil {
 					agentMember, agentErr := s.memberRepo.FindMemberByAgent(ctx, in.ProjectID, mentionedID)
 					if agentErr == nil && agentMember.IsAgent() && agentMember.AgentID != nil {
+						// Skip self-mention: an agent mentioning itself (e.g. re-reading
+						// its own prior comment) must not retrigger its own conversation,
+						// or it can spiral into an unbounded comment loop.
+						if agentMember.ID == member.ID {
+							continue
+						}
 						conv, _ := s.agentTrigger.TriggerCommentMention(ctx, in.ProjectID, *agentMember.AgentID, in.TaskID, a.ID, member.ID, commentText)
 						if conv != nil {
 							content, _ := json.Marshal(map[string]any{

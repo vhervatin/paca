@@ -39,7 +39,8 @@
 	"interactions": {
 		"title": "Interações",
 		"timeline": "Linha do tempo",
-		"productBacklog": "Backlog do Produto"
+		"productBacklog": "Backlog do Produto",
+		"completedSprints": "Sprints concluídas"
 	},
 	"docs": {
 		"documentation": "Documentação",
@@ -57,7 +58,10 @@
 	"notifications": {
 		"title": "Notificações",
 		"empty": "Nenhuma notificação ainda",
+		"loadingMore": "Carregando…",
 		"markAllAsRead": "Marcar todas como lidas",
+		"muteSound": "Silenciar som das notificações",
+		"unmuteSound": "Ativar som das notificações",
 		"text": {
 			"assigned": "{{actor}} atribuiu você à tarefa #{{taskNumber}} — {{taskTitle}}",
 			"mentioned": "{{actor}} mencionou você em #{{taskNumber}} — {{taskTitle}}"

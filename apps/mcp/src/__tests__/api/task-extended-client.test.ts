@@ -1,10 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../utils/index.js", () => ({
-	markdownToBlocknote: vi.fn((md: string) => [
-		{ type: "paragraph", content: [{ type: "text", text: md }] },
-	]),
-}));
+vi.mock("../../utils/index.js", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../utils/index.js")>();
+	return {
+		...actual,
+		markdownToBlocknote: vi.fn((md: string) => [
+			{ type: "paragraph", content: [{ type: "text", text: md }] },
+		]),
+	};
+});
 
 import { PacaAPITaskExtendedClient } from "../../api/task-extended-client.js";
 
@@ -88,7 +92,9 @@ describe("PacaAPITaskExtendedClient", () => {
 	it("resolves on 204 No Content without parsing JSON", async () => {
 		fetchMock.mockResolvedValue(noContentResponse());
 		const client = new PacaAPITaskExtendedClient(CONFIG);
-		await expect(client.deleteTaskComment("p1", "t1", "c1")).resolves.toBeUndefined();
+		await expect(
+			client.deleteTaskComment("p1", "t1", "c1"),
+		).resolves.toBeUndefined();
 	});
 
 	// ---------------------------------------------------------------------------

@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	projectdom "github.com/Paca-AI/api/internal/domain/project"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+
+	projectdom "github.com/Paca-AI/api/internal/domain/project"
 )
 
 func openProjectRepoTestDB(t *testing.T) *sqlx.DB {
@@ -27,6 +28,8 @@ func openProjectRepoTestDB(t *testing.T) *sqlx.DB {
 			task_id_prefix TEXT  NOT NULL DEFAULT '',
 			is_public    INTEGER NOT NULL DEFAULT 0,
 			settings     BLOB    NOT NULL DEFAULT '{}',
+			avatar_key TEXT,
+			avatar_thumb_key TEXT,
 			created_by   TEXT,
 			created_at   DATETIME,
 			deleted_at   DATETIME

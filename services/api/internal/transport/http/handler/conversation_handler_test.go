@@ -5,13 +5,17 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
-	agentdom "github.com/Paca-AI/api/internal/domain/agent"
-	"github.com/Paca-AI/api/internal/transport/http/handler"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+
+	agentdom "github.com/Paca-AI/api/internal/domain/agent"
+	"github.com/Paca-AI/api/internal/transport/http/handler"
 )
 
 // fixedTime returns a stable timestamp for building test conversations —
@@ -146,7 +150,7 @@ func TestListConversations_PageSizeInvalidRejected(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// ListConversationEvents: offset/limit handling
+// ListConversationEvents: after/before/limit window handling
 // ---------------------------------------------------------------------------
 
 func doListConversationEvents(t *testing.T, svc agentdom.Service, projectID, conversationID, query string) *httptest.ResponseRecorder {
@@ -162,25 +166,38 @@ func doListConversationEvents(t *testing.T, svc agentdom.Service, projectID, con
 	return rec
 }
 
-func TestListConversationEvents_OffsetLimitValid(t *testing.T) {
+// listConversationEventsResp decodes the {items, total, next_cursor,
+// prev_cursor} envelope returned by both events endpoints.
+type listConversationEventsResp struct {
+	Success bool `json:"success"`
+	Data    struct {
+		Items      []map[string]any `json:"items"`
+		Total      int64            `json:"total"`
+		NextCursor *string          `json:"next_cursor"`
+		PrevCursor *string          `json:"prev_cursor"`
+	} `json:"data"`
+	ErrorCode string `json:"error_code"`
+}
+
+func TestListConversationEvents_WindowValid(t *testing.T) {
 	cases := []struct {
-		name       string
-		query      string
-		wantOffset int
-		wantLimit  int
+		name      string
+		query     string
+		wantAfter *string
+		wantLimit int
 	}{
-		{"absent_defaults", "", 0, 50},
-		{"valid_custom_values_kept", "offset=10&limit=25", 10, 25},
-		{"limit_max_boundary_kept", "limit=200", 0, 200},
-		{"limit_min_boundary_kept", "limit=1", 0, 1},
-		{"offset_zero_kept", "offset=0", 0, 50},
+		{"absent_defaults", "", nil, 50},
+		{"custom_limit_kept", "limit=25", nil, 25},
+		{"limit_max_boundary_kept", "limit=200", nil, 200},
+		{"limit_min_boundary_kept", "limit=1", nil, 1},
+		{"after_cursor_forwarded", "after=some-opaque-cursor&limit=25", ptr("some-opaque-cursor"), 25},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			var gotOffset, gotLimit int
+			var got agentdom.ConversationEventWindow
 			svc := &mockAgentSvc{
-				listConversationEvents: func(_ context.Context, _ uuid.UUID, offset, limit int) ([]*agentdom.AgentConversationEvent, int64, error) {
-					gotOffset, gotLimit = offset, limit
+				listConversationEvents: func(_ context.Context, _ uuid.UUID, window agentdom.ConversationEventWindow) ([]*agentdom.AgentConversationEvent, int64, error) {
+					got = window
 					return nil, 0, nil
 				},
 			}
@@ -188,24 +205,43 @@ func TestListConversationEvents_OffsetLimitValid(t *testing.T) {
 			if rec.Code != http.StatusOK {
 				t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 			}
-			if gotOffset != tc.wantOffset || gotLimit != tc.wantLimit {
-				t.Errorf("expected service called with offset=%d limit=%d, got offset=%d limit=%d",
-					tc.wantOffset, tc.wantLimit, gotOffset, gotLimit)
+			if got.Limit != tc.wantLimit {
+				t.Errorf("expected limit=%d, got %d", tc.wantLimit, got.Limit)
+			}
+			if (got.After == nil) != (tc.wantAfter == nil) || (got.After != nil && *got.After != *tc.wantAfter) {
+				t.Errorf("expected After=%v, got %v", tc.wantAfter, got.After)
 			}
 		})
 	}
 }
 
-// TestListConversationEvents_OffsetLimitInvalidRejected covers the same
+func TestListConversationEvents_BeforeCursorForwarded(t *testing.T) {
+	var got agentdom.ConversationEventWindow
+	svc := &mockAgentSvc{
+		listConversationEvents: func(_ context.Context, _ uuid.UUID, window agentdom.ConversationEventWindow) ([]*agentdom.AgentConversationEvent, int64, error) {
+			got = window
+			return nil, 0, nil
+		},
+	}
+	rec := doListConversationEvents(t, svc, uuid.New().String(), uuid.New().String(), "before=some-opaque-cursor")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if got.Before == nil || *got.Before != "some-opaque-cursor" {
+		t.Errorf("expected Before=%q, got %v", "some-opaque-cursor", got.Before)
+	}
+	if got.After != nil {
+		t.Errorf("expected After nil, got %v", got.After)
+	}
+}
+
+// TestListConversationEvents_LimitInvalidRejected covers the same
 // silent-substitution fix as TestListConversations_PageSizeInvalidRejected,
-// applied to this endpoint's offset/limit pair: an explicitly supplied
-// out-of-range or non-numeric value now fails the request instead of quietly
-// running with a different limit than the caller asked for (which broke
-// offset math for callers advancing offset by their requested limit).
-func TestListConversationEvents_OffsetLimitInvalidRejected(t *testing.T) {
+// applied to this endpoint's limit param: an explicitly supplied
+// out-of-range or non-numeric value now fails the request instead of
+// quietly running with a different limit than the caller asked for.
+func TestListConversationEvents_LimitInvalidRejected(t *testing.T) {
 	cases := []string{
-		"offset=-1",
-		"offset=abc",
 		"limit=0",
 		"limit=-5",
 		"limit=201",
@@ -214,8 +250,8 @@ func TestListConversationEvents_OffsetLimitInvalidRejected(t *testing.T) {
 	for _, query := range cases {
 		t.Run(query, func(t *testing.T) {
 			svc := &mockAgentSvc{
-				listConversationEvents: func(_ context.Context, _ uuid.UUID, offset, limit int) ([]*agentdom.AgentConversationEvent, int64, error) {
-					t.Fatalf("service should not be called for invalid offset/limit, got offset=%d limit=%d", offset, limit)
+				listConversationEvents: func(_ context.Context, _ uuid.UUID, window agentdom.ConversationEventWindow) ([]*agentdom.AgentConversationEvent, int64, error) {
+					t.Fatalf("service should not be called for invalid limit, got window=%+v", window)
 					return nil, 0, nil
 				},
 			}
@@ -226,6 +262,112 @@ func TestListConversationEvents_OffsetLimitInvalidRejected(t *testing.T) {
 		})
 	}
 }
+
+// TestListConversationEvents_AfterAndBeforeMutuallyExclusiveRejected covers
+// the query-parsing guard against a caller supplying both bounds at once,
+// which would otherwise leave it ambiguous which direction to page in.
+func TestListConversationEvents_AfterAndBeforeMutuallyExclusiveRejected(t *testing.T) {
+	svc := &mockAgentSvc{
+		listConversationEvents: func(_ context.Context, _ uuid.UUID, window agentdom.ConversationEventWindow) ([]*agentdom.AgentConversationEvent, int64, error) {
+			t.Fatalf("service should not be called when after and before are both set, got window=%+v", window)
+			return nil, 0, nil
+		},
+	}
+	rec := doListConversationEvents(t, svc, uuid.New().String(), uuid.New().String(), "after=a&before=b")
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ListConversationEvents: next_cursor/prev_cursor response wiring
+// ---------------------------------------------------------------------------
+
+func eventAt(index int) *agentdom.AgentConversationEvent {
+	return &agentdom.AgentConversationEvent{ID: uuid.New(), EventIndex: index}
+}
+
+func TestListConversationEvents_PrevCursorAbsentAtStartOfStream(t *testing.T) {
+	svc := &mockAgentSvc{
+		listConversationEvents: func(_ context.Context, _ uuid.UUID, _ agentdom.ConversationEventWindow) ([]*agentdom.AgentConversationEvent, int64, error) {
+			return []*agentdom.AgentConversationEvent{eventAt(0), eventAt(1)}, 2, nil
+		},
+	}
+	_, resp := doListConversationEventsDecoded(t, svc, "")
+	if resp.Data.PrevCursor != nil {
+		t.Errorf("expected nil prev_cursor when the first event is index 0, got %q", *resp.Data.PrevCursor)
+	}
+}
+
+func TestListConversationEvents_PrevCursorPresentMidStream(t *testing.T) {
+	svc := &mockAgentSvc{
+		listConversationEvents: func(_ context.Context, _ uuid.UUID, _ agentdom.ConversationEventWindow) ([]*agentdom.AgentConversationEvent, int64, error) {
+			return []*agentdom.AgentConversationEvent{eventAt(50), eventAt(51)}, 100, nil
+		},
+	}
+	_, resp := doListConversationEventsDecoded(t, svc, "")
+	if resp.Data.PrevCursor == nil {
+		t.Fatal("expected non-nil prev_cursor when earlier events exist")
+	}
+	cur, err := agentdom.DecodeConversationEventCursor(*resp.Data.PrevCursor)
+	if err != nil {
+		t.Fatalf("decode prev_cursor: %v", err)
+	}
+	if cur.EventIndex != 50 {
+		t.Errorf("expected prev_cursor to encode the first event's index 50, got %d", cur.EventIndex)
+	}
+}
+
+// TestListConversationEvents_NextCursorAlwaysPresentWhenNonEmpty covers the
+// deliberate asymmetry with prev_cursor documented on
+// writeConversationEventWindowResponse: unlike prev_cursor, next_cursor
+// cannot definitively report "nothing more" on a live stream, so it is
+// always returned for a non-empty page — even when this page is, as far as
+// `total` is concerned, already the tail — leaving the decision of whether
+// resuming is worthwhile to the caller (which weighs it against realtime's
+// tail signal instead).
+func TestListConversationEvents_NextCursorAlwaysPresentWhenNonEmpty(t *testing.T) {
+	svc := &mockAgentSvc{
+		listConversationEvents: func(_ context.Context, _ uuid.UUID, _ agentdom.ConversationEventWindow) ([]*agentdom.AgentConversationEvent, int64, error) {
+			return []*agentdom.AgentConversationEvent{eventAt(98), eventAt(99)}, 100, nil
+		},
+	}
+	_, resp := doListConversationEventsDecoded(t, svc, "")
+	if resp.Data.NextCursor == nil {
+		t.Fatal("expected non-nil next_cursor even when this page reaches the currently-known tail")
+	}
+	cur, err := agentdom.DecodeConversationEventCursor(*resp.Data.NextCursor)
+	if err != nil {
+		t.Fatalf("decode next_cursor: %v", err)
+	}
+	if cur.EventIndex != 99 {
+		t.Errorf("expected next_cursor to encode the last event's index 99, got %d", cur.EventIndex)
+	}
+}
+
+func TestListConversationEvents_BothCursorsAbsentForEmptyPage(t *testing.T) {
+	svc := &mockAgentSvc{
+		listConversationEvents: func(_ context.Context, _ uuid.UUID, _ agentdom.ConversationEventWindow) ([]*agentdom.AgentConversationEvent, int64, error) {
+			return nil, 0, nil
+		},
+	}
+	_, resp := doListConversationEventsDecoded(t, svc, "")
+	if resp.Data.NextCursor != nil || resp.Data.PrevCursor != nil {
+		t.Errorf("expected both cursors nil for an empty page, got next=%v prev=%v", resp.Data.NextCursor, resp.Data.PrevCursor)
+	}
+}
+
+func doListConversationEventsDecoded(t *testing.T, svc agentdom.Service, query string) (*httptest.ResponseRecorder, listConversationEventsResp) {
+	t.Helper()
+	rec := doListConversationEvents(t, svc, uuid.New().String(), uuid.New().String(), query)
+	var resp listConversationEventsResp
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response body %q: %v", rec.Body.String(), err)
+	}
+	return rec, resp
+}
+
+func ptr(s string) *string { return &s }
 
 // ---------------------------------------------------------------------------
 // Filter wiring
@@ -248,11 +390,11 @@ func TestListConversations_FiltersPassedToService(t *testing.T) {
 	if gotFilter.ProjectID == nil || *gotFilter.ProjectID != projectID {
 		t.Errorf("expected ProjectID filter %v, got %v", projectID, gotFilter.ProjectID)
 	}
-	if gotFilter.AgentID == nil || *gotFilter.AgentID != agentID {
-		t.Errorf("expected AgentID filter %v, got %v", agentID, gotFilter.AgentID)
+	if !slices.Equal(gotFilter.AgentIDs, []uuid.UUID{agentID}) {
+		t.Errorf("expected AgentIDs filter [%v], got %v", agentID, gotFilter.AgentIDs)
 	}
-	if gotFilter.Status == nil || *gotFilter.Status != "running" {
-		t.Errorf("expected Status filter %q, got %v", "running", gotFilter.Status)
+	if !slices.Equal(gotFilter.Statuses, []string{"running"}) {
+		t.Errorf("expected Statuses filter [%q], got %v", "running", gotFilter.Statuses)
 	}
 	if gotFilter.CursorAfter == nil || *gotFilter.CursorAfter != "some-opaque-cursor" {
 		t.Errorf("expected CursorAfter filter %q, got %v", "some-opaque-cursor", gotFilter.CursorAfter)
@@ -261,7 +403,7 @@ func TestListConversations_FiltersPassedToService(t *testing.T) {
 
 func TestListConversations_InvalidAgentIDIgnored(t *testing.T) {
 	// A malformed agent_id query param should be silently dropped rather than
-	// erroring the request — only a valid UUID sets the filter.
+	// erroring the request — only valid UUIDs are added to the filter.
 	var gotFilter agentdom.ListConversationsFilter
 	svc := &mockAgentSvc{
 		listConversations: func(_ context.Context, filter agentdom.ListConversationsFilter, _ int) ([]*agentdom.AgentConversation, bool, error) {
@@ -273,8 +415,170 @@ func TestListConversations_InvalidAgentIDIgnored(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if gotFilter.AgentID != nil {
-		t.Errorf("expected AgentID filter to remain nil for malformed input, got %v", *gotFilter.AgentID)
+	if len(gotFilter.AgentIDs) != 0 {
+		t.Errorf("expected AgentIDs filter to remain empty for malformed input, got %v", gotFilter.AgentIDs)
+	}
+}
+
+func TestListConversations_MultiValueAgentIDAndStatus(t *testing.T) {
+	agent1, agent2 := uuid.New(), uuid.New()
+	var gotFilter agentdom.ListConversationsFilter
+	svc := &mockAgentSvc{
+		listConversations: func(_ context.Context, filter agentdom.ListConversationsFilter, _ int) ([]*agentdom.AgentConversation, bool, error) {
+			gotFilter = filter
+			return nil, false, nil
+		},
+	}
+	_, _ = doListConversations(t, svc, uuid.New().String(),
+		"agent_id="+agent1.String()+","+agent2.String()+"&status=running,paused")
+
+	if !slices.Equal(gotFilter.AgentIDs, []uuid.UUID{agent1, agent2}) {
+		t.Errorf("expected AgentIDs filter [%v, %v], got %v", agent1, agent2, gotFilter.AgentIDs)
+	}
+	if !slices.Equal(gotFilter.Statuses, []string{"running", "paused"}) {
+		t.Errorf("expected Statuses filter [running paused], got %v", gotFilter.Statuses)
+	}
+}
+
+func TestListConversations_TriggerTypeFilterPassedToService(t *testing.T) {
+	var gotFilter agentdom.ListConversationsFilter
+	svc := &mockAgentSvc{
+		listConversations: func(_ context.Context, filter agentdom.ListConversationsFilter, _ int) ([]*agentdom.AgentConversation, bool, error) {
+			gotFilter = filter
+			return nil, false, nil
+		},
+	}
+	_, _ = doListConversations(t, svc, uuid.New().String(), "trigger_type=task_assigned,chat_message")
+
+	if !slices.Equal(gotFilter.TriggerTypes, []string{"task_assigned", "chat_message"}) {
+		t.Errorf("expected TriggerTypes filter [task_assigned chat_message], got %v", gotFilter.TriggerTypes)
+	}
+}
+
+func TestListConversations_SearchFilterPassedToService(t *testing.T) {
+	var gotFilter agentdom.ListConversationsFilter
+	svc := &mockAgentSvc{
+		listConversations: func(_ context.Context, filter agentdom.ListConversationsFilter, _ int) ([]*agentdom.AgentConversation, bool, error) {
+			gotFilter = filter
+			return nil, false, nil
+		},
+	}
+	_, _ = doListConversations(t, svc, uuid.New().String(), "search=%20fix+the+bug%20")
+
+	if gotFilter.Search == nil || *gotFilter.Search != "fix the bug" {
+		t.Errorf("expected trimmed Search filter %q, got %v", "fix the bug", gotFilter.Search)
+	}
+}
+
+func TestListConversations_SearchAbsentWhenBlank(t *testing.T) {
+	var gotFilter agentdom.ListConversationsFilter
+	svc := &mockAgentSvc{
+		listConversations: func(_ context.Context, filter agentdom.ListConversationsFilter, _ int) ([]*agentdom.AgentConversation, bool, error) {
+			gotFilter = filter
+			return nil, false, nil
+		},
+	}
+	_, _ = doListConversations(t, svc, uuid.New().String(), "search=%20%20")
+
+	if gotFilter.Search != nil {
+		t.Errorf("expected nil Search filter for blank input, got %q", *gotFilter.Search)
+	}
+}
+
+func TestListConversations_DateRangeFilterPassedToService(t *testing.T) {
+	// A bare "YYYY-MM-DD" date is treated as a whole UTC day, inclusive on
+	// both ends — so created_before=2026-01-31 becomes an exclusive bound of
+	// UTC midnight on 2026-02-01. See parseCreatedAfterBound/
+	// parseCreatedBeforeBound.
+	var gotFilter agentdom.ListConversationsFilter
+	svc := &mockAgentSvc{
+		listConversations: func(_ context.Context, filter agentdom.ListConversationsFilter, _ int) ([]*agentdom.AgentConversation, bool, error) {
+			gotFilter = filter
+			return nil, false, nil
+		},
+	}
+	_, _ = doListConversations(t, svc, uuid.New().String(), "created_after=2026-01-01&created_before=2026-01-31")
+
+	wantAfter := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	wantBefore := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
+	if gotFilter.CreatedAfter == nil || !gotFilter.CreatedAfter.Equal(wantAfter) {
+		t.Errorf("expected CreatedAfter filter %v, got %v", wantAfter, gotFilter.CreatedAfter)
+	}
+	if gotFilter.CreatedBefore == nil || !gotFilter.CreatedBefore.Equal(wantBefore) {
+		t.Errorf("expected CreatedBefore filter %v, got %v", wantBefore, gotFilter.CreatedBefore)
+	}
+}
+
+func TestListConversations_DateRangeFilterAcceptsRFC3339Timestamp(t *testing.T) {
+	// The frontend sends precise RFC3339 instants (computed from the user's
+	// local calendar day) rather than bare dates, to avoid the UTC-day
+	// mismatch a bare date would have for non-UTC users. Those must be used
+	// exactly as given, with no additional whole-day adjustment.
+	var gotFilter agentdom.ListConversationsFilter
+	svc := &mockAgentSvc{
+		listConversations: func(_ context.Context, filter agentdom.ListConversationsFilter, _ int) ([]*agentdom.AgentConversation, bool, error) {
+			gotFilter = filter
+			return nil, false, nil
+		},
+	}
+	_, _ = doListConversations(t, svc, uuid.New().String(),
+		"created_after="+url.QueryEscape("2026-01-01T08:00:00Z")+"&created_before="+url.QueryEscape("2026-01-31T08:00:00Z"))
+
+	wantAfter := time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC)
+	wantBefore := time.Date(2026, 1, 31, 8, 0, 0, 0, time.UTC)
+	if gotFilter.CreatedAfter == nil || !gotFilter.CreatedAfter.Equal(wantAfter) {
+		t.Errorf("expected CreatedAfter filter %v, got %v", wantAfter, gotFilter.CreatedAfter)
+	}
+	if gotFilter.CreatedBefore == nil || !gotFilter.CreatedBefore.Equal(wantBefore) {
+		t.Errorf("expected CreatedBefore filter %v, got %v", wantBefore, gotFilter.CreatedBefore)
+	}
+}
+
+func TestListConversations_InvalidDateRangeRejected(t *testing.T) {
+	cases := []string{
+		"created_after=not-a-date",
+		"created_after=2026-13-40",
+		"created_before=not-a-date",
+	}
+	for _, query := range cases {
+		t.Run(query, func(t *testing.T) {
+			svc := &mockAgentSvc{
+				listConversations: func(_ context.Context, _ agentdom.ListConversationsFilter, _ int) ([]*agentdom.AgentConversation, bool, error) {
+					t.Fatal("service should not be called for an invalid date filter")
+					return nil, false, nil
+				},
+			}
+			rec, _ := doListConversations(t, svc, uuid.New().String(), query)
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestListConversations_InvalidStatusRejected(t *testing.T) {
+	svc := &mockAgentSvc{
+		listConversations: func(_ context.Context, _ agentdom.ListConversationsFilter, _ int) ([]*agentdom.AgentConversation, bool, error) {
+			t.Fatal("service should not be called for an invalid status filter")
+			return nil, false, nil
+		},
+	}
+	rec, _ := doListConversations(t, svc, uuid.New().String(), "status=running,not-a-real-status")
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestListConversations_InvalidTriggerTypeRejected(t *testing.T) {
+	svc := &mockAgentSvc{
+		listConversations: func(_ context.Context, _ agentdom.ListConversationsFilter, _ int) ([]*agentdom.AgentConversation, bool, error) {
+			t.Fatal("service should not be called for an invalid trigger_type filter")
+			return nil, false, nil
+		},
+	}
+	rec, _ := doListConversations(t, svc, uuid.New().String(), "trigger_type=not-a-real-type")
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -388,5 +692,270 @@ func TestListConversations_InvalidProjectIDReturnsBadRequest(t *testing.T) {
 	rec, _ := doListConversations(t, svc, "not-a-uuid", "")
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for malformed project id, got %d", rec.Code)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ListGlobalConversations (GET /agents/conversations)
+// ---------------------------------------------------------------------------
+
+func newGlobalConversationsListRouter(svc agentdom.Service, subject string) chi.Router {
+	h := handler.NewConversationHandler(svc)
+	r := chi.NewRouter()
+	r.Use(claimsMiddleware(subject))
+	r.Get("/agents/conversations", h.ListGlobalConversations)
+	return r
+}
+
+// The caller's own user id must always be forced as ActorUserID, and
+// GlobalOnly/ProjectID must never be left for the client to override via
+// query params — this is the privacy boundary that keeps one user's global
+// chats from leaking to another.
+func TestListGlobalConversations_ScopesToCallerAndGlobalOnly(t *testing.T) {
+	callerID := uuid.New()
+	var gotActorUserID uuid.UUID
+	var gotFilter agentdom.ListConversationsFilter
+	svc := &mockAgentSvc{
+		listGlobalConversations: func(_ context.Context, actorUserID uuid.UUID, filter agentdom.ListConversationsFilter, _ int) ([]*agentdom.AgentConversation, bool, error) {
+			gotActorUserID = actorUserID
+			gotFilter = filter
+			return []*agentdom.AgentConversation{{ID: uuid.New()}}, false, nil
+		},
+	}
+	r := newGlobalConversationsListRouter(svc, callerID.String())
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/agents/conversations", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if gotActorUserID != callerID {
+		t.Errorf("expected actorUserID %s forced from claims, got %s", callerID, gotActorUserID)
+	}
+	// The handler itself never sets GlobalOnly/ProjectID — that's the
+	// service's job (see Service.ListGlobalConversations) so there's no
+	// query param a client could smuggle those through with.
+	if gotFilter.ProjectID != nil {
+		t.Errorf("expected handler to leave ProjectID unset, got %v", gotFilter.ProjectID)
+	}
+}
+
+func TestListGlobalConversations_Unauthenticated401s(t *testing.T) {
+	svc := &mockAgentSvc{}
+	h := handler.NewConversationHandler(svc)
+	r := chi.NewRouter()
+	r.Get("/agents/conversations", h.ListGlobalConversations)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/agents/conversations", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 with no claims in context, got %d", rec.Code)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Get/Stop/Pause/Heartbeat/SendMessage/Events on a single global conversation
+// (GET|POST /agents/conversations/:conversationId[...])
+// ---------------------------------------------------------------------------
+
+// newGlobalConversationRouter wires every single-resource global-conversation
+// route behind claims for the given subject, so ownership-enforcement tests
+// can exercise each verb through the real HTTP layer.
+func newGlobalConversationRouter(svc agentdom.Service, subject string) chi.Router {
+	h := handler.NewConversationHandler(svc)
+	r := chi.NewRouter()
+	r.Use(claimsMiddleware(subject))
+	r.Route("/agents/conversations/{conversationId}", func(r chi.Router) {
+		r.Get("/", h.GetGlobalConversation)
+		r.Get("/events", h.GetGlobalConversationEvents)
+		r.Post("/stop", h.StopGlobalConversation)
+		r.Post("/pause", h.PauseGlobalConversation)
+		r.Post("/heartbeat", h.GlobalConversationHeartbeat)
+		r.Post("/messages", h.SendGlobalConversationMessage)
+	})
+	return r
+}
+
+func TestGetGlobalConversationEvents_ReturnsEvents(t *testing.T) {
+	convID := uuid.New()
+	callerID := uuid.New()
+	svc := &mockAgentSvc{
+		getGlobalConversation: func(_ context.Context, id, actorUserID uuid.UUID) (*agentdom.AgentConversation, error) {
+			if id != convID {
+				t.Fatalf("unexpected conversation id %s", id)
+			}
+			if actorUserID != callerID {
+				t.Fatalf("expected actorUserID %s forced from claims, got %s", callerID, actorUserID)
+			}
+			return &agentdom.AgentConversation{ID: convID, ActorUserID: &callerID}, nil
+		},
+		listConversationEvents: func(_ context.Context, id uuid.UUID, _ agentdom.ConversationEventWindow) ([]*agentdom.AgentConversationEvent, int64, error) {
+			if id != convID {
+				t.Fatalf("unexpected conversation id %s", id)
+			}
+			return []*agentdom.AgentConversationEvent{{ID: uuid.New(), ConversationID: convID}}, 1, nil
+		},
+	}
+	r := newGlobalConversationRouter(svc, callerID.String())
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/agents/conversations/"+convID.String()+"/events", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Data struct {
+			Items []map[string]any `json:"items"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(resp.Data.Items) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(resp.Data.Items))
+	}
+}
+
+// A conversation id that doesn't resolve to a global (project_id IS NULL)
+// conversation must 404 via GetGlobalConversation's own scope check —
+// ListConversationEvents must never be reached in that case, since it has
+// no ownership check of its own to fall back on.
+func TestGetGlobalConversationEvents_UnknownConversationNotFound(t *testing.T) {
+	eventsCalled := false
+	svc := &mockAgentSvc{
+		getGlobalConversation: func(_ context.Context, _, _ uuid.UUID) (*agentdom.AgentConversation, error) {
+			return nil, agentdom.ErrConversationNotFound
+		},
+		listConversationEvents: func(_ context.Context, _ uuid.UUID, _ agentdom.ConversationEventWindow) ([]*agentdom.AgentConversationEvent, int64, error) {
+			eventsCalled = true
+			return nil, 0, nil
+		},
+	}
+	r := newGlobalConversationRouter(svc, uuid.New().String())
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/agents/conversations/"+uuid.New().String()+"/events", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if eventsCalled {
+		t.Error("ListConversationEvents must not be called when the conversation isn't a valid global conversation")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Ownership enforcement — regression tests for the IDOR where a caller could
+// read/stop/pause/heartbeat/message another user's global conversation
+// simply by knowing its ID. Every handler below must forward the caller's
+// own user ID (never a client-suppliable value) to the service, and the
+// service is responsible for 404ing on a mismatch — these tests assert the
+// handler side of that contract: the *right* actorUserID reaches the mock.
+// ---------------------------------------------------------------------------
+
+func TestGetGlobalConversation_ForwardsCallerIDNotConversationOwner(t *testing.T) {
+	convID := uuid.New()
+	callerID := uuid.New()
+	otherUsersConv := uuid.New() // the conversation's real owner — must never leak in.
+	var gotActorUserID uuid.UUID
+	svc := &mockAgentSvc{
+		getGlobalConversation: func(_ context.Context, _, actorUserID uuid.UUID) (*agentdom.AgentConversation, error) {
+			gotActorUserID = actorUserID
+			// Simulate the service's real ownership check: this conversation
+			// belongs to otherUsersConv, not the caller, so a correct handler
+			// (forwarding callerID) gets ErrConversationNotFound back.
+			if actorUserID != otherUsersConv {
+				return nil, agentdom.ErrConversationNotFound
+			}
+			return &agentdom.AgentConversation{ID: convID}, nil
+		},
+	}
+	r := newGlobalConversationRouter(svc, callerID.String())
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/agents/conversations/"+convID.String(), nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if gotActorUserID != callerID {
+		t.Fatalf("handler must forward the authenticated caller's own id, got %s want %s", gotActorUserID, callerID)
+	}
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for a conversation the caller doesn't own, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestStopPauseHeartbeatGlobalConversation_ForwardCallerID(t *testing.T) {
+	convID := uuid.New()
+	callerID := uuid.New()
+
+	cases := []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{"stop", http.MethodPost, "/stop"},
+		{"pause", http.MethodPost, "/pause"},
+		{"heartbeat", http.MethodPost, "/heartbeat"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var gotConvID, gotActorUserID uuid.UUID
+			svc := &mockAgentSvc{
+				stopGlobalConversation: func(_ context.Context, id, actorUserID uuid.UUID) error {
+					gotConvID, gotActorUserID = id, actorUserID
+					return agentdom.ErrConversationNotFound
+				},
+				pauseGlobalConversation: func(_ context.Context, id, actorUserID uuid.UUID) error {
+					gotConvID, gotActorUserID = id, actorUserID
+					return agentdom.ErrConversationNotFound
+				},
+				globalHeartbeat: func(_ context.Context, id, actorUserID uuid.UUID) error {
+					gotConvID, gotActorUserID = id, actorUserID
+					return agentdom.ErrConversationNotFound
+				},
+			}
+			r := newGlobalConversationRouter(svc, callerID.String())
+			req := httptest.NewRequestWithContext(context.Background(), tc.method, "/agents/conversations/"+convID.String()+tc.path, nil)
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+
+			if gotConvID != convID {
+				t.Errorf("expected conversation id %s forwarded, got %s", convID, gotConvID)
+			}
+			if gotActorUserID != callerID {
+				t.Errorf("expected caller id %s forwarded as actorUserID, got %s", callerID, gotActorUserID)
+			}
+			if rec.Code != http.StatusNotFound {
+				t.Errorf("expected the service's not-found error to surface as 404, got %d: %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestSendGlobalConversationMessage_ForwardsCallerIDNotBodySuppliedActor(t *testing.T) {
+	convID := uuid.New()
+	callerID := uuid.New()
+	attackerSuppliedActor := uuid.New()
+	var gotActorUserID uuid.UUID
+	svc := &mockAgentSvc{
+		sendGlobalConversationMessage: func(_ context.Context, _ uuid.UUID, _ string, actorUserID uuid.UUID) error {
+			gotActorUserID = actorUserID
+			return nil
+		},
+	}
+	r := newGlobalConversationRouter(svc, callerID.String())
+	body := `{"message":"hi","actor_user_id":"` + attackerSuppliedActor.String() + `"}`
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost,
+		"/agents/conversations/"+convID.String()+"/messages", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if gotActorUserID != callerID {
+		t.Fatalf("actorUserID must always be the authenticated caller (%s), never a client-suppliable body field (%s)", callerID, gotActorUserID)
 	}
 }

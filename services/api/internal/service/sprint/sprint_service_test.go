@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	sprintdom "github.com/Paca-AI/api/internal/domain/sprint"
 	taskdom "github.com/Paca-AI/api/internal/domain/task"
 	sprintsvc "github.com/Paca-AI/api/internal/service/sprint"
-	"github.com/google/uuid"
 )
 
 // ---------------------------------------------------------------------------
@@ -192,6 +193,10 @@ func (r *fakeTaskRepo) DeleteTaskLink(_ context.Context, _ uuid.UUID) error {
 
 func (r *fakeTaskRepo) ListAssignedTasks(_ context.Context, _ []uuid.UUID, _ int, _ *string) ([]*taskdom.Task, bool, error) {
 	return nil, false, nil
+}
+
+func (r *fakeTaskRepo) CountOpenTasksByProjects(_ context.Context, _ []uuid.UUID) (int64, error) {
+	return 0, nil
 }
 
 func (r *fakeTaskRepo) BulkMoveSprintTasks(_ context.Context, projectID, sourceSprintID uuid.UUID, targetSprintID *uuid.UUID) error {

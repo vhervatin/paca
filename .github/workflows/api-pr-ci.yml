@@ -32,12 +32,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 1
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: services/api/go.sum
@@ -62,12 +62,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 1
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: services/api/go.sum
@@ -89,12 +89,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 1
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: services/api/go.sum
@@ -103,7 +103,7 @@ jobs:
         run: go test -race -timeout 60s -coverprofile=coverage.out $(go list ./... | grep -v '/test/e2e')
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: services/api/coverage.out
@@ -124,19 +124,25 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 1
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: services/api/go.sum
 
       - name: Run E2E tests
-        # 300s: Postgres + Valkey testcontainer startup + full migration set can
-        # take 60-90s on cold CI runners, leaving ~210s for the actual tests.
+        # Every test gets its own Postgres database and, for automation
+        # tests, its own Redis consumer group/leader-lock key (see
+        # worker.AutomationConsumer.WithConsumerGroup /
+        # CronScheduler.WithLeaderKey) — so the whole package is safe to run
+        # with -parallel, cutting wall-clock time roughly 4-5x versus fully
+        # sequential. 450s still leaves headroom over the ~100-110s this
+        # takes locally, plus the 60-90s testcontainer/migration startup on
+        # cold CI runners.
         env:
           PACA_E2E: "1"
-        run: go test -v -timeout 300s ./test/e2e/...
+        run: go test -v -timeout 450s -parallel 8 ./test/e2e/...

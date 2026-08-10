@@ -16,6 +16,7 @@ import (
 	"time"
 
 	plugindom "github.com/Paca-AI/api/internal/domain/plugin"
+	"github.com/Paca-AI/api/internal/platform/netguard"
 )
 
 // Installer downloads and installs marketplace plugin artifacts into local stores.
@@ -39,7 +40,7 @@ func NewInstaller(backendDir, frontendDir, mcpDir, skillsDir string, httpClient 
 	// caller that supplies its own Transport (e.g. a test double) is left
 	// untouched.
 	if httpClient.Transport == nil {
-		httpClient.Transport = newSafeHTTPTransport()
+		httpClient.Transport = netguard.NewSafeHTTPTransport()
 	}
 	return &Installer{
 		backendDir:  backendDir,
@@ -53,7 +54,16 @@ func NewInstaller(backendDir, frontendDir, mcpDir, skillsDir string, httpClient 
 
 // Install downloads, validates, and installs artifacts for one plugin.
 // It returns the parsed plugin manifest used for DB registration.
-func (i *Installer) Install(ctx context.Context, item MarketplacePlugin) (plugindom.PluginManifest, error) {
+//
+// checkManifest is called with the downloaded manifest immediately after it
+// is parsed and validated, before any of the plugin's live on-disk artifacts
+// are touched (the backend/frontend/migrations/mcp/skills copy steps below
+// overwrite or os.RemoveAll the existing installed directories in place, with
+// no staging — so a compatibility check run after those steps would be too
+// late to prevent them). If checkManifest returns an error, Install returns
+// it unwrapped and leaves any already-installed artifacts for this plugin
+// name completely untouched.
+func (i *Installer) Install(ctx context.Context, item MarketplacePlugin, checkManifest func(plugindom.PluginManifest) error) (plugindom.PluginManifest, error) {
 	if strings.TrimSpace(i.backendDir) == "" {
 		return plugindom.PluginManifest{}, fmt.Errorf("plugin backend directory is not configured")
 	}
@@ -110,6 +120,11 @@ func (i *Installer) Install(ctx context.Context, item MarketplacePlugin) (plugin
 	}
 	if manifest.ID != item.Name {
 		return plugindom.PluginManifest{}, fmt.Errorf("manifest id %q does not match catalog name %q", manifest.ID, item.Name)
+	}
+	if checkManifest != nil {
+		if err := checkManifest(manifest); err != nil {
+			return plugindom.PluginManifest{}, err
+		}
 	}
 
 	backendPluginDir := filepath.Join(i.backendDir, item.Name)

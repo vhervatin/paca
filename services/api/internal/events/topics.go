@@ -34,6 +34,39 @@ const StreamTaskAssignments = "paca.task_assignments"
 // directly.
 const StreamPluginEvents = "paca.plugin_events"
 
+// StreamAutomationExternalTriggers is the Valkey Stream key the webhook
+// receiver endpoint appends to once it has verified an inbound POST's
+// token, so worker.AutomationConsumer can execute the matched api_trigger
+// node's graph walk asynchronously — the HTTP handler returns as soon as
+// the token is verified and the event is durably queued, without waiting on
+// the walk to finish.
+const StreamAutomationExternalTriggers = "paca.automation_external_triggers"
+
+// StreamPluginTriggerEvents is the Valkey Stream key a plugin's own
+// EmitEvent call (the plugin SDK's event_emit host function) appends to,
+// but only when at least one loaded plugin has actually declared a Trigger
+// node for that event's topic (platform/plugin.Runtime.TriggersForTopic) —
+// a plugin emitting some other, non-trigger-sourcing event never touches
+// this stream, keeping its volume proportional to automation-relevant
+// topics only. worker.AutomationConsumer reads it the same way it reads
+// StreamAutomationExternalTriggers: resolve which project's automations to
+// consider and which task (if any) to bind the walk to from the event's own
+// payload (every plugin trigger's payload is expected to carry project_id,
+// and task_id when the event concerns a specific task — see
+// pluginTriggerEventPayload in automation_consumer.go), then execute.
+const StreamPluginTriggerEvents = "paca.plugin_trigger_events"
+
+// StreamSprintActivities is the Valkey Stream key sprintsvc.Service appends
+// to (via AppendFlat: sprint_id/project_id/event_type fields) whenever a
+// sprint is created, deleted, completed, or transitions into Active status —
+// in addition to (not instead of) its existing ChannelRealtime pub/sub
+// publish, which is fire-and-forget and worker.AutomationConsumer doesn't
+// subscribe to. event_type is exactly one of the TriggerSprint* constants in
+// domain/automation, so the consumer needs no separate activity-type-to-
+// trigger-type mapping the way task activities do. Consumed by
+// worker.AutomationConsumer.handleSprintActivity.
+const StreamSprintActivities = "paca.sprint_activities"
+
 // Event type constants used in both Pub/Sub messages and Stream entries.
 const (
 	// --- Auth events --------------------------------------------------------
@@ -100,6 +133,10 @@ const (
 	TopicAgentCommentMention   = "agent.comment_mention"
 	TopicAgentChatMessage      = "agent.chat_message"
 	TopicAgentDescriptionWrite = "agent.description_write"
+	// TopicAgentAutomationMessage fires a standalone message at an agent, no
+	// task involved — used by the automation engine's trigger_ai_agent
+	// action when its trigger has no target task (nothing to assign).
+	TopicAgentAutomationMessage = "agent.automation_message"
 	// TopicAgentStop interrupts (if running) and tears the sandbox down for
 	// good — unchanged from before. TopicAgentPause interrupts the in-flight
 	// turn only, leaving the sandbox running so the conversation can be
@@ -122,27 +159,27 @@ const (
 	TopicAgentObservationEvent     = "agent.observation"
 	TopicAgentMessageEvent         = "agent.message"
 
-	// --- Automation workflow events ------------------------------------------
-	// Published directly to ChannelRealtime by workflowsvc.Service whenever a
-	// workflow's graph or lifecycle changes, so every connected client viewing
-	// that project's automation builder stays in sync. Note: workflow.assigned
-	// (the automation engine reassigning a task) is a separate, task-scoped
-	// event defined as taskdom.ActivityTypeWorkflowAssigned, not here.
-	TopicWorkflowCreated                 = "workflow.created"
-	TopicWorkflowUpdated                 = "workflow.updated"
-	TopicWorkflowDeleted                 = "workflow.deleted"
-	TopicWorkflowActivated               = "workflow.activated"
-	TopicWorkflowArchived                = "workflow.archived"
-	TopicWorkflowRevertedToDraft         = "workflow.reverted_to_draft"
-	TopicWorkflowNodeAdded               = "workflow.node.added"
-	TopicWorkflowNodeUpdated             = "workflow.node.updated"
-	TopicWorkflowNodeRemoved             = "workflow.node.removed"
-	TopicWorkflowEdgeAdded               = "workflow.edge.added"
-	TopicWorkflowEdgeRemoved             = "workflow.edge.removed"
-	TopicWorkflowStatusRuleSet           = "workflow.status_rule.set"
-	TopicWorkflowStatusRuleRemoved       = "workflow.status_rule.removed"
-	TopicWorkflowStatusTransitionSet     = "workflow.status_transition.set"
-	TopicWorkflowStatusTransitionRemoved = "workflow.status_transition.removed"
+	// --- Automation graph events ----------------------------------------------
+	// Published directly to ChannelRealtime by automationsvc.Service whenever
+	// an automation's graph or lifecycle changes, so every connected client
+	// viewing that project's automation builder stays in sync. Note:
+	// automation.applied (the engine mutating a task) is a separate,
+	// task-scoped event defined as taskdom.ActivityTypeAutomationApplied, not
+	// here.
+	TopicAutomationCreated     = "automation.created"
+	TopicAutomationUpdated     = "automation.updated"
+	TopicAutomationDeleted     = "automation.deleted"
+	TopicAutomationActivated   = "automation.activated"
+	TopicAutomationDeactivated = "automation.deactivated"
+	TopicAutomationNodeAdded   = "automation.node.added"
+	TopicAutomationNodeUpdated = "automation.node.updated"
+	TopicAutomationNodeRemoved = "automation.node.removed"
+	TopicAutomationEdgeAdded   = "automation.edge.added"
+	TopicAutomationEdgeRemoved = "automation.edge.removed"
+	// TopicAutomationAPITriggerFired is appended to
+	// StreamAutomationExternalTriggers by the webhook receiver handler once
+	// a POST's token has been verified.
+	TopicAutomationAPITriggerFired = "automation.api_trigger.fired"
 )
 
 // Streams for AI Agent pipeline.
@@ -154,4 +191,15 @@ const (
 	// StreamAgentEvents is the Valkey Stream key that services/ai-agent publishes
 	// conversation events to. services/realtime consumes and fans out to Socket.IO.
 	StreamAgentEvents = "paca:agent:events"
+
+	// StreamAgentConversationStatus is the Valkey Stream key that
+	// services/ai-agent appends to whenever a conversation reaches a
+	// terminal status (finished/failed/stopped) — see
+	// stream_store.publish_conversation_status in
+	// services/ai-agent/src/core/streams.py. Durable + consumer-group-based,
+	// unlike the fire-and-forget paca.events pub/sub channel, so a consumer
+	// never misses a delivery even across its own restart. Consumed by
+	// worker.AutomationConsumer to resume a graph walk paused at a
+	// trigger_ai_agent node once its conversation finishes.
+	StreamAgentConversationStatus = "paca:agent:conversation_status"
 )

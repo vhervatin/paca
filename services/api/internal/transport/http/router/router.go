@@ -6,14 +6,15 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
+
 	"github.com/Paca-AI/api/internal/platform/authz"
 	jwttoken "github.com/Paca-AI/api/internal/platform/token"
 	"github.com/Paca-AI/api/internal/transport/http/handler"
 	"github.com/Paca-AI/api/internal/transport/http/httpx"
 	httpmw "github.com/Paca-AI/api/internal/transport/http/middleware"
-	"github.com/go-chi/chi/v5"
-	chimw "github.com/go-chi/chi/v5/middleware"
-	"github.com/google/uuid"
 )
 
 // Deps holds all handler and middleware dependencies.
@@ -40,7 +41,8 @@ type Deps struct {
 	Skills               *handler.SkillsHandler
 	Agent                *handler.AgentHandler
 	Conversation         *handler.ConversationHandler
-	Workflow             *handler.WorkflowHandler
+	Automation           *handler.AutomationHandler
+	Settings             *handler.SettingsHandler
 	Log                  *slog.Logger
 	// CORSAllowedOrigins is the CORS allow-list — see corsMiddleware. A nil
 	// or empty slice (the zero value, so every existing caller of this
@@ -70,6 +72,13 @@ func New(deps Deps) http.Handler {
 				r.Get("/releases", deps.Version.ListReleases)
 			}
 
+			// Workspace branding — public, no auth required. Read pre-login
+			// (login page) and on every page load, so it can't sit behind
+			// the Authn middleware the way /admin/settings' writes do below.
+			if deps.Settings != nil {
+				r.Get("/branding", deps.Settings.GetBranding)
+			}
+
 			// Auth
 			r.Route("/auth", func(r chi.Router) {
 				r.Post("/login", deps.Auth.Login)
@@ -89,6 +98,9 @@ func New(deps Deps) http.Handler {
 					r.Get("/me", deps.User.GetMe)
 					r.Patch("/me", deps.User.UpdateMe)
 					r.Get("/me/global-permissions", deps.User.GetMyGlobalPermissions)
+					r.Post("/me/avatar/initiate-upload", deps.User.InitiateAvatarUpload)
+					r.Post("/me/avatar/complete-upload", deps.User.CompleteAvatarUpload)
+					r.Delete("/me/avatar", deps.User.DeleteAvatar)
 
 					// Cross-project "assigned to me" tasks — home page widget.
 					if deps.Task != nil {
@@ -144,6 +156,88 @@ func New(deps Deps) http.Handler {
 					Delete("/global-roles/{roleId}", deps.GlobalRole.Delete)
 				r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionGlobalRolesAssign)).
 					Put("/users/{userId}/global-roles", deps.GlobalRole.ReplaceUserRoles)
+
+				// Global agent management — CRUD for AgentScopeGlobal agents,
+				// mirroring the user/global-role shape above. Global agents are
+				// not tied to any project; they're attached to one later via the
+				// same "invite a member" flow used for humans (POST
+				// /projects/{projectId}/members with agent_id set — see below).
+				if deps.Agent != nil {
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsRead)).
+						Get("/agents", deps.Agent.ListGlobalAgents)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsWrite)).
+						Post("/agents", deps.Agent.CreateGlobalAgent)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsRead)).
+						Get("/agents/{agentId}", deps.Agent.GetGlobalAgent)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsWrite)).
+						Patch("/agents/{agentId}", deps.Agent.UpdateGlobalAgent)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsWrite)).
+						Delete("/agents/{agentId}", deps.Agent.DeleteGlobalAgent)
+
+					// ACP local bridge
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsWrite)).
+						Post("/agents/{agentId}/acp-bridge-token", deps.Agent.GenerateGlobalACPBridgeToken)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsRead)).
+						Get("/agents/{agentId}/acp-bridge-status", deps.Agent.GetGlobalACPBridgeStatus)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsWrite)).
+						Post("/agents/{agentId}/mcp-agent-key", deps.Agent.GenerateGlobalAgentMCPKey)
+
+					// Avatar
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsWrite)).
+						Post("/agents/{agentId}/avatar/initiate-upload", deps.Agent.InitiateGlobalAvatarUpload)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsWrite)).
+						Post("/agents/{agentId}/avatar/complete-upload", deps.Agent.CompleteGlobalAvatarUpload)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsWrite)).
+						Delete("/agents/{agentId}/avatar", deps.Agent.DeleteGlobalAvatar)
+
+					// MCP servers
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsRead)).
+						Get("/agents/{agentId}/mcp-servers", deps.Agent.ListGlobalAgentMCPServers)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsWrite)).
+						Post("/agents/{agentId}/mcp-servers", deps.Agent.AddGlobalAgentMCPServer)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsWrite)).
+						Patch("/agents/{agentId}/mcp-servers/{serverId}", deps.Agent.UpdateGlobalAgentMCPServer)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsWrite)).
+						Delete("/agents/{agentId}/mcp-servers/{serverId}", deps.Agent.DeleteGlobalAgentMCPServer)
+
+					// Skills
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsRead)).
+						Get("/agents/{agentId}/skills", deps.Agent.ListGlobalAgentSkills)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsWrite)).
+						Post("/agents/{agentId}/skills", deps.Agent.AddGlobalAgentSkill)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsWrite)).
+						Patch("/agents/{agentId}/skills/{skillId}", deps.Agent.UpdateGlobalAgentSkill)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsWrite)).
+						Delete("/agents/{agentId}/skills/{skillId}", deps.Agent.DeleteGlobalAgentSkill)
+
+					// Environment variables
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsRead)).
+						Get("/agents/{agentId}/env-vars", deps.Agent.ListGlobalAgentEnvVars)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsWrite)).
+						Post("/agents/{agentId}/env-vars", deps.Agent.AddGlobalAgentEnvVar)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsWrite)).
+						Patch("/agents/{agentId}/env-vars/{envVarId}", deps.Agent.UpdateGlobalAgentEnvVar)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionAgentsWrite)).
+						Delete("/agents/{agentId}/env-vars/{envVarId}", deps.Agent.DeleteGlobalAgentEnvVar)
+				}
+
+				// Workspace branding (logo/favicon/primary color) — a
+				// singleton, so no {id} in the path. Sub-routed under
+				// "/settings/logo" and "/settings/favicon" with an "/avatar/…"
+				// suffix so the frontend can drive both through the same
+				// generic avatar-upload client/component used for
+				// users/agents/projects (which always POSTs/DELETEs to
+				// "{basePath}/avatar/…").
+				if deps.Settings != nil {
+					write := httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionSettingsWrite)
+					r.With(write).Patch("/settings", deps.Settings.UpdateSettings)
+					r.With(write).Post("/settings/logo/avatar/initiate-upload", deps.Settings.InitiateLogoUpload)
+					r.With(write).Post("/settings/logo/avatar/complete-upload", deps.Settings.CompleteLogoUpload)
+					r.With(write).Delete("/settings/logo/avatar", deps.Settings.DeleteLogo)
+					r.With(write).Post("/settings/favicon/avatar/initiate-upload", deps.Settings.InitiateFaviconUpload)
+					r.With(write).Post("/settings/favicon/avatar/complete-upload", deps.Settings.CompleteFaviconUpload)
+					r.With(write).Delete("/settings/favicon/avatar", deps.Settings.DeleteFavicon)
+				}
 			})
 
 			// Projects — collection routes.
@@ -161,13 +255,55 @@ func New(deps Deps) http.Handler {
 					Post("/projects", deps.Project.CreateProject)
 			})
 
-			// LLM models — accessible to any authenticated user
+			// LLM models, global agents, and global chat — accessible to any
+			// authenticated user (human or agent-API-key). Static children
+			// ("llm-models", "skill-templates", "me", "chat-sessions",
+			// "conversations") are matched before the "{agentId}" wildcard
+			// branch — chi, like any radix-tree router, always prefers a
+			// literal path segment over a param at the same level, the same
+			// way "/projects/workspace-stats" is disambiguated from
+			// "/projects/{projectId}" elsewhere in this file.
 			if deps.Agent != nil {
 				r.Route("/agents", func(r chi.Router) {
 					r.Use(httpmw.Authn(deps.TokenManager, deps.APIKeyAuth))
 					r.Use(httpmw.RequireFreshPassword())
 					r.Get("/llm-models", deps.Agent.GetLLMModels)
 					r.Get("/skill-templates", deps.Agent.ListSkillTemplates)
+
+					// Any authenticated human may browse global agents (to chat
+					// with one) — unlike /admin/agents, this is intentionally
+					// not permission-gated, matching how any project member can
+					// already see a project's agents. It's the same handler as
+					// the admin listing, just reachable without an admin
+					// permission.
+					r.Get("/", deps.Agent.ListGlobalAgents)
+
+					// Agent self-service (agent-API-key authenticated via
+					// X-Agent-ID) — what the MCP server calls when running as a
+					// global agent to populate its own permission map.
+					r.Get("/me/global-permissions", deps.Agent.GetMyGlobalPermissions)
+					r.Get("/me/projects", deps.Agent.GetMyInvitedProjects)
+
+					// Global chat — chatting with a global agent from the home
+					// page / admin pages, no project context. Any authenticated
+					// human may chat with any global agent, same as any project
+					// member may chat with a project agent — deliberately not
+					// gated behind PermissionAgentsRead (a regular USER-role
+					// human has no global agents.* permission by default, and
+					// this chat is meant to be available to every user).
+					r.Get("/{agentId}/chat-sessions", deps.Agent.ListGlobalChatSessions)
+					r.Post("/{agentId}/chat-sessions", deps.Agent.StartGlobalChatSession)
+					r.Post("/chat-sessions/{sessionId}/messages", deps.Agent.SendGlobalChatMessage)
+
+					if deps.Conversation != nil {
+						r.Get("/conversations", deps.Conversation.ListGlobalConversations)
+						r.Get("/conversations/{conversationId}", deps.Conversation.GetGlobalConversation)
+						r.Get("/conversations/{conversationId}/events", deps.Conversation.GetGlobalConversationEvents)
+						r.Post("/conversations/{conversationId}/stop", deps.Conversation.StopGlobalConversation)
+						r.Post("/conversations/{conversationId}/pause", deps.Conversation.PauseGlobalConversation)
+						r.Post("/conversations/{conversationId}/heartbeat", deps.Conversation.GlobalConversationHeartbeat)
+						r.Post("/conversations/{conversationId}/messages", deps.Conversation.SendGlobalConversationMessage)
+					}
 				})
 			}
 
@@ -184,6 +320,14 @@ func New(deps Deps) http.Handler {
 					Patch("/", deps.Project.UpdateProject)
 				r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionProjectsDelete)).
 					Delete("/", deps.Project.DeleteProject)
+
+				// Avatar
+				r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionProjectsWrite)).
+					Post("/avatar/initiate-upload", deps.Project.InitiateAvatarUpload)
+				r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionProjectsWrite)).
+					Post("/avatar/complete-upload", deps.Project.CompleteAvatarUpload)
+				r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionProjectsWrite)).
+					Delete("/avatar", deps.Project.DeleteAvatar)
 
 				// Members
 				r.Route("/members", func(r chi.Router) {
@@ -249,48 +393,50 @@ func New(deps Deps) http.Handler {
 						Put("/{statusId}/set-default", deps.Task.SetDefaultTaskStatus)
 				})
 
-				// Automation workflows
-				if deps.Workflow != nil {
-					r.Route("/workflows", func(r chi.Router) {
+				// Automation graph — reuses the workflows.read/write permission
+				// keys (already seeded on every default/project role) rather
+				// than introducing automations.* and a permission-backfill
+				// migration.
+				if deps.Automation != nil {
+					r.Route("/automations", func(r chi.Router) {
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsRead)).
-							Get("/", deps.Workflow.ListWorkflows)
+							Get("/", deps.Automation.ListAutomations)
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsWrite)).
-							Post("/", deps.Workflow.CreateWorkflow)
+							Post("/", deps.Automation.CreateAutomation)
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsRead)).
-							Get("/{workflowId}", deps.Workflow.GetWorkflow)
+							Get("/{automationId}", deps.Automation.GetAutomation)
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsWrite)).
-							Patch("/{workflowId}", deps.Workflow.UpdateWorkflow)
+							Patch("/{automationId}", deps.Automation.UpdateAutomation)
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsWrite)).
-							Delete("/{workflowId}", deps.Workflow.DeleteWorkflow)
+							Delete("/{automationId}", deps.Automation.DeleteAutomation)
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsWrite)).
-							Post("/{workflowId}/activate", deps.Workflow.ActivateWorkflow)
+							Post("/{automationId}/activate", deps.Automation.ActivateAutomation)
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsWrite)).
-							Post("/{workflowId}/archive", deps.Workflow.ArchiveWorkflow)
-						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsWrite)).
-							Post("/{workflowId}/revert-to-draft", deps.Workflow.RevertWorkflowToDraft)
+							Post("/{automationId}/deactivate", deps.Automation.DeactivateAutomation)
 
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsWrite)).
-							Post("/{workflowId}/nodes", deps.Workflow.AddWorkflowNode)
+							Post("/{automationId}/nodes", deps.Automation.AddAutomationNode)
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsWrite)).
-							Patch("/{workflowId}/nodes/{nodeId}", deps.Workflow.UpdateWorkflowNode)
+							Patch("/{automationId}/nodes/{nodeId}", deps.Automation.UpdateAutomationNode)
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsWrite)).
-							Delete("/{workflowId}/nodes/{nodeId}", deps.Workflow.RemoveWorkflowNode)
+							Delete("/{automationId}/nodes/{nodeId}", deps.Automation.RemoveAutomationNode)
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsWrite)).
+							Post("/{automationId}/nodes/{nodeId}/webhook-token", deps.Automation.GenerateWebhookToken)
 
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsWrite)).
-							Post("/{workflowId}/status-rules", deps.Workflow.SetWorkflowStatusRule)
+							Post("/{automationId}/edges", deps.Automation.AddAutomationEdge)
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsWrite)).
-							Delete("/{workflowId}/status-rules/{ruleId}", deps.Workflow.RemoveWorkflowStatusRule)
+							Delete("/{automationId}/edges/{edgeId}", deps.Automation.RemoveAutomationEdge)
 
-						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsWrite)).
-							Post("/{workflowId}/status-transitions", deps.Workflow.SetWorkflowStatusTransition)
-						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsWrite)).
-							Delete("/{workflowId}/status-transitions/{transitionId}", deps.Workflow.RemoveWorkflowStatusTransition)
-
-						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsWrite)).
-							Post("/{workflowId}/edges", deps.Workflow.AddWorkflowEdge)
-						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsWrite)).
-							Delete("/{workflowId}/edges/{edgeId}", deps.Workflow.RemoveWorkflowEdge)
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsRead)).
+							Get("/{automationId}/runs", deps.Automation.ListAutomationRuns)
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsRead)).
+							Get("/{automationId}/runs/{runId}/steps", deps.Automation.ListAutomationRunSteps)
 					})
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsRead)).
+						Get("/automation-dependency-map", deps.Automation.GetAutomationDependencyMap)
+					r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionWorkflowsRead)).
+						Get("/automation-plugin-node-types", deps.Automation.ListPluginNodeTypes)
 				}
 
 				// Sprints
@@ -393,14 +539,6 @@ func New(deps Deps) http.Handler {
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionTasksWrite)).
 							Delete("/{linkId}", deps.Task.DeleteTaskLink)
 					})
-
-					// Workflows this task belongs to (read-only, for the task detail view)
-					if deps.Workflow != nil {
-						r.With(httpmw.RequirePublicProjectOrPermissions(deps.ProjectVisibilitySvc, deps.Authorizer,
-							httpmw.PermissionGroup{Scope: httpmw.GlobalScope(), Permissions: []authz.Permission{authz.PermissionProjectsRead}},
-							httpmw.PermissionGroup{Scope: httpmw.ProjectScopeFromParam("projectId"), Permissions: []authz.Permission{authz.PermissionWorkflowsRead}},
-						)).Get("/{taskId}/workflows", deps.Workflow.ListWorkflowsForTask)
-					}
 
 					// Attachments
 					r.Route("/{taskId}/attachments", func(r chi.Router) {
@@ -533,6 +671,20 @@ func New(deps Deps) http.Handler {
 							Post("/{agentId}/acp-bridge-token", deps.Agent.GenerateACPBridgeToken)
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsRead)).
 							Get("/{agentId}/acp-bridge-status", deps.Agent.GetACPBridgeStatus)
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsWrite)).
+							Post("/{agentId}/mcp-agent-key", deps.Agent.GenerateAgentMCPKey)
+
+						// Avatar
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsWrite)).
+							Post("/{agentId}/avatar/initiate-upload", deps.Agent.InitiateAvatarUpload)
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsWrite)).
+							Post("/{agentId}/avatar/complete-upload", deps.Agent.CompleteAvatarUpload)
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsWrite)).
+							Delete("/{agentId}/avatar", deps.Agent.DeleteAvatar)
+
+						// Activity feed
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsRead)).
+							Get("/{agentId}/activities", deps.Agent.ListAgentActivities)
 
 						// MCP servers
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsRead)).
@@ -637,6 +789,16 @@ func New(deps Deps) http.Handler {
 					r.Use(httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionUsersWrite))
 					r.Patch("/", deps.Plugin.UpdateExtensionSetting)
 				})
+			}
+
+			// Automation webhook receiver — registered outside the
+			// authenticated /projects/{projectId} group (same reasoning as
+			// the plugin proxy above): the caller is an external system, not
+			// a logged-in user, so it authenticates with its own secret
+			// token (X-Webhook-Token header) checked inline by the handler
+			// rather than router-level session/API-key middleware.
+			if deps.Automation != nil {
+				r.Post("/webhooks/automations/{nodeId}", deps.Automation.ReceiveWebhook)
 			}
 		})
 	})

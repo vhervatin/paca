@@ -8,9 +8,10 @@ import (
 	"fmt"
 	"time"
 
-	userdom "github.com/Paca-AI/api/internal/domain/user"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+
+	userdom "github.com/Paca-AI/api/internal/domain/user"
 )
 
 // userRecord is the sqlx write model for the users table. It mirrors the
@@ -37,6 +38,8 @@ type userReadRow struct {
 	RoleID             string     `db:"role_id"`
 	RoleName           string     `db:"role_name"`
 	MustChangePassword bool       `db:"must_change_password"`
+	AvatarKey          *string    `db:"avatar_key"`
+	AvatarThumbKey     *string    `db:"avatar_thumb_key"`
 	CreatedAt          time.Time  `db:"created_at"`
 	UpdatedAt          time.Time  `db:"updated_at"`
 	DeletedAt          *time.Time `db:"deleted_at"`
@@ -44,7 +47,7 @@ type userReadRow struct {
 
 // userReadCols and userReadJoin are shared by all read queries.
 const (
-	userReadCols = `users.id, users.username, users.password_hash, users.full_name, users.role_id, users.must_change_password, users.created_at, users.updated_at, users.deleted_at, gr.name AS role_name`
+	userReadCols = `users.id, users.username, users.password_hash, users.full_name, users.role_id, users.must_change_password, users.avatar_key, users.avatar_thumb_key, users.created_at, users.updated_at, users.deleted_at, gr.name AS role_name`
 	userReadJoin = `JOIN global_roles gr ON gr.id = users.role_id`
 )
 
@@ -62,9 +65,9 @@ func NewUserRepository(db *sqlx.DB) *UserRepository {
 // date plus the total count across all pages.  The built-in agent bot account
 // is excluded because it is an internal system identity, not a real user.
 func (r *UserRepository) List(ctx context.Context, offset, limit int) ([]*userdom.User, int64, error) {
-	var total int64
-	if err := r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM users WHERE deleted_at IS NULL AND username != '_paca_agent_bot'`); err != nil {
-		return nil, 0, fmt.Errorf("user repo: list count: %w", err)
+	total, err := r.CountUsers(ctx)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	var rows []userReadRow
@@ -83,6 +86,17 @@ func (r *UserRepository) List(ctx context.Context, offset, limit int) ([]*userdo
 		users = append(users, rowToEntity(&rows[i]))
 	}
 	return users, total, nil
+}
+
+// CountUsers returns the total count of non-deleted, non-system users. The
+// built-in agent bot account is excluded because it is an internal system
+// identity, not a real user — matching List's filter.
+func (r *UserRepository) CountUsers(ctx context.Context) (int64, error) {
+	var total int64
+	if err := r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM users WHERE deleted_at IS NULL AND username != '_paca_agent_bot'`); err != nil {
+		return 0, fmt.Errorf("user repo: count users: %w", err)
+	}
+	return total, nil
 }
 
 // FindByID returns the user with the given primary key, or userdom.ErrNotFound.
@@ -155,10 +169,10 @@ func (r *UserRepository) Create(ctx context.Context, u *userdom.User) error {
 func (r *UserRepository) Update(ctx context.Context, u *userdom.User) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE users SET username = $1, password_hash = $2, full_name = $3, role_id = $4,
-		  must_change_password = $5, updated_at = $6, deleted_at = $7
-		WHERE id = $8`,
+		  must_change_password = $5, avatar_key = $6, avatar_thumb_key = $7, updated_at = $8, deleted_at = $9
+		WHERE id = $10`,
 		u.Username, u.PasswordHash, u.FullName, u.RoleID.String(),
-		u.MustChangePassword, u.UpdatedAt, u.DeletedAt, u.ID.String(),
+		u.MustChangePassword, u.AvatarKey, u.AvatarThumbKey, u.UpdatedAt, u.DeletedAt, u.ID.String(),
 	)
 	if err != nil {
 		return fmt.Errorf("user repo: update: %w", err)
@@ -189,6 +203,8 @@ func rowToEntity(row *userReadRow) *userdom.User {
 		RoleID:             roleID,
 		Role:               row.RoleName,
 		MustChangePassword: row.MustChangePassword,
+		AvatarKey:          row.AvatarKey,
+		AvatarThumbKey:     row.AvatarThumbKey,
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
 		DeletedAt:          row.DeletedAt,

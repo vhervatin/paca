@@ -39,6 +39,12 @@ type PluginManifest struct {
 	Description string `json:"description,omitempty"`
 	// Version is the semver version of the plugin.
 	Version string `json:"version"`
+	// MinCoreVersion is the minimum Paca (host) version required to install or
+	// upgrade to this manifest, as a strict "X.Y.Z" (or "vX.Y.Z") semver
+	// string. The host refuses to install/enable a manifest whose
+	// MinCoreVersion is newer than the running build (see CheckMinCoreVersion).
+	// Empty means the plugin has no minimum host version requirement.
+	MinCoreVersion string `json:"minCoreVersion,omitempty"`
 	// Capabilities lists the plugin's capabilities (e.g., "repository" for VCS plugins).
 	Capabilities []string `json:"capabilities,omitempty"`
 	// Backend holds backend-specific manifest settings.
@@ -49,6 +55,8 @@ type PluginManifest struct {
 	MCP *MCPManifest `json:"mcp,omitempty"`
 	// Skills holds Agent-Skills-specific manifest settings.
 	Skills *SkillsManifest `json:"skills,omitempty"`
+	// Automation holds automation-graph node types the plugin contributes.
+	Automation *AutomationManifest `json:"automation,omitempty"`
 	// Permissions lists the host function scopes the plugin requires.
 	Permissions []string `json:"permissions,omitempty"`
 	// CustomPermissions lists project/global-scoped permission keys the
@@ -99,6 +107,11 @@ func pluginKeyNamespace(pluginID string) string {
 // declare a key (e.g. "users.write") that collides with a built-in
 // permission or another plugin's custom permission.
 func (m PluginManifest) Validate() error {
+	if m.MinCoreVersion != "" {
+		if _, err := ParseSemver(m.MinCoreVersion); err != nil {
+			return fmt.Errorf("minCoreVersion: %w", err)
+		}
+	}
 	namespace := pluginKeyNamespace(m.ID)
 	prefix := namespace + "."
 	for _, perm := range m.CustomPermissions {
@@ -117,6 +130,82 @@ func (m PluginManifest) Validate() error {
 			return err
 		}
 	}
+	if m.Automation != nil {
+		if err := m.Automation.validate(m.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// AutomationManifest declares the automation-graph node types a plugin
+// contributes: Trigger, Condition, and Action nodes that appear in the
+// canvas node palette alongside the built-in types, dispatched through the
+// same WASM bridge as HandleRequest/HandleEvent (see Runtime.EvaluateCondition
+// and Runtime.RunAction) — no new execution path, just two new exported
+// function contracts a plugin's WASM module can implement.
+type AutomationManifest struct {
+	Triggers   []AutomationNodeManifest `json:"triggers,omitempty"`
+	Conditions []AutomationNodeManifest `json:"conditions,omitempty"`
+	Actions    []AutomationNodeManifest `json:"actions,omitempty"`
+}
+
+// AutomationNodeManifest describes one plugin-contributed node type.
+type AutomationNodeManifest struct {
+	// Type is the node's stable identifier, reverse-DNS namespaced under the
+	// plugin's own ID (e.g. "com.paca.github.pr_merged") — this doubles as
+	// the node's own collision-proof registry key, so no separate ID field
+	// is needed.
+	Type string `json:"type"`
+	// Label is the human-readable name shown in the node palette.
+	Label string `json:"label"`
+	// ConfigSchema is a JSON Schema describing the node's config shape, used
+	// by the frontend's generic config-form renderer. Plugins wanting a
+	// richer custom UI can additionally register a component at the
+	// "automation.node.config" frontend extension point, keyed by Type.
+	ConfigSchema json.RawMessage `json:"configSchema,omitempty"`
+	// EventTopic is the event topic that sources this trigger — only
+	// meaningful for entries in AutomationManifest.Triggers. The engine
+	// matches on topic alone (no WASM call needed); a plugin wanting
+	// per-instance refinement beyond "this topic fired" contributes a
+	// Condition node instead, placed right after the trigger in the graph.
+	EventTopic string `json:"eventTopic,omitempty"`
+}
+
+// validate enforces that every declared node Type is namespaced under the
+// plugin's own ID, mirroring CustomPermission's namespacing rule — a node
+// type string is its own registry key, so collisions here are exactly as
+// dangerous as a CustomPermission key collision.
+func (a *AutomationManifest) validate(pluginID string) error {
+	namespace := pluginKeyNamespace(pluginID)
+	prefix := namespace + "."
+	checkType := func(kind, nodeType string) error {
+		if nodeType == "" {
+			return fmt.Errorf("automation.%s: type is required", kind)
+		}
+		if !strings.HasPrefix(nodeType, prefix) {
+			return fmt.Errorf("automation.%s: type %q must be namespaced under %q (expected prefix %q)", kind, nodeType, pluginID, prefix)
+		}
+		return nil
+	}
+	for _, t := range a.Triggers {
+		if err := checkType("triggers", t.Type); err != nil {
+			return err
+		}
+		if t.EventTopic == "" {
+			return fmt.Errorf("automation.triggers: %q requires an eventTopic", t.Type)
+		}
+	}
+	for _, c := range a.Conditions {
+		if err := checkType("conditions", c.Type); err != nil {
+			return err
+		}
+	}
+	for _, act := range a.Actions {
+		if err := checkType("actions", act.Type); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -128,6 +217,12 @@ type MCPManifest struct {
 	// The module must be a Node.js-compatible ESM bundle that exports a
 	// PluginMCPEntry as its default export (see @paca-ai/plugin-sdk-mcp).
 	RemoteEntryURL string `json:"remoteEntryUrl"`
+	// ToolContextHooks lists core tool IDs (e.g. "get_task") this plugin's
+	// getToolContext can contribute to. The MCP server only calls into a
+	// plugin for a given tool if that tool ID is declared here — this is
+	// what lets the host skip plugins that have no interest in a given
+	// tool call instead of invoking every loaded plugin on every call.
+	ToolContextHooks []string `json:"toolContextHooks,omitempty"`
 }
 
 // SkillsManifest describes the Agent Skills a plugin contributes. When

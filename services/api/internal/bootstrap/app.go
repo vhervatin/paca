@@ -13,6 +13,10 @@ import (
 
 	"database/sql"
 
+	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/Paca-AI/api/internal/config"
 	globalroledom "github.com/Paca-AI/api/internal/domain/globalrole"
 	userdom "github.com/Paca-AI/api/internal/domain/user"
@@ -31,22 +35,20 @@ import (
 	apikeysvc "github.com/Paca-AI/api/internal/service/apikey"
 	attachmentsvc "github.com/Paca-AI/api/internal/service/attachment"
 	authsvc "github.com/Paca-AI/api/internal/service/auth"
+	automationsvc "github.com/Paca-AI/api/internal/service/automation"
 	docsvc "github.com/Paca-AI/api/internal/service/doc"
 	globalrolesvc "github.com/Paca-AI/api/internal/service/globalrole"
 	notificationsvc "github.com/Paca-AI/api/internal/service/notification"
 	pluginsvc "github.com/Paca-AI/api/internal/service/plugin"
 	projectsvc "github.com/Paca-AI/api/internal/service/project"
+	settingssvc "github.com/Paca-AI/api/internal/service/settings"
 	sprintsvc "github.com/Paca-AI/api/internal/service/sprint"
 	tasksvc "github.com/Paca-AI/api/internal/service/task"
 	usersvc "github.com/Paca-AI/api/internal/service/user"
-	workflowsvc "github.com/Paca-AI/api/internal/service/workflow"
 	"github.com/Paca-AI/api/internal/transport/http/handler"
 	"github.com/Paca-AI/api/internal/transport/http/router"
 	"github.com/Paca-AI/api/internal/worker"
 	"github.com/Paca-AI/api/migrations"
-	"github.com/google/uuid"
-	"github.com/jmoiron/sqlx"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // agentBotUserID is the fixed UUID of the built-in agent bot user seeded on
@@ -64,7 +66,10 @@ type App struct {
 	docActivityConsumer  *worker.DocActivityConsumer
 	notificationConsumer *worker.NotificationConsumer
 	pluginEventConsumer  *worker.PluginEventConsumer
-	workflowConsumer     *worker.WorkflowConsumer
+	automationConsumer   *worker.AutomationConsumer
+	dueDateScheduler     *worker.DueDateScheduler
+	cronScheduler        *worker.CronScheduler
+	waitScheduler        *worker.WaitScheduler
 	log                  *slog.Logger
 }
 
@@ -106,14 +111,15 @@ func New(cfg *config.Config) (*App, error) {
 	docRepo := pgRepo.NewDocumentRepository(db)
 	refreshStore := redisRepo.NewRefreshTokenStore(redisClient)
 	pluginRepo := pgRepo.NewPluginRepository(db)
-	rawWorkflowRepo := pgRepo.NewWorkflowRepository(db)
-	// Wraps rawWorkflowRepo with a cache for status-rule reads, invalidated
-	// on writes — shared between workflowService and workflowConsumer below
-	// so a rule edited via the API is visible to the very next automation
-	// event. rawWorkflowRepo itself is kept around only for
-	// StatusUsedByWorkflow, a Postgres-specific check outside the
-	// workflowdom.Repository interface this decorator implements.
-	workflowRepo := workflowsvc.NewCachedRepository(rawWorkflowRepo, cacheStore, cfg.Cache.ConfigTTL, log)
+	settingsRepo := pgRepo.NewSettingsRepository(db)
+	rawAutomationRepo := pgRepo.NewAutomationRepository(db)
+	// Wraps rawAutomationRepo with a cache for graph reads, invalidated on
+	// writes — shared between automationService and automationConsumer
+	// below so a node/edge edited via the API is visible to the very next
+	// automation event. rawAutomationRepo itself is kept around only for
+	// StatusUsedByAutomation, a Postgres-specific check outside the
+	// automationdom.Repository interface this decorator implements.
+	automationRepo := automationsvc.NewCachedRepository(rawAutomationRepo, cacheStore, cfg.Cache.ConfigTTL, log)
 
 	// --- Schema migration ---------------------------------------------------
 	// All statements use CREATE TABLE IF NOT EXISTS / INSERT … ON CONFLICT so
@@ -139,14 +145,16 @@ func New(cfg *config.Config) (*App, error) {
 	// --- Services -----------------------------------------------------------
 	authService := authsvc.New(userRepo, tokenManager, refreshStore, cfg.JWT.RefreshTTL, cfg.JWT.RefreshSessionTTL)
 	userService := usersvc.New(userRepo, permissionStore, globalRoleRepo)
-	globalRoleService := globalrolesvc.NewCachedService(globalrolesvc.New(globalRoleRepo), cacheStore, cfg.Cache.ConfigTTL, log)
-	projectService := projectsvc.NewCachedService(projectsvc.New(projectRepo, taskRepo), cacheStore, cfg.Cache.ProjectTTL, cfg.Cache.ConfigTTL, log)
-	taskService := tasksvc.NewCachedService(tasksvc.New(taskRepo).WithWorkflowStatusChecker(rawWorkflowRepo), cacheStore, cfg.Cache.ConfigTTL, log)
+	agentRepo := pgRepo.NewAgentRepository(db)
+	globalRoleService := globalrolesvc.NewCachedService(globalrolesvc.New(globalRoleRepo, agentRepo), cacheStore, cfg.Cache.ConfigTTL, log)
+	projectServiceBase := projectsvc.New(projectRepo, taskRepo, agentRepo)
+	projectService := projectsvc.NewCachedService(projectServiceBase, cacheStore, cfg.Cache.ProjectTTL, cfg.Cache.ConfigTTL, log)
+	taskService := tasksvc.NewCachedService(tasksvc.New(taskRepo).WithAutomationStatusChecker(rawAutomationRepo), cacheStore, cfg.Cache.ConfigTTL, log)
 	sprintService := sprintsvc.NewCachedSprintService(sprintsvc.New(sprintRepo, taskRepo, publisher), cacheStore, cfg.Cache.SprintTTL, log)
 	viewService := sprintsvc.NewCachedViewService(sprintsvc.NewViewService(viewRepo, publisher), cacheStore, cfg.Cache.SprintTTL, log)
 	notificationService := notificationsvc.New(notificationRepo, projectRepo, publisher)
-	agentRepo := pgRepo.NewAgentRepository(db)
 	agentService := agentsvc.New(agentRepo, projectService, publisher, pluginRepo)
+	settingsService := settingssvc.New(settingsRepo)
 	if cfg.Security.EncryptionKey != "" {
 		keyBytes, hexErr := secret.DecodeHexKey(cfg.Security.EncryptionKey)
 		if hexErr != nil {
@@ -176,8 +184,11 @@ func New(cfg *config.Config) (*App, error) {
 	docActivityService := docsvc.NewActivityService(docRepo, projectRepo, publisher).
 		WithNotificationService(notificationService)
 	docActivityConsumer := worker.NewDocActivityConsumer(redisClient, docRepo, projectRepo, log)
-	workflowService := workflowsvc.New(workflowRepo, taskRepo, projectRepo, publisher)
-	workflowConsumer := worker.NewWorkflowConsumer(redisClient, workflowRepo, taskRepo, taskService, activityService, publisher, log)
+	automationService := automationsvc.New(automationRepo, taskRepo, projectRepo, publisher)
+	automationConsumer := worker.NewAutomationConsumer(redisClient, automationRepo, taskRepo, taskService, activityService, publisher, log)
+	dueDateScheduler := worker.NewDueDateScheduler(redisClient, automationConsumer, log)
+	cronScheduler := worker.NewCronScheduler(redisClient, automationConsumer, log)
+	waitScheduler := worker.NewWaitScheduler(redisClient, automationConsumer, log)
 
 	// Object storage — defaults to MinIO; switches to AWS S3 when STORAGE_PROVIDER=s3.
 	storageClient, err := storage.NewS3Client(context.Background(), storage.S3Config{
@@ -200,6 +211,17 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	attachmentService := attachmentsvc.New(attachmentRepo, attachmentsvc.NewTaskOwnerChecker(taskRepo), storageClient, cfg.Storage.Bucket)
+	userService = userService.WithAvatarService(attachmentService)
+	agentService = agentService.WithAvatarService(attachmentService)
+	// Unlike userService/agentService above, this return value isn't
+	// reassigned: projectService (the cached wrapper built from
+	// projectServiceBase back at its construction) already holds this same
+	// *Service pointer, and WithAvatarService mutates it in place, so the
+	// config takes effect through projectService too. Reassigning here would
+	// itself go unused (and trip staticcheck's SA4006) since projectServiceBase
+	// is never read again after this line.
+	projectServiceBase.WithAvatarService(attachmentService)
+	settingsService.WithAvatarService(attachmentService)
 
 	// --- API Key management -------------------------------------------------
 	apiKeyRepo := pgRepo.NewAPIKeyRepository(db)
@@ -209,6 +231,11 @@ func New(cfg *config.Config) (*App, error) {
 	if cfg.Security.AgentAPIKey != "" {
 		apiKeyService.WithAgentKey(cfg.Security.AgentAPIKey, agentBotUserID)
 	}
+	// Wires the DB-backed X-Agent-ID / X-Actor-User-ID verification the
+	// authn middleware needs (middleware.AgentIdentityVerifier) — without
+	// this, agentRepo stays nil on apiKeyService and every agent/actor claim
+	// fails closed (see apikeysvc.Service.FindAgentByID's nil-store branch).
+	apiKeyService.WithAgentIdentityStore(agentRepo)
 
 	// --- Plugin infrastructure ----------------------------------------------
 	// sqlx.DB embeds *sql.DB; plugin infrastructure uses the raw driver interface.
@@ -247,7 +274,7 @@ func New(cfg *config.Config) (*App, error) {
 	installerHTTPClient := &http.Client{Timeout: cfg.Plugins.MarketplaceTimeout}
 	pluginInstaller := pluginrt.NewInstaller(cfg.Plugins.WASMDir, cfg.Plugins.FrontendDir, cfg.Plugins.MCPDir, cfg.Plugins.SkillsDir, installerHTTPClient, log)
 
-	pluginService := pluginsvc.New(pluginRepo)
+	pluginService := pluginsvc.New(pluginRepo).WithHostVersion(cfg.Release.Version)
 
 	// Load all enabled plugins from the DB into the WASM runtime.
 	installedPlugins, err := pluginService.ListPlugins(context.Background())
@@ -267,6 +294,28 @@ func New(cfg *config.Config) (*App, error) {
 		log.Error("plugin: some plugins failed to load", "error", err)
 	}
 
+	// Wire the plugin runtime into the automation engine so
+	// plugin-contributed trigger/condition/action node types validate and
+	// execute: automationService.WithPluginNodeResolver gates node
+	// creation/update (rejecting unrecognized types), automationConsumer.
+	// WithPluginRuntime dispatches plugin condition/action nodes mid-walk via
+	// the same EvaluateCondition/RunAction WASM bridge HandleRequest uses.
+	automationService.WithPluginNodeResolver(pluginRuntime)
+	automationConsumer.WithPluginRuntime(pluginRuntime)
+	// trigger_ai_agent starts an agent conversation without ever touching the
+	// task's assignee: task-bound, it dispatches straight to
+	// agentService.TriggerTaskAssigned; task-less (a cron/api_trigger/
+	// predecessor_done trigger with no target task configured) it instead
+	// fires a standalone message via agentService.TriggerDirectMessage.
+	// Either way, projectRepo resolves the configured member to its AgentID.
+	automationConsumer.WithAgentMessaging(projectRepo, agentService)
+	// update_sprint/complete_sprint dispatch through sprintService (not
+	// sprintRepo directly) so they get the same validation/event-publishing
+	// side effects as an HTTP-driven change; sprintRepo alone backs
+	// resolveSprintFor's task.SprintID lookup for a Task-triggered walk
+	// reaching down into its own sprint.
+	automationConsumer.WithSprintService(sprintRepo, sprintService)
+
 	// Forward every recorded activity (task created/updated/deleted, comments,
 	// links, etc.) to subscribed plugins. ActivitySvc appends to the
 	// StreamPluginEvents Valkey stream; this consumer reads it back and
@@ -280,9 +329,11 @@ func New(cfg *config.Config) (*App, error) {
 
 	agentHandler := handler.NewAgentHandler(agentService, cfg.AIAgentURL, cfg.AIAgentInternalKey, cfg.Server.PublicURL).
 		WithActivityRecorder(activityService).
-		WithMemberRepo(projectRepo)
+		WithMemberRepo(projectRepo).
+		WithGlobalPermissionReader(permissionStore).
+		WithAvatarService(attachmentService)
 	convHandler := handler.NewConversationHandler(agentService)
-	workflowHandler := handler.NewWorkflowHandler(workflowService)
+	automationHandler := handler.NewAutomationHandler(automationService).WithPluginRuntime(pluginRuntime)
 
 	// --- Handlers -----------------------------------------------------------
 	cookieCfg := handler.CookieConfig{
@@ -299,33 +350,36 @@ func New(cfg *config.Config) (*App, error) {
 		Health:               handler.NewHealthHandler(),
 		Version:              handler.NewVersionHandler(cfg.Release, cacheStore, log),
 		Auth:                 handler.NewAuthHandler(authService, cookieCfg),
-		User:                 handler.NewUserHandler(userService, authService),
+		User:                 handler.NewUserHandler(userService, authService).WithAvatarService(attachmentService),
 		GlobalRole:           handler.NewGlobalRoleHandler(globalRoleService),
 		ProjectVisibilitySvc: projectService,
 		Project: handler.NewProjectHandler(
 			projectService,
 			authorizer,
 			handler.WithProjectDefaultViews(viewService, taskService),
-			handler.WithProjectStatsServices(taskService, agentService),
+			handler.WithProjectStatsServices(taskService, userService),
+			handler.WithProjectAvatarService(attachmentService),
 		),
 		Task: handler.NewTaskHandler(taskService, viewService, activityService,
 			handler.WithTaskPublisher(publisher),
-			handler.WithTaskAssignedProjectService(projectService)),
+			handler.WithTaskAssignedProjectService(projectService),
+			handler.WithTaskAvatarService(attachmentService)),
 		Sprint: handler.NewSprintHandler(sprintService, viewService,
 			handler.WithSprintDefaultTaskTypes(taskService),
 			handler.WithSprintDefaultTaskStatuses(taskService),
 		),
 		View:               handler.NewViewHandler(viewService),
 		Attachment:         handler.NewAttachmentHandler(attachmentService),
-		Document:           handler.NewDocumentHandler(docService, docActivityService),
+		Document:           handler.NewDocumentHandler(docService, docActivityService).WithDocAvatarService(attachmentService),
 		DocFile:            handler.NewDocFileHandler(attachmentService),
-		Notification:       handler.NewNotificationHandler(notificationService),
+		Notification:       handler.NewNotificationHandler(notificationService, handler.WithNotificationAvatarService(attachmentService)),
 		APIKey:             handler.NewAPIKeyHandler(apiKeyService),
 		Skills:             handler.NewSkillsHandler(pluginService, cfg.Plugins.SkillsDir),
 		Plugin:             pluginHandler,
 		Agent:              agentHandler,
 		Conversation:       convHandler,
-		Workflow:           workflowHandler,
+		Automation:         automationHandler,
+		Settings:           handler.NewSettingsHandler(settingsService).WithAvatarService(attachmentService),
 		Log:                log,
 		CORSAllowedOrigins: cfg.Server.CORSAllowedOrigins,
 	}
@@ -340,7 +394,7 @@ func New(cfg *config.Config) (*App, error) {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	return &App{server: srv, publisher: publisher, activityConsumer: activityConsumer, docActivityConsumer: docActivityConsumer, notificationConsumer: notificationConsumer, pluginEventConsumer: pluginEventConsumer, workflowConsumer: workflowConsumer, log: log}, nil
+	return &App{server: srv, publisher: publisher, activityConsumer: activityConsumer, docActivityConsumer: docActivityConsumer, notificationConsumer: notificationConsumer, pluginEventConsumer: pluginEventConsumer, automationConsumer: automationConsumer, dueDateScheduler: dueDateScheduler, cronScheduler: cronScheduler, waitScheduler: waitScheduler, log: log}, nil
 }
 
 // Run starts the activity consumers and the HTTP server.
@@ -351,7 +405,10 @@ func (a *App) Run() error {
 	a.docActivityConsumer.Start(context.Background())
 	a.notificationConsumer.Start(context.Background())
 	a.pluginEventConsumer.Start(context.Background())
-	a.workflowConsumer.Start(context.Background())
+	a.automationConsumer.Start(context.Background())
+	a.dueDateScheduler.Start(context.Background())
+	a.cronScheduler.Start(context.Background())
+	a.waitScheduler.Start(context.Background())
 	return a.server.ListenAndServe()
 }
 
@@ -362,7 +419,10 @@ func (a *App) Shutdown(ctx context.Context) error {
 	a.docActivityConsumer.Stop()
 	a.notificationConsumer.Stop()
 	a.pluginEventConsumer.Stop()
-	a.workflowConsumer.Stop()
+	a.automationConsumer.Stop()
+	a.dueDateScheduler.Stop()
+	a.cronScheduler.Stop()
+	a.waitScheduler.Stop()
 	if a.publisher != nil {
 		a.publisher.Close()
 	}

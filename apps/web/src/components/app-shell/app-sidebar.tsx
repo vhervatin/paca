@@ -9,6 +9,7 @@ import {
 	ArrowLeft,
 	BookOpen,
 	Bot,
+	CheckCircle2,
 	ChevronDown,
 	ChevronRight,
 	File,
@@ -43,6 +44,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { EntityAvatarContent } from "@/components/shared/entity-avatar";
 import { Badge } from "@/components/ui/badge";
 import {
 	DropdownMenu,
@@ -69,6 +71,7 @@ import {
 	SidebarSeparator,
 	useSidebar,
 } from "@/components/ui/sidebar";
+import { useBranding } from "@/hooks/use-branding";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import type { ThemeMode } from "@/hooks/use-theme-mode";
@@ -92,9 +95,21 @@ import type { PluginNavRegistration } from "@/lib/plugin-api";
 import { ExtensionPoint } from "@/lib/plugins/extension-point";
 import { resolvePluginIcon } from "@/lib/plugins/icon-resolver";
 import { usePluginRegistry } from "@/lib/plugins/registry";
-import { projectQueryOptions, projectsQueryOptions } from "@/lib/project-api";
+import {
+	getProjectInitials,
+	projectQueryOptions,
+	projectsQueryOptions,
+} from "@/lib/project-api";
 import { cn } from "@/lib/utils";
 import { UserMenu } from "./user-menu";
+
+// Shared by every inactive nav item (top-level, project, plugin, and
+// interaction rows) so the sidebar's neutral-grey text color — deliberately
+// not tracking --primary, since that now follows the admin-configurable
+// brand color — stays consistent without repeating this string at each of
+// the many call sites below.
+const NAV_ITEM_INACTIVE_CLASS =
+	"text-sidebar-foreground/80 dark:text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground";
 
 // ── Docs Tree ─────────────────────────────────────────────────────────────────
 
@@ -728,7 +743,7 @@ function ProjectSwitcher({
 	const projects = projectsResult?.items ?? [];
 	const label = currentProject?.name ?? t("projectSwitcher.projects");
 	const initials = currentProject?.name
-		? currentProject.name.slice(0, 2).toUpperCase()
+		? getProjectInitials(currentProject.name)
 		: null;
 
 	const { data: user } = useQuery(currentUserOptionalQueryOptions);
@@ -737,7 +752,9 @@ function ProjectSwitcher({
 		return (
 			<div className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm font-medium text-sidebar-foreground/80 select-none">
 				<div className="flex size-5 shrink-0 items-center justify-center rounded-md bg-primary/15 text-primary text-xs font-bold">
-					{initials ?? <FolderKanban className="size-3" />}
+					<EntityAvatarContent avatarUrl={currentProject?.avatar_thumb_url}>
+						{initials ?? <FolderKanban className="size-3" />}
+					</EntityAvatarContent>
 				</div>
 				<span className="flex-1 truncate text-left">{label}</span>
 			</div>
@@ -755,7 +772,9 @@ function ProjectSwitcher({
 				)}
 			>
 				<div className="flex size-5 shrink-0 items-center justify-center rounded-md bg-primary/15 text-primary text-xs font-bold">
-					{initials ?? <FolderKanban className="size-3" />}
+					<EntityAvatarContent avatarUrl={currentProject?.avatar_thumb_url}>
+						{initials ?? <FolderKanban className="size-3" />}
+					</EntityAvatarContent>
 				</div>
 				<span className="flex-1 truncate text-left">{label}</span>
 				<ChevronDown
@@ -786,7 +805,9 @@ function ProjectSwitcher({
 								}
 							>
 								<div className="flex size-5 shrink-0 items-center justify-center rounded bg-primary/15 text-primary text-xs font-bold">
-									{p.name.slice(0, 2).toUpperCase()}
+									<EntityAvatarContent avatarUrl={p.avatar_thumb_url}>
+										{getProjectInitials(p.name)}
+									</EntityAvatarContent>
 								</div>
 								<span className="truncate">{p.name}</span>
 								{p.id === currentProjectId && (
@@ -849,7 +870,7 @@ function NavItem({
 					"relative transition-all duration-150",
 					isActive
 						? "bg-primary/10 text-primary font-medium before:absolute before:left-0 before:inset-y-2 before:w-0.75 before:rounded-full before:bg-primary"
-						: "hover:bg-sidebar-accent/60",
+						: NAV_ITEM_INACTIVE_CLASS,
 				)}
 			>
 				<Icon className="size-4" />
@@ -981,7 +1002,7 @@ function ProjectNavItems({
 											"relative transition-all duration-150",
 											isActive
 												? "bg-primary/10 text-primary font-medium before:absolute before:left-0 before:inset-y-2 before:w-0.75 before:rounded-full before:bg-primary"
-												: "hover:bg-sidebar-accent/60",
+												: NAV_ITEM_INACTIVE_CLASS,
 										)}
 									>
 										<Icon className="size-4" />
@@ -1032,7 +1053,7 @@ function PluginProjectPages({ projectId }: { projectId: string }) {
 										"relative transition-all duration-150",
 										isActive
 											? "bg-primary/10 text-primary font-medium before:absolute before:left-0 before:inset-y-2 before:w-0.75 before:rounded-full before:bg-primary"
-											: "hover:bg-sidebar-accent/60",
+											: NAV_ITEM_INACTIVE_CLASS,
 									)}
 								>
 									<Icon className="size-4" />
@@ -1110,6 +1131,34 @@ function ProjectInteractionsSection({
 	const [dragOverInteractionId, setDragOverInteractionId] = useState<
 		string | null
 	>(null);
+	// Collapsed by default; persisted per-project once the user makes a choice.
+	const [completedSprintsCollapsed, setCompletedSprintsCollapsed] = useState(
+		() => {
+			try {
+				const stored = localStorage.getItem(
+					`paca:sidebar-completed-sprints-collapsed:${projectId}`,
+				);
+				return stored === null ? true : stored === "true";
+			} catch {
+				return true;
+			}
+		},
+	);
+
+	const toggleCompletedSprints = () => {
+		setCompletedSprintsCollapsed((prev) => {
+			const next = !prev;
+			try {
+				localStorage.setItem(
+					`paca:sidebar-completed-sprints-collapsed:${projectId}`,
+					String(next),
+				);
+			} catch {
+				/* ignore */
+			}
+			return next;
+		});
+	};
 
 	// Clear the drop-target highlight whenever any drag ends (covers drag-cancel
 	// and mouse-release outside a valid target, where dragleave may not fire).
@@ -1186,6 +1235,10 @@ function ProjectInteractionsSection({
 		.filter((s) => s.status === "active")
 		.sort((a, b) => a.name.localeCompare(b.name));
 
+	const completedSprints = sprints
+		.filter((s) => s.status === "completed")
+		.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+
 	const backlogHref = `/projects/${projectId}/interactions/backlog`;
 	const isBacklogActive = location.startsWith(backlogHref);
 
@@ -1235,7 +1288,7 @@ function ProjectInteractionsSection({
 									"relative transition-all duration-150",
 									isTimelineActive
 										? "bg-primary/10 text-primary font-medium before:absolute before:left-0 before:inset-y-2 before:w-0.75 before:rounded-full before:bg-primary"
-										: "hover:bg-sidebar-accent/60",
+										: NAV_ITEM_INACTIVE_CLASS,
 								)}
 							>
 								<GanttChart className="size-4" />
@@ -1256,7 +1309,7 @@ function ProjectInteractionsSection({
 									"relative transition-all duration-150",
 									isBacklogActive
 										? "bg-primary/10 text-primary font-medium before:absolute before:left-0 before:inset-y-2 before:w-0.75 before:rounded-full before:bg-primary"
-										: "hover:bg-sidebar-accent/60",
+										: NAV_ITEM_INACTIVE_CLASS,
 									dragOverInteractionId === "backlog" &&
 										"ring-2 ring-primary/40 bg-primary/5 text-primary",
 								)}
@@ -1284,7 +1337,7 @@ function ProjectInteractionsSection({
 											"relative transition-all duration-150",
 											isActive
 												? "bg-primary/10 text-primary font-medium before:absolute before:left-0 before:inset-y-2 before:w-0.75 before:rounded-full before:bg-primary"
-												: "hover:bg-sidebar-accent/60",
+												: NAV_ITEM_INACTIVE_CLASS,
 											dragOverInteractionId === sprint.id &&
 												"ring-2 ring-primary/40 bg-primary/5 text-primary",
 										)}
@@ -1295,6 +1348,54 @@ function ProjectInteractionsSection({
 								</SidebarMenuItem>
 							);
 						})}
+						{/* Closed sprints (collapsible) */}
+						{completedSprints.length > 0 && (
+							<>
+								<SidebarMenuItem>
+									<SidebarMenuButton
+										tooltip={t("interactions.completedSprints")}
+										onClick={toggleCompletedSprints}
+										className={NAV_ITEM_INACTIVE_CLASS}
+									>
+										<ChevronRight
+											className={cn(
+												"size-3.5 shrink-0 transition-transform duration-200 text-sidebar-foreground/40",
+												!completedSprintsCollapsed && "rotate-90",
+											)}
+										/>
+										<span className="flex-1 truncate text-xs font-medium">
+											{t("interactions.completedSprints")}
+										</span>
+										<span className="rounded-full bg-sidebar-accent/60 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums">
+											{completedSprints.length}
+										</span>
+									</SidebarMenuButton>
+								</SidebarMenuItem>
+								{!completedSprintsCollapsed &&
+									completedSprints.map((sprint) => {
+										const sprintHref = `/projects/${projectId}/interactions/sprints/${sprint.id}`;
+										const isActive = location.startsWith(sprintHref);
+										return (
+											<SidebarMenuItem key={sprint.id}>
+												<SidebarMenuButton
+													isActive={isActive}
+													tooltip={sprint.name}
+													render={<Link to={sprintHref} />}
+													className={cn(
+														"relative transition-all duration-150",
+														isActive
+															? "bg-primary/10 text-primary font-medium before:absolute before:left-0 before:inset-y-2 before:w-0.75 before:rounded-full before:bg-primary"
+															: NAV_ITEM_INACTIVE_CLASS,
+													)}
+												>
+													<CheckCircle2 className="size-4" />
+													<span className="flex-1 truncate">{sprint.name}</span>
+												</SidebarMenuButton>
+											</SidebarMenuItem>
+										);
+									})}
+							</>
+						)}
 					</SidebarMenu>
 				</SidebarGroupContent>
 			)}
@@ -1366,6 +1467,9 @@ export function AppSidebar() {
 	const { projectId } = useParams({ strict: false });
 	const { data: user } = useQuery(currentUserOptionalQueryOptions);
 	const { getNavItems } = usePluginRegistry();
+	const branding = useBranding();
+	const logoUrl = branding?.logo_thumb_url ?? branding?.logo_url;
+	const brandName = branding?.brand_name;
 
 	const canAccessGlobalRoles =
 		hasPermission("global_roles.read") || hasPermission("global_roles.write");
@@ -1373,7 +1477,12 @@ export function AppSidebar() {
 	const canAccessUsers =
 		hasPermission("users.read") || hasPermission("users.write");
 
+	const canAccessGlobalAgents =
+		hasPermission("agents.read") || hasPermission("agents.write");
+
 	const canAccessPlugins = hasPermission("users.write");
+
+	const canAccessSettings = hasPermission("settings.write");
 
 	const canCreateProject = hasPermission("projects.create");
 
@@ -1390,8 +1499,14 @@ export function AppSidebar() {
 	const showAdminSection =
 		canAccessGlobalRoles ||
 		canAccessUsers ||
+		canAccessGlobalAgents ||
 		canAccessPlugins ||
+		canAccessSettings ||
 		adminPluginNavItems.length > 0;
+	// Plugin-contributed admin pages get their own sidebar section, separate
+	// from core workspace administration — the "Plugins" management link
+	// itself (canAccessPlugins) stays in Administration.
+	const showPluginsSection = adminPluginNavItems.length > 0;
 	const isProjectContext = !!projectId;
 	const isAnonymous = !user;
 
@@ -1404,9 +1519,10 @@ export function AppSidebar() {
 						<Link to="/home">
 							<img
 								src={
-									resolvedMode === "dark"
+									logoUrl ??
+									(resolvedMode === "dark"
 										? "/paca-logo-dark.svg"
-										: "/paca-logo.svg"
+										: "/paca-logo.svg")
 								}
 								alt={t("brand.logoAlt")}
 								className="size-8 shrink-0"
@@ -1415,16 +1531,17 @@ export function AppSidebar() {
 					) : (
 						<img
 							src={
-								resolvedMode === "dark"
+								logoUrl ??
+								(resolvedMode === "dark"
 									? "/paca-logo-dark.svg"
-									: "/paca-logo.svg"
+									: "/paca-logo.svg")
 							}
 							alt={t("brand.logoAlt")}
 							className="size-8 shrink-0"
 						/>
 					)}
 					<span className="font-[Syne] font-bold text-base tracking-tight text-sidebar-foreground group-data-[collapsible=icon]:hidden">
-						paca
+						{brandName ?? "paca"}
 					</span>
 					<span
 						aria-hidden
@@ -1474,6 +1591,11 @@ export function AppSidebar() {
 								<SidebarGroupContent>
 									<SidebarMenu>
 										<NavItem to="/home" icon={Home} label={t("nav.home")} />
+										<NavItem
+											to="/conversations"
+											icon={MessageSquare}
+											label={t("nav.conversations")}
+										/>
 									</SidebarMenu>
 								</SidebarGroupContent>
 							</SidebarGroup>
@@ -1504,6 +1626,13 @@ export function AppSidebar() {
 													label={t("nav.users")}
 												/>
 											) : null}
+											{canAccessGlobalAgents ? (
+												<NavItem
+													to="/admin/agents"
+													icon={Bot}
+													label={t("nav.agents")}
+												/>
+											) : null}
 											{canAccessPlugins ? (
 												<NavItem
 													to="/admin/plugins"
@@ -1512,11 +1641,32 @@ export function AppSidebar() {
 													exact
 												/>
 											) : null}
+											{canAccessSettings ? (
+												<NavItem
+													to="/admin/settings"
+													icon={Settings}
+													label={t("nav.settings")}
+												/>
+											) : null}
 											<NavItem
 												to="/admin/changelog"
 												icon={Sparkles}
 												label={t("nav.changelog")}
 											/>
+										</SidebarMenu>
+									</SidebarGroupContent>
+								</SidebarGroup>
+							</>
+						) : null}
+						{/* Plugin-contributed admin pages get their own sidebar section,
+						   separate from core workspace administration. */}
+						{showPluginsSection ? (
+							<>
+								<SidebarSeparator />
+								<SidebarGroup>
+									<SidebarGroupLabel>{t("nav.plugins")}</SidebarGroupLabel>
+									<SidebarGroupContent>
+										<SidebarMenu>
 											<PluginAdminPages navItems={adminPluginNavItems} />
 										</SidebarMenu>
 									</SidebarGroupContent>

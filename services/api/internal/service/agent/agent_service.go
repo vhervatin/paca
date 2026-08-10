@@ -6,17 +6,20 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	agentdom "github.com/Paca-AI/api/internal/domain/agent"
+	attachmentdom "github.com/Paca-AI/api/internal/domain/attachment"
 	plugindom "github.com/Paca-AI/api/internal/domain/plugin"
 	"github.com/Paca-AI/api/internal/events"
 	"github.com/Paca-AI/api/internal/platform/messaging"
 	"github.com/Paca-AI/api/internal/platform/secret"
-	"github.com/google/uuid"
 )
 
 // projectMemberWriter is the minimal interface this service needs to bust the
@@ -37,6 +40,7 @@ type Service struct {
 	publisher  *messaging.Publisher
 	pluginRepo pluginFinder
 	encryptor  *secret.Encryptor
+	avatarSvc  attachmentdom.AvatarService
 }
 
 // New returns a configured agent service.
@@ -47,6 +51,12 @@ func New(repo agentdom.Repository, projRepo projectMemberWriter, publisher *mess
 // WithEncryptor configures AES-256-GCM encryption for the LLM API key stored at rest.
 func (s *Service) WithEncryptor(enc *secret.Encryptor) *Service {
 	s.encryptor = enc
+	return s
+}
+
+// WithAvatarService configures avatar upload support.
+func (s *Service) WithAvatarService(svc attachmentdom.AvatarService) *Service {
+	s.avatarSvc = svc
 	return s
 }
 
@@ -62,21 +72,19 @@ func (s *Service) encryptKey(plaintext string) (string, error) {
 // Agents
 // -------------------------------------------------------------------------
 
-// ListAgents returns all agents in the given project.
-func (s *Service) ListAgents(ctx context.Context, projectID uuid.UUID) ([]*agentdom.Agent, error) {
-	return s.repo.ListAgents(ctx, projectID)
+// ListAgents returns agents visible in the given project, optionally
+// narrowed to a single AgentScope. See AgentRepository.ListAgents.
+func (s *Service) ListAgents(ctx context.Context, projectID uuid.UUID, scope agentdom.AgentScope) ([]*agentdom.Agent, error) {
+	return s.repo.ListAgents(ctx, projectID, scope)
 }
 
-// GetAgent returns a single agent after verifying project ownership.
+// GetAgent returns a single agent visible in projectID — its own
+// project-scoped agent, or a global agent currently invited into the
+// project (see FindVisibleAgentInProject) — so a project's agent detail
+// page resolves the same agents its list view shows, rather than 404ing on
+// an invited global agent.
 func (s *Service) GetAgent(ctx context.Context, projectID, agentID uuid.UUID) (*agentdom.Agent, error) {
-	a, err := s.repo.FindAgentByID(ctx, agentID)
-	if err != nil {
-		return nil, err
-	}
-	if a.ProjectID != projectID {
-		return nil, agentdom.ErrAgentNotFound
-	}
-	return a, nil
+	return s.repo.FindVisibleAgentInProject(ctx, projectID, agentID)
 }
 
 // CreateAgent validates input, creates the agent, and sets up project membership.
@@ -105,19 +113,16 @@ func (s *Service) CreateAgent(ctx context.Context, projectID uuid.UUID, in agent
 
 	now := time.Now()
 	a := &agentdom.Agent{
-		ID:                uuid.New(),
-		ProjectID:         projectID,
-		Name:              name,
-		Handle:            handle,
-		AgentType:         agentType,
-		SystemPrompt:      in.SystemPrompt,
-		MaxIterations:     in.MaxIterations,
-		TimeoutMinutes:    in.TimeoutMinutes,
-		GitCommitterName:  in.GitCommitterName,
-		GitCommitterEmail: in.GitCommitterEmail,
-		CreatedBy:         in.CreatedBy,
-		CreatedAt:         now,
-		UpdatedAt:         now,
+		ID:             uuid.New(),
+		ProjectID:      projectID,
+		Name:           name,
+		Handle:         handle,
+		AgentType:      agentType,
+		MaxIterations:  in.MaxIterations,
+		TimeoutMinutes: in.TimeoutMinutes,
+		CreatedBy:      in.CreatedBy,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 
 	if agentType == agentdom.AgentTypeACP {
@@ -139,6 +144,19 @@ func (s *Service) CreateAgent(ctx context.Context, projectID uuid.UUID, in agent
 		a.LLMModel = in.LLMModel
 		a.LLMAPIKeySecret = encryptedKey
 		a.LLMBaseURL = in.LLMBaseURL
+		// System prompt and git committer identity are LLM-only (see the
+		// doc comment on Agent.SystemPrompt) — an ACP agent's local CLI
+		// owns both of these itself, so they're left unset for ACP agents
+		// rather than accepting values that would never take effect.
+		a.SystemPrompt = in.SystemPrompt
+		a.GitCommitterName = in.GitCommitterName
+		a.GitCommitterEmail = in.GitCommitterEmail
+		if a.GitCommitterName == "" {
+			a.GitCommitterName = "paca-agent"
+		}
+		if a.GitCommitterEmail == "" {
+			a.GitCommitterEmail = "280579135+paca-agent@users.noreply.github.com"
+		}
 	}
 	const maxIterationsLimit = 500
 	const defaultMaxIterations = 500
@@ -153,12 +171,6 @@ func (s *Service) CreateAgent(ctx context.Context, projectID uuid.UUID, in agent
 		a.TimeoutMinutes = 30
 	} else if a.TimeoutMinutes > timeoutMinutesLimit {
 		a.TimeoutMinutes = timeoutMinutesLimit
-	}
-	if a.GitCommitterName == "" {
-		a.GitCommitterName = "paca-agent"
-	}
-	if a.GitCommitterEmail == "" {
-		a.GitCommitterEmail = "280579135+paca-agent@users.noreply.github.com"
 	}
 
 	// Atomically create the agent and its project membership in one transaction.
@@ -202,7 +214,11 @@ func (s *Service) UpdateAgent(ctx context.Context, projectID, agentID uuid.UUID,
 	// erroring, matching CreateAgent's per-type field selection. Anything
 	// other than the explicit ACP type is treated as LLM (its default, as
 	// in CreateAgent) so an agent loaded with an unset AgentType isn't
-	// silently locked out of updating its LLM fields.
+	// silently locked out of updating its LLM fields. SystemPrompt and the
+	// git committer identity fields ride along in this same block — like
+	// the LLM fields, they're meaningless on an ACP agent (see the doc
+	// comment on Agent.SystemPrompt), so a request that sets them on one is
+	// silently ignored too.
 	if a.AgentType != agentdom.AgentTypeACP {
 		if in.LLMProvider != nil {
 			a.LLMProvider = *in.LLMProvider
@@ -220,6 +236,15 @@ func (s *Service) UpdateAgent(ctx context.Context, projectID, agentID uuid.UUID,
 		if in.LLMBaseURL != nil {
 			a.LLMBaseURL = *in.LLMBaseURL
 		}
+		if in.SystemPrompt != nil {
+			a.SystemPrompt = *in.SystemPrompt
+		}
+		if in.GitCommitterName != nil {
+			a.GitCommitterName = *in.GitCommitterName
+		}
+		if in.GitCommitterEmail != nil {
+			a.GitCommitterEmail = *in.GitCommitterEmail
+		}
 	}
 	if a.AgentType == agentdom.AgentTypeACP {
 		if in.ACPProvider != nil {
@@ -234,9 +259,6 @@ func (s *Service) UpdateAgent(ctx context.Context, projectID, agentID uuid.UUID,
 		if a.ACPProvider != nil && *a.ACPProvider == agentdom.ACPProviderCustom && len(a.ACPCommand) == 0 {
 			return nil, agentdom.ErrACPCommandRequired
 		}
-	}
-	if in.SystemPrompt != nil {
-		a.SystemPrompt = *in.SystemPrompt
 	}
 	const maxIterationsLimit = 500
 	const defaultMaxIterations = 500
@@ -259,12 +281,6 @@ func (s *Service) UpdateAgent(ctx context.Context, projectID, agentID uuid.UUID,
 			v = timeoutMinutesLimit
 		}
 		a.TimeoutMinutes = v
-	}
-	if in.GitCommitterName != nil {
-		a.GitCommitterName = *in.GitCommitterName
-	}
-	if in.GitCommitterEmail != nil {
-		a.GitCommitterEmail = *in.GitCommitterEmail
 	}
 	a.UpdatedAt = time.Now()
 
@@ -289,6 +305,267 @@ func (s *Service) DeleteAgent(ctx context.Context, projectID, agentID uuid.UUID)
 	return nil
 }
 
+// -------------------------------------------------------------------------
+// Global agents (AgentScope == AgentScopeGlobal)
+//
+// These are intentionally self-contained rather than sharing bodies with
+// CreateAgent/UpdateAgent/DeleteAgent above: the two shapes diverge in how
+// they establish project access (a project-scoped agent gets exactly one
+// project_members row at creation time; a global agent gets zero, and is
+// attached to projects later via the invite flow, see
+// project.MemberService.AddMember), and keeping them separate means the
+// existing, tested project-scoped methods are never touched by this change.
+// -------------------------------------------------------------------------
+
+// ListGlobalAgents returns all global-scope agents.
+func (s *Service) ListGlobalAgents(ctx context.Context) ([]*agentdom.Agent, error) {
+	return s.repo.ListGlobalAgents(ctx)
+}
+
+// GetGlobalAgent returns a single agent after verifying it is global-scope.
+func (s *Service) GetGlobalAgent(ctx context.Context, agentID uuid.UUID) (*agentdom.Agent, error) {
+	a, err := s.repo.FindAgentByID(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+	if a.AgentScope != agentdom.AgentScopeGlobal {
+		return nil, agentdom.ErrAgentNotFound
+	}
+	return a, nil
+}
+
+// CreateGlobalAgent validates input and creates a global-scope agent. Unlike
+// CreateAgent, no project_members row is created — the agent starts out
+// invited into zero projects.
+func (s *Service) CreateGlobalAgent(ctx context.Context, in agentdom.CreateGlobalAgentInput) (*agentdom.Agent, error) {
+	handle := strings.TrimSpace(in.Handle)
+	if handle == "" {
+		return nil, agentdom.ErrAgentHandleInvalid
+	}
+	name := strings.TrimSpace(in.Name)
+	if name == "" {
+		return nil, agentdom.ErrAgentNameInvalid
+	}
+
+	if existing, err := s.repo.FindGlobalAgentByHandle(ctx, handle); err == nil && existing != nil {
+		return nil, agentdom.ErrAgentHandleTaken
+	}
+
+	agentType := in.AgentType
+	if agentType == "" {
+		agentType = agentdom.AgentTypeLLM
+	}
+	if agentType != agentdom.AgentTypeLLM && agentType != agentdom.AgentTypeACP {
+		return nil, agentdom.ErrAgentTypeInvalid
+	}
+
+	now := time.Now()
+	a := &agentdom.Agent{
+		ID:             uuid.New(),
+		AgentScope:     agentdom.AgentScopeGlobal,
+		GlobalRoleID:   in.GlobalRoleID,
+		Name:           name,
+		Handle:         handle,
+		AgentType:      agentType,
+		MaxIterations:  in.MaxIterations,
+		TimeoutMinutes: in.TimeoutMinutes,
+		CreatedBy:      in.CreatedBy,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	if agentType == agentdom.AgentTypeACP {
+		if !agentdom.ValidACPProviders[in.ACPProvider] {
+			return nil, agentdom.ErrACPProviderInvalid
+		}
+		if in.ACPProvider == agentdom.ACPProviderCustom && len(in.ACPCommand) == 0 {
+			return nil, agentdom.ErrACPCommandRequired
+		}
+		provider := in.ACPProvider
+		a.ACPProvider = &provider
+		a.ACPCommand = in.ACPCommand
+	} else {
+		encryptedKey, err := s.encryptKey(in.LLMAPIKey)
+		if err != nil {
+			return nil, fmt.Errorf("encrypt LLM API key: %w", err)
+		}
+		a.LLMProvider = in.LLMProvider
+		a.LLMModel = in.LLMModel
+		a.LLMAPIKeySecret = encryptedKey
+		a.LLMBaseURL = in.LLMBaseURL
+		a.SystemPrompt = in.SystemPrompt
+		a.GitCommitterName = in.GitCommitterName
+		a.GitCommitterEmail = in.GitCommitterEmail
+		if a.GitCommitterName == "" {
+			a.GitCommitterName = "paca-agent"
+		}
+		if a.GitCommitterEmail == "" {
+			a.GitCommitterEmail = "280579135+paca-agent@users.noreply.github.com"
+		}
+	}
+	const maxIterationsLimit = 500
+	const defaultMaxIterations = 500
+	const timeoutMinutesLimit = 480 // 8 hours
+
+	if a.MaxIterations <= 0 {
+		a.MaxIterations = defaultMaxIterations
+	} else if a.MaxIterations > maxIterationsLimit {
+		a.MaxIterations = maxIterationsLimit
+	}
+	if a.TimeoutMinutes <= 0 {
+		a.TimeoutMinutes = 30
+	} else if a.TimeoutMinutes > timeoutMinutesLimit {
+		a.TimeoutMinutes = timeoutMinutesLimit
+	}
+
+	if err := s.repo.CreateGlobalAgent(ctx, a); err != nil {
+		return nil, fmt.Errorf("create global agent: %w", err)
+	}
+	return a, nil
+}
+
+// UpdateGlobalAgent patches mutable fields of an existing global agent,
+// including GlobalRoleID (set in.GlobalRoleID to &uuid.Nil to clear it).
+func (s *Service) UpdateGlobalAgent(ctx context.Context, agentID uuid.UUID, in agentdom.UpdateAgentInput) (*agentdom.Agent, error) {
+	a, err := s.GetGlobalAgent(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+
+	if in.Name != nil {
+		a.Name = strings.TrimSpace(*in.Name)
+	}
+	if in.Handle != nil {
+		h := strings.TrimSpace(*in.Handle)
+		if h != a.Handle {
+			if existing, err := s.repo.FindGlobalAgentByHandle(ctx, h); err == nil && existing != nil {
+				return nil, agentdom.ErrAgentHandleTaken
+			}
+			a.Handle = h
+		}
+	}
+	// See the equivalent block in UpdateAgent for why LLM/ACP fields are
+	// guarded by the agent's existing (immutable) type.
+	if a.AgentType != agentdom.AgentTypeACP {
+		if in.LLMProvider != nil {
+			a.LLMProvider = *in.LLMProvider
+		}
+		if in.LLMModel != nil {
+			a.LLMModel = *in.LLMModel
+		}
+		if in.LLMAPIKey != nil {
+			encryptedKey, err := s.encryptKey(*in.LLMAPIKey)
+			if err != nil {
+				return nil, fmt.Errorf("encrypt LLM API key: %w", err)
+			}
+			a.LLMAPIKeySecret = encryptedKey
+		}
+		if in.LLMBaseURL != nil {
+			a.LLMBaseURL = *in.LLMBaseURL
+		}
+		if in.SystemPrompt != nil {
+			a.SystemPrompt = *in.SystemPrompt
+		}
+		if in.GitCommitterName != nil {
+			a.GitCommitterName = *in.GitCommitterName
+		}
+		if in.GitCommitterEmail != nil {
+			a.GitCommitterEmail = *in.GitCommitterEmail
+		}
+	}
+	if a.AgentType == agentdom.AgentTypeACP {
+		if in.ACPProvider != nil {
+			if !agentdom.ValidACPProviders[*in.ACPProvider] {
+				return nil, agentdom.ErrACPProviderInvalid
+			}
+			a.ACPProvider = in.ACPProvider
+		}
+		if in.ACPCommand != nil {
+			a.ACPCommand = in.ACPCommand
+		}
+		if a.ACPProvider != nil && *a.ACPProvider == agentdom.ACPProviderCustom && len(a.ACPCommand) == 0 {
+			return nil, agentdom.ErrACPCommandRequired
+		}
+	}
+	const maxIterationsLimit = 500
+	const defaultMaxIterations = 500
+	const timeoutMinutesLimit = 480
+
+	if in.MaxIterations != nil {
+		v := *in.MaxIterations
+		if v <= 0 {
+			v = defaultMaxIterations
+		} else if v > maxIterationsLimit {
+			v = maxIterationsLimit
+		}
+		a.MaxIterations = v
+	}
+	if in.TimeoutMinutes != nil {
+		v := *in.TimeoutMinutes
+		if v <= 0 {
+			v = 30
+		} else if v > timeoutMinutesLimit {
+			v = timeoutMinutesLimit
+		}
+		a.TimeoutMinutes = v
+	}
+	if in.GlobalRoleID != nil {
+		if *in.GlobalRoleID == uuid.Nil {
+			a.GlobalRoleID = nil
+		} else {
+			a.GlobalRoleID = in.GlobalRoleID
+		}
+	}
+	a.UpdatedAt = time.Now()
+
+	if err := s.repo.UpdateAgent(ctx, a); err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+
+// DeleteGlobalAgent soft-deletes a global agent and every project_members
+// row referencing it, across every project it was invited into.
+func (s *Service) DeleteGlobalAgent(ctx context.Context, agentID uuid.UUID) error {
+	a, err := s.GetGlobalAgent(ctx, agentID)
+	if err != nil {
+		return err
+	}
+	// Snapshot affected projects before the cascade delete so their
+	// member-list caches can be invalidated once membership is actually gone.
+	projectIDs, err := s.repo.ListInvitedProjectIDs(ctx, a.ID)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.SoftDeleteGlobalAgentCascade(ctx, a.ID); err != nil {
+		return err
+	}
+	for _, projectID := range projectIDs {
+		_ = s.projRepo.InvalidateMembersCache(ctx, projectID)
+	}
+	return nil
+}
+
+// ListInvitedProjectIDs returns the IDs of every project a global agent
+// currently has an active project_members row in.
+func (s *Service) ListInvitedProjectIDs(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+	return s.repo.ListInvitedProjectIDs(ctx, agentID)
+}
+
+// generateHashedSecret returns a fresh 32 random bytes as both its hex
+// plaintext and the hex SHA-256 hash of that plaintext — the shared
+// generation step behind every "issue a new bridge token / MCP key" method
+// below, all of which persist only the hash and return the plaintext once.
+func generateHashedSecret() (plaintext, hash string, err error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", "", err
+	}
+	plaintext = hex.EncodeToString(raw)
+	sum := sha256.Sum256([]byte(plaintext))
+	return plaintext, hex.EncodeToString(sum[:]), nil
+}
+
 // GenerateACPBridgeToken issues a new local-bridge auth token for an ACP-type
 // agent, replacing any existing one. Only the token's SHA-256 hash is
 // persisted (services/ai-agent hashes an incoming token the same way to
@@ -302,17 +579,200 @@ func (s *Service) GenerateACPBridgeToken(ctx context.Context, projectID, agentID
 	if a.AgentType != agentdom.AgentTypeACP {
 		return "", agentdom.ErrAgentTypeInvalid
 	}
-	raw := make([]byte, 32)
-	if _, err := rand.Read(raw); err != nil {
+	plaintext, hash, err := generateHashedSecret()
+	if err != nil {
 		return "", fmt.Errorf("generate bridge token: %w", err)
 	}
-	plaintext := hex.EncodeToString(raw)
-	sum := sha256.Sum256([]byte(plaintext))
-	hash := hex.EncodeToString(sum[:])
 	if err := s.repo.SetACPBridgeTokenHash(ctx, agentID, hash); err != nil {
 		return "", fmt.Errorf("store bridge token hash: %w", err)
 	}
 	return plaintext, nil
+}
+
+// GenerateGlobalACPBridgeToken is GenerateACPBridgeToken's global-agent
+// sibling — identical token generation, ownership verified via
+// GetGlobalAgent (AgentScope == global) instead of a projectID match.
+func (s *Service) GenerateGlobalACPBridgeToken(ctx context.Context, agentID uuid.UUID) (string, error) {
+	a, err := s.GetGlobalAgent(ctx, agentID)
+	if err != nil {
+		return "", err
+	}
+	if a.AgentType != agentdom.AgentTypeACP {
+		return "", agentdom.ErrAgentTypeInvalid
+	}
+	plaintext, hash, err := generateHashedSecret()
+	if err != nil {
+		return "", fmt.Errorf("generate bridge token: %w", err)
+	}
+	if err := s.repo.SetACPBridgeTokenHash(ctx, agentID, hash); err != nil {
+		return "", fmt.Errorf("store bridge token hash: %w", err)
+	}
+	return plaintext, nil
+}
+
+// GenerateAgentMCPKey issues a new MCP API key for an ACP-type agent,
+// replacing any existing one, and returns the plaintext once — only its
+// SHA-256 hash is persisted. Overwriting the hash means the previous key
+// stops authenticating immediately (see AgentRepository.SetMCPAPIKeyHash).
+func (s *Service) GenerateAgentMCPKey(ctx context.Context, projectID, agentID uuid.UUID) (string, error) {
+	a, err := s.GetAgent(ctx, projectID, agentID)
+	if err != nil {
+		return "", err
+	}
+	if a.AgentType != agentdom.AgentTypeACP {
+		return "", agentdom.ErrAgentTypeInvalid
+	}
+	plaintext, hash, err := generateHashedSecret()
+	if err != nil {
+		return "", fmt.Errorf("generate MCP API key: %w", err)
+	}
+	if err := s.repo.SetMCPAPIKeyHash(ctx, agentID, hash); err != nil {
+		return "", fmt.Errorf("store MCP API key hash: %w", err)
+	}
+	return plaintext, nil
+}
+
+// GenerateGlobalAgentMCPKey is GenerateAgentMCPKey's global-agent sibling —
+// ownership verified via GetGlobalAgent instead of a projectID match.
+func (s *Service) GenerateGlobalAgentMCPKey(ctx context.Context, agentID uuid.UUID) (string, error) {
+	a, err := s.GetGlobalAgent(ctx, agentID)
+	if err != nil {
+		return "", err
+	}
+	if a.AgentType != agentdom.AgentTypeACP {
+		return "", agentdom.ErrAgentTypeInvalid
+	}
+	plaintext, hash, err := generateHashedSecret()
+	if err != nil {
+		return "", fmt.Errorf("generate MCP API key: %w", err)
+	}
+	if err := s.repo.SetMCPAPIKeyHash(ctx, agentID, hash); err != nil {
+		return "", fmt.Errorf("store MCP API key hash: %w", err)
+	}
+	return plaintext, nil
+}
+
+// ErrAvatarServiceRequired indicates a missing AvatarService dependency when
+// an avatar-upload path is invoked.
+var ErrAvatarServiceRequired = errors.New("agent svc: avatar service required")
+
+// InitiateAvatarUpload starts an avatar upload for a project-scoped agent.
+func (s *Service) InitiateAvatarUpload(ctx context.Context, projectID, agentID uuid.UUID, fileName, contentType string, fileSize int64, uploadedBy uuid.UUID) (*attachmentdom.UploadSession, error) {
+	if s.avatarSvc == nil {
+		return nil, ErrAvatarServiceRequired
+	}
+	if _, err := s.GetAgent(ctx, projectID, agentID); err != nil {
+		return nil, err
+	}
+	return s.avatarSvc.InitiateAvatarUpload(ctx, attachmentdom.AvatarUploadInput{
+		OwnerKind:   attachmentdom.AvatarOwnerAgent,
+		OwnerID:     agentID,
+		FileName:    fileName,
+		ContentType: contentType,
+		FileSize:    fileSize,
+		UploadedBy:  uploadedBy,
+	})
+}
+
+// CompleteAvatarUpload finishes an avatar upload for a project-scoped agent.
+func (s *Service) CompleteAvatarUpload(ctx context.Context, projectID, agentID, fileID uuid.UUID) (*agentdom.Agent, error) {
+	a, err := s.GetAgent(ctx, projectID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	return s.completeAvatarUpload(ctx, a, fileID)
+}
+
+// RemoveAvatar clears a project-scoped agent's avatar.
+func (s *Service) RemoveAvatar(ctx context.Context, projectID, agentID uuid.UUID) (*agentdom.Agent, error) {
+	a, err := s.GetAgent(ctx, projectID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	return s.removeAvatar(ctx, a)
+}
+
+// InitiateGlobalAvatarUpload is InitiateAvatarUpload's global-agent sibling.
+func (s *Service) InitiateGlobalAvatarUpload(ctx context.Context, agentID uuid.UUID, fileName, contentType string, fileSize int64, uploadedBy uuid.UUID) (*attachmentdom.UploadSession, error) {
+	if s.avatarSvc == nil {
+		return nil, ErrAvatarServiceRequired
+	}
+	if _, err := s.GetGlobalAgent(ctx, agentID); err != nil {
+		return nil, err
+	}
+	return s.avatarSvc.InitiateAvatarUpload(ctx, attachmentdom.AvatarUploadInput{
+		OwnerKind:   attachmentdom.AvatarOwnerAgent,
+		OwnerID:     agentID,
+		FileName:    fileName,
+		ContentType: contentType,
+		FileSize:    fileSize,
+		UploadedBy:  uploadedBy,
+	})
+}
+
+// CompleteGlobalAvatarUpload is CompleteAvatarUpload's global-agent sibling.
+func (s *Service) CompleteGlobalAvatarUpload(ctx context.Context, agentID, fileID uuid.UUID) (*agentdom.Agent, error) {
+	a, err := s.GetGlobalAgent(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+	return s.completeAvatarUpload(ctx, a, fileID)
+}
+
+// RemoveGlobalAvatar is RemoveAvatar's global-agent sibling.
+func (s *Service) RemoveGlobalAvatar(ctx context.Context, agentID uuid.UUID) (*agentdom.Agent, error) {
+	a, err := s.GetGlobalAgent(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+	return s.removeAvatar(ctx, a)
+}
+
+// completeAvatarUpload is the shared tail of CompleteAvatarUpload and
+// CompleteGlobalAvatarUpload once the agent has been loaded and its scope
+// verified by the caller.
+func (s *Service) completeAvatarUpload(ctx context.Context, a *agentdom.Agent, fileID uuid.UUID) (*agentdom.Agent, error) {
+	if s.avatarSvc == nil {
+		return nil, ErrAvatarServiceRequired
+	}
+	keys, err := s.avatarSvc.CompleteAvatarUpload(ctx, attachmentdom.AvatarCompleteInput{
+		OwnerKind: attachmentdom.AvatarOwnerAgent,
+		OwnerID:   a.ID,
+		FileID:    fileID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	oldKey, oldThumbKey := a.AvatarKey, a.AvatarThumbKey
+	a.AvatarKey = &keys.Key
+	a.AvatarThumbKey = &keys.ThumbKey
+	if err := s.repo.UpdateAgent(ctx, a); err != nil {
+		return nil, err
+	}
+
+	s.avatarSvc.DeleteAvatarObjects(ctx, oldKey, oldThumbKey)
+	return a, nil
+}
+
+// removeAvatar is the shared tail of RemoveAvatar and RemoveGlobalAvatar
+// once the agent has been loaded and its scope verified by the caller.
+func (s *Service) removeAvatar(ctx context.Context, a *agentdom.Agent) (*agentdom.Agent, error) {
+	if s.avatarSvc == nil {
+		return nil, ErrAvatarServiceRequired
+	}
+	oldKey, oldThumbKey := a.AvatarKey, a.AvatarThumbKey
+	if oldKey == nil && oldThumbKey == nil {
+		return a, nil
+	}
+	a.AvatarKey = nil
+	a.AvatarThumbKey = nil
+	if err := s.repo.UpdateAgent(ctx, a); err != nil {
+		return nil, err
+	}
+
+	s.avatarSvc.DeleteAvatarObjects(ctx, oldKey, oldThumbKey)
+	return a, nil
 }
 
 // requireNonACPAgent rejects MCP server / skill / environment variable
@@ -637,6 +1097,11 @@ func (s *Service) ListConversations(ctx context.Context, in agentdom.ListConvers
 	return s.repo.ListConversations(ctx, in, limit)
 }
 
+// ListAgentActivities returns a page of an agent's unified task+doc activity feed.
+func (s *Service) ListAgentActivities(ctx context.Context, in agentdom.ListAgentActivitiesFilter, limit int) ([]*agentdom.ActivityFeedItem, bool, error) {
+	return s.repo.ListAgentActivities(ctx, in, limit)
+}
+
 // GetConversation returns a single conversation after verifying project ownership.
 func (s *Service) GetConversation(ctx context.Context, projectID, conversationID uuid.UUID) (*agentdom.AgentConversation, error) {
 	c, err := s.repo.FindConversationByID(ctx, conversationID)
@@ -649,12 +1114,23 @@ func (s *Service) GetConversation(ctx context.Context, projectID, conversationID
 	return c, nil
 }
 
-// ListConversationEvents returns a paginated list of events for a conversation.
-func (s *Service) ListConversationEvents(ctx context.Context, conversationID uuid.UUID, offset, limit int) ([]*agentdom.AgentConversationEvent, int64, error) {
-	return s.repo.ListConversationEvents(ctx, conversationID, offset, limit)
+// ListConversationEvents returns one keyset-paginated window of events for a
+// conversation (see agentdom.ConversationEventWindow), plus its total count.
+func (s *Service) ListConversationEvents(ctx context.Context, conversationID uuid.UUID, window agentdom.ConversationEventWindow) ([]*agentdom.AgentConversationEvent, int64, error) {
+	return s.repo.ListConversationEvents(ctx, conversationID, window)
 }
 
 // StopConversation stops a conversation that is not already finished.
+//
+// Unlike every other terminal-status transition (finished/failed, and a
+// paused-chat "stopped"), this one is decided and written here rather than
+// by ai-agent's own turn-end logic — ai-agent's _post_turn_status
+// deliberately no-ops on a full-teardown stop since this call already owns
+// the write. That means this is also the only place that can durably notify
+// worker.AutomationConsumer (via StreamAgentConversationStatus) that a
+// trigger_ai_agent-started conversation it might be waiting on just reached
+// a terminal status — ai-agent has no turn-end hook to do it from here,
+// since the stop can land while no turn is even in flight.
 func (s *Service) StopConversation(ctx context.Context, projectID, conversationID uuid.UUID) error {
 	c, err := s.GetConversation(ctx, projectID, conversationID)
 	if err != nil {
@@ -666,6 +1142,16 @@ func (s *Service) StopConversation(ctx context.Context, projectID, conversationI
 	if err := s.repo.UpdateConversationStatus(ctx, conversationID, string(agentdom.ConversationStatusStopped)); err != nil {
 		return err
 	}
+	// Best-effort: a failure here shouldn't fail the stop itself (the
+	// conversation is already marked stopped and ai-agent is about to be
+	// told to tear it down) — same posture as sprintsvc.publishSprintActivity.
+	// A graph walk genuinely left waiting on this conversation stays paused
+	// until the automation is edited/deactivated; there's no separate
+	// timeout/reaper for a pending wait today.
+	_ = s.publisher.AppendFlat(ctx, events.StreamAgentConversationStatus, map[string]any{
+		"conversation_id": conversationID.String(),
+		"status":          string(agentdom.ConversationStatusStopped),
+	})
 	return s.publishTrigger(ctx, events.TopicAgentStop, map[string]any{
 		"conversation_id": conversationID.String(),
 		"project_id":      projectID.String(),
@@ -708,11 +1194,28 @@ func (s *Service) Heartbeat(ctx context.Context, projectID, conversationID uuid.
 }
 
 // SendConversationMessage publishes a chat message to an active conversation.
+//
+// ACP-type agents route through sendACPConversationMessage instead: unlike an
+// LLM agent (where a follow-up message only ever makes sense while a turn is
+// actually running), an ACP agent's local bridge daemon keeps a conversation
+// alive by conversation_id regardless of which trigger type started it
+// (task_assigned, comment_mention, description_write, automation_message —
+// not just chat_message), so it can always be resumed here too — mirroring
+// SendChatMessage's terminal-status resume for chat sessions.
 func (s *Service) SendConversationMessage(ctx context.Context, projectID, conversationID uuid.UUID, message string, memberID uuid.UUID) error {
 	c, err := s.GetConversation(ctx, projectID, conversationID)
 	if err != nil {
 		return err
 	}
+
+	agent, err := s.repo.FindAgentByID(ctx, c.AgentID)
+	if err != nil {
+		return err
+	}
+	if agent.AgentType == agentdom.AgentTypeACP {
+		return s.sendACPConversationMessage(ctx, c, message, memberID)
+	}
+
 	if agentdom.ConversationStatus(c.Status) != agentdom.ConversationStatusRunning {
 		return agentdom.ErrConversationNotRunning
 	}
@@ -721,6 +1224,170 @@ func (s *Service) SendConversationMessage(ctx context.Context, projectID, conver
 		"project_id":      projectID.String(),
 		"message":         message,
 		"member_id":       memberID.String(),
+	})
+}
+
+// sendACPConversationMessage resumes an ACP conversation of any trigger type
+// so it can be continued from the chat box, not just chat_message ones.
+func (s *Service) sendACPConversationMessage(ctx context.Context, c *agentdom.AgentConversation, message string, memberID uuid.UUID) error {
+	status := agentdom.ConversationStatus(c.Status)
+	if status == agentdom.ConversationStatusRunning || status == agentdom.ConversationStatusQueued {
+		// Still mid-turn (or not yet picked up by the worker) — reject
+		// instead of dispatching a second start_turn on top of one the
+		// bridge hasn't finished: ConversationRunner.start_turn's own
+		// "still running" guard would report the *in-flight* turn as
+		// failed, not queue this message behind it.
+		return agentdom.ErrConversationBusy
+	}
+	// Claim atomically so two concurrent replies can't both win and
+	// double-publish a resume trigger for the same conversation_id — same
+	// race guard as SendChatMessage's resume paths.
+	claimed, err := s.repo.ClaimConversationStatus(ctx, c.ID, string(status), string(agentdom.ConversationStatusRunning))
+	if err != nil {
+		return err
+	}
+	if !claimed {
+		return agentdom.ErrConversationBusy
+	}
+	return s.publishTrigger(ctx, events.TopicAgentChatMessage, map[string]any{
+		"conversation_id": c.ID.String(),
+		"project_id":      c.ProjectID.String(),
+		"agent_id":        c.AgentID.String(),
+		"trigger_type":    c.TriggerType,
+		"actor_member_id": memberID.String(),
+		"message":         message,
+		"repo_plugin_ids": strings.Join(s.gatherRepoPluginIDs(ctx), ","),
+	})
+}
+
+// -------------------------------------------------------------------------
+// Global Conversations (ProjectID == uuid.Nil) — siblings of the
+// Conversations methods above, scoped to "no project" instead of a given
+// projectID, with the actor identified by ActorUserID instead of a
+// project_members.id. Global-chat conversations never gather repo/PR tools
+// (repo_plugin_ids is omitted from their trigger payloads) — repository
+// access is inherently project-shaped and out of scope for a conversation
+// with no project context.
+// -------------------------------------------------------------------------
+
+// ListGlobalConversations returns a page of the caller's own global-chat
+// conversations matching the filter. GlobalOnly and ActorUserID are forced
+// server-side — a caller can never list another user's global conversations
+// by passing a different actor, unlike the project-scoped listing which is
+// visible to the whole project team.
+func (s *Service) ListGlobalConversations(ctx context.Context, actorUserID uuid.UUID, in agentdom.ListConversationsFilter, limit int) ([]*agentdom.AgentConversation, bool, error) {
+	in.GlobalOnly = true
+	in.ProjectID = nil
+	in.ActorUserID = &actorUserID
+	return s.repo.ListConversations(ctx, in, limit)
+}
+
+// GetGlobalConversation returns a single conversation after verifying it is
+// both a global-chat conversation (ProjectID == uuid.Nil) AND owned by
+// actorUserID — the global-chat equivalent of GetConversation's projectID
+// ownership check. Without the actor check, any authenticated user could
+// read, control, or inject messages into another user's global-chat
+// conversation simply by knowing its ID, since global conversations have no
+// project-team membership to gate access the way project conversations do.
+func (s *Service) GetGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) (*agentdom.AgentConversation, error) {
+	c, err := s.repo.FindConversationByID(ctx, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	if c.ProjectID != uuid.Nil || c.ActorUserID == nil || *c.ActorUserID != actorUserID {
+		return nil, agentdom.ErrConversationNotFound
+	}
+	return c, nil
+}
+
+// StopGlobalConversation stops a global conversation that is not already finished.
+func (s *Service) StopGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) error {
+	c, err := s.GetGlobalConversation(ctx, conversationID, actorUserID)
+	if err != nil {
+		return err
+	}
+	if agentdom.ConversationStatus(c.Status).IsTerminal() {
+		return agentdom.ErrConversationAlreadyStopped
+	}
+	if err := s.repo.UpdateConversationStatus(ctx, conversationID, string(agentdom.ConversationStatusStopped)); err != nil {
+		return err
+	}
+	return s.publishTrigger(ctx, events.TopicAgentStop, map[string]any{
+		"conversation_id": conversationID.String(),
+	})
+}
+
+// PauseGlobalConversation interrupts a global conversation's in-flight turn.
+func (s *Service) PauseGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) error {
+	c, err := s.GetGlobalConversation(ctx, conversationID, actorUserID)
+	if err != nil {
+		return err
+	}
+	if agentdom.ConversationStatus(c.Status) != agentdom.ConversationStatusRunning {
+		return agentdom.ErrConversationNotRunning
+	}
+	return s.publishTrigger(ctx, events.TopicAgentPause, map[string]any{
+		"conversation_id": conversationID.String(),
+	})
+}
+
+// GlobalHeartbeat refreshes a global conversation's idle timer.
+func (s *Service) GlobalHeartbeat(ctx context.Context, conversationID, actorUserID uuid.UUID) error {
+	if _, err := s.GetGlobalConversation(ctx, conversationID, actorUserID); err != nil {
+		return err
+	}
+	return s.publishTrigger(ctx, events.TopicAgentHeartbeat, map[string]any{
+		"conversation_id": conversationID.String(),
+	})
+}
+
+// SendGlobalConversationMessage publishes a chat message to an active global conversation.
+func (s *Service) SendGlobalConversationMessage(ctx context.Context, conversationID uuid.UUID, message string, actorUserID uuid.UUID) error {
+	c, err := s.GetGlobalConversation(ctx, conversationID, actorUserID)
+	if err != nil {
+		return err
+	}
+
+	agent, err := s.repo.FindAgentByID(ctx, c.AgentID)
+	if err != nil {
+		return err
+	}
+	if agent.AgentType == agentdom.AgentTypeACP {
+		return s.sendACPGlobalConversationMessage(ctx, c, message, actorUserID)
+	}
+
+	if agentdom.ConversationStatus(c.Status) != agentdom.ConversationStatusRunning {
+		return agentdom.ErrConversationNotRunning
+	}
+	return s.publishTrigger(ctx, events.TopicAgentChatMessage, map[string]any{
+		"conversation_id": conversationID.String(),
+		"agent_id":        c.AgentID.String(),
+		"message":         message,
+		"actor_user_id":   actorUserID.String(),
+	})
+}
+
+// sendACPGlobalConversationMessage is sendACPConversationMessage's
+// global-chat sibling — see its doc comment for why ACP conversations can
+// always be resumed regardless of trigger type or terminal status.
+func (s *Service) sendACPGlobalConversationMessage(ctx context.Context, c *agentdom.AgentConversation, message string, actorUserID uuid.UUID) error {
+	status := agentdom.ConversationStatus(c.Status)
+	if status == agentdom.ConversationStatusRunning || status == agentdom.ConversationStatusQueued {
+		return agentdom.ErrConversationBusy
+	}
+	claimed, err := s.repo.ClaimConversationStatus(ctx, c.ID, string(status), string(agentdom.ConversationStatusRunning))
+	if err != nil {
+		return err
+	}
+	if !claimed {
+		return agentdom.ErrConversationBusy
+	}
+	return s.publishTrigger(ctx, events.TopicAgentChatMessage, map[string]any{
+		"conversation_id": c.ID.String(),
+		"agent_id":        c.AgentID.String(),
+		"trigger_type":    c.TriggerType,
+		"actor_user_id":   actorUserID.String(),
+		"message":         message,
 	})
 }
 
@@ -773,6 +1440,14 @@ func (s *Service) StartChatSession(ctx context.Context, projectID, agentID, memb
 // finish is left with status "paused" rather than "finished". A reply while
 // paused resumes that same conversation (same conversation_id, so the agent
 // keeps the sandbox/history) instead of cold-starting a new one.
+//
+// ACP-type agents get the same treatment even once a conversation goes
+// terminal (finished/failed/stopped): unlike an LLM agent's cloud sandbox,
+// which is gone for good once its chat conversation ends, an ACP agent's
+// local bridge daemon (apps/acp-bridge) keeps the underlying Conversation
+// object alive in memory for as long as the daemon keeps running. So a reply
+// can always continue the *same* conversation_id, no matter how long ago it
+// went terminal — see runner.ConversationRunner.start_turn's resume branch.
 func (s *Service) SendChatMessage(ctx context.Context, projectID, sessionID, memberID uuid.UUID, message string) (*agentdom.AgentConversation, error) {
 	session, err := s.repo.FindChatSessionByID(ctx, sessionID)
 	if err != nil {
@@ -809,8 +1484,27 @@ func (s *Service) SendChatMessage(ctx context.Context, projectID, sessionID, mem
 				return nil, agentdom.ErrConversationBusy
 			}
 		case agentdom.ConversationStatusFinished, agentdom.ConversationStatusFailed, agentdom.ConversationStatusStopped:
-			// Terminal status — fall through to create a new conversation.
-			conv = nil
+			agent, err := s.repo.FindAgentByID(ctx, session.AgentID)
+			if err != nil {
+				return nil, err
+			}
+			if agent.AgentType == agentdom.AgentTypeACP {
+				// Resume — same atomic-claim treatment as the paused case
+				// above, just starting from a terminal status instead of
+				// "paused" (ACP conversations never reach "paused" — see the
+				// doc comment above).
+				claimed, err := s.repo.ClaimConversationStatus(ctx, latest.ID,
+					latest.Status, string(agentdom.ConversationStatusRunning))
+				if err != nil {
+					return nil, err
+				}
+				if !claimed {
+					return nil, agentdom.ErrConversationBusy
+				}
+			} else {
+				// Terminal status — fall through to create a new conversation.
+				conv = nil
+			}
 		}
 	}
 
@@ -838,7 +1532,126 @@ func (s *Service) SendChatMessage(ctx context.Context, projectID, sessionID, mem
 	return conv, nil
 }
 
-// ListChatMessages returns conversation events for a chat session.
+// -------------------------------------------------------------------------
+// Global Chat Sessions — siblings of the Chat Sessions methods above,
+// keyed by actor_user_id instead of a project's memberID.
+// -------------------------------------------------------------------------
+
+// ListGlobalChatSessions returns all global chat sessions for the given
+// agent and human actor.
+func (s *Service) ListGlobalChatSessions(ctx context.Context, agentID, actorUserID uuid.UUID) ([]*agentdom.AgentChatSession, error) {
+	return s.repo.ListGlobalChatSessions(ctx, agentID, actorUserID)
+}
+
+// StartGlobalChatSession creates a new global chat session and publishes
+// the initial message trigger.
+func (s *Service) StartGlobalChatSession(ctx context.Context, agentID, actorUserID uuid.UUID, message string) (*agentdom.AgentChatSession, *agentdom.AgentConversation, error) {
+	now := time.Now()
+
+	session := &agentdom.AgentChatSession{
+		ID:            uuid.New(),
+		AgentID:       agentID,
+		ActorUserID:   &actorUserID,
+		LastMessageAt: &now,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if err := s.repo.CreateChatSession(ctx, session); err != nil {
+		return nil, nil, err
+	}
+
+	conv, err := s.createGlobalConversation(ctx, agentID, actorUserID, agentdom.AgentConversation{
+		TriggerType:   "chat_message",
+		ChatSessionID: &session.ID,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := s.publishGlobalChatTrigger(ctx, agentID, conv.ID, session.ID, actorUserID, message); err != nil {
+		return nil, nil, err
+	}
+
+	return session, conv, nil
+}
+
+// SendGlobalChatMessage sends a message to an existing global chat session
+// and publishes the trigger. Mirrors SendChatMessage's resume/terminal
+// handling — see its doc comment for the pause/resume rationale.
+func (s *Service) SendGlobalChatMessage(ctx context.Context, sessionID, actorUserID uuid.UUID, message string) (*agentdom.AgentConversation, error) {
+	session, err := s.repo.FindChatSessionByID(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if session.ProjectID != uuid.Nil || session.ActorUserID == nil || *session.ActorUserID != actorUserID {
+		return nil, agentdom.ErrChatSessionNotFound
+	}
+
+	latest, err := s.repo.FindLatestConversationByChatSession(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	conv := latest
+	if latest != nil {
+		switch agentdom.ConversationStatus(latest.Status) {
+		case agentdom.ConversationStatusRunning, agentdom.ConversationStatusQueued:
+			return nil, agentdom.ErrConversationBusy
+		case agentdom.ConversationStatusPaused:
+			claimed, err := s.repo.ClaimConversationStatus(ctx, latest.ID,
+				string(agentdom.ConversationStatusPaused), string(agentdom.ConversationStatusRunning))
+			if err != nil {
+				return nil, err
+			}
+			if !claimed {
+				return nil, agentdom.ErrConversationBusy
+			}
+		case agentdom.ConversationStatusFinished, agentdom.ConversationStatusFailed, agentdom.ConversationStatusStopped:
+			agent, err := s.repo.FindAgentByID(ctx, session.AgentID)
+			if err != nil {
+				return nil, err
+			}
+			if agent.AgentType == agentdom.AgentTypeACP {
+				claimed, err := s.repo.ClaimConversationStatus(ctx, latest.ID,
+					latest.Status, string(agentdom.ConversationStatusRunning))
+				if err != nil {
+					return nil, err
+				}
+				if !claimed {
+					return nil, agentdom.ErrConversationBusy
+				}
+			} else {
+				conv = nil
+			}
+		}
+	}
+
+	if conv == nil {
+		conv, err = s.createGlobalConversation(ctx, session.AgentID, actorUserID, agentdom.AgentConversation{
+			TriggerType:   "chat_message",
+			ChatSessionID: &sessionID,
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	// else: resume — reuse the same conversation_id so ai-agent reattaches
+	// to the sandbox it kept alive rather than cold-starting a new one.
+
+	if err := s.publishGlobalChatTrigger(ctx, session.AgentID, conv.ID, sessionID, actorUserID, message); err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	session.LastMessageAt = &now
+	_ = s.repo.UpdateChatSession(ctx, session)
+
+	return conv, nil
+}
+
+// ListChatMessages returns conversation events for a chat session. Unreached
+// by any route (see agentdom.ChatSessionService) — kept only to satisfy the
+// interface until it grows a real caller.
 func (s *Service) ListChatMessages(ctx context.Context, sessionID uuid.UUID, offset, limit int) ([]*agentdom.AgentConversationEvent, int64, error) {
 	// TODO: We'd need to aggregate events from all conversations in this session.
 	// For now, return events from the most recent conversation with this session_id.
@@ -851,7 +1664,13 @@ func (s *Service) ListChatMessages(ctx context.Context, sessionID uuid.UUID, off
 	if len(convs) == 0 {
 		return []*agentdom.AgentConversationEvent{}, 0, nil
 	}
-	return s.repo.ListConversationEvents(ctx, convs[0].ID, offset, limit)
+	// offset has no cursor equivalent (see agentdom.ConversationEventWindow):
+	// fail loudly rather than silently ignoring it, in case this method ever
+	// grows a real caller that expects offset-based paging to work.
+	if offset != 0 {
+		return nil, 0, fmt.Errorf("ListChatMessages: non-zero offset %d is not supported by cursor-based ListConversationEvents", offset)
+	}
+	return s.repo.ListConversationEvents(ctx, convs[0].ID, agentdom.ConversationEventWindow{Limit: limit})
 }
 
 // -------------------------------------------------------------------------
@@ -872,6 +1691,27 @@ func (s *Service) createConversation(ctx context.Context, projectID, agentID uui
 		Status:              string(agentdom.ConversationStatusQueued),
 		CreatedAt:           now,
 		UpdatedAt:           now,
+	}
+	if err := s.repo.CreateConversation(ctx, conv); err != nil {
+		return nil, err
+	}
+	return conv, nil
+}
+
+// createGlobalConversation is createConversation's global-chat sibling:
+// there is no project_id and the actor is a user directly rather than a
+// resolved project_members.id.
+func (s *Service) createGlobalConversation(ctx context.Context, agentID, actorUserID uuid.UUID, template agentdom.AgentConversation) (*agentdom.AgentConversation, error) {
+	now := time.Now()
+	conv := &agentdom.AgentConversation{
+		ID:            uuid.New(),
+		AgentID:       agentID,
+		TriggerType:   template.TriggerType,
+		ChatSessionID: template.ChatSessionID,
+		ActorUserID:   &actorUserID,
+		Status:        string(agentdom.ConversationStatusQueued),
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 	if err := s.repo.CreateConversation(ctx, conv); err != nil {
 		return nil, err
@@ -943,6 +1783,48 @@ func (s *Service) TriggerTaskAssigned(ctx context.Context, projectID, agentID, t
 		payload["actor_member_id"] = triggeredByMemberID.String()
 	}
 	_ = s.publishTrigger(ctx, events.TopicAgentTaskAssigned, payload)
+	return conv, nil
+}
+
+// TriggerDirectMessage fires message straight at agentID, with no task
+// involved at all — used by the automation engine's trigger_ai_agent action
+// when its trigger has no target task (cron/api_trigger/predecessor_done
+// with no target_task_id configured, so there's nothing to assign, unlike
+// TriggerTaskAssigned). triggeredByMemberID is nil, same as
+// TriggerTaskAssigned's automation-triggered case — there's no human actor
+// behind an automation firing.
+func (s *Service) TriggerDirectMessage(ctx context.Context, projectID, agentID uuid.UUID, triggeredByMemberID *uuid.UUID, message string) (*agentdom.AgentConversation, error) {
+	repoPlugins := s.gatherRepoPlugins(ctx)
+	repoPluginIDs := make([]string, 0, len(repoPlugins))
+	for _, p := range repoPlugins {
+		repoPluginIDs = append(repoPluginIDs, p.Name)
+	}
+
+	var repoPluginID *uuid.UUID
+	if len(repoPlugins) > 0 {
+		id := repoPlugins[0].ID
+		repoPluginID = &id
+	}
+
+	conv, err := s.createConversation(ctx, projectID, agentID, triggeredByMemberID, agentdom.AgentConversation{
+		TriggerType:  "automation_message",
+		RepoPluginID: repoPluginID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	payload := map[string]any{
+		"conversation_id": conv.ID.String(),
+		"project_id":      projectID.String(),
+		"agent_id":        agentID.String(),
+		"trigger_type":    "automation_message",
+		"message":         message,
+		"repo_plugin_ids": strings.Join(repoPluginIDs, ","),
+	}
+	if triggeredByMemberID != nil {
+		payload["actor_member_id"] = triggeredByMemberID.String()
+	}
+	_ = s.publishTrigger(ctx, events.TopicAgentAutomationMessage, payload)
 	return conv, nil
 }
 
@@ -1044,6 +1926,22 @@ func (s *Service) publishChatTrigger(ctx context.Context, agentID, convID, sessi
 		"trigger_type":    "chat_message",
 		"message":         message,
 		"repo_plugin_ids": strings.Join(repoPluginIDs, ","),
+	}
+	return s.publishTrigger(ctx, events.TopicAgentChatMessage, payload)
+}
+
+// publishGlobalChatTrigger is publishChatTrigger's global-chat sibling — no
+// project_id, actor identified by actor_user_id, and repo_plugin_ids
+// omitted entirely (repo/PR tools are excluded from global-chat
+// conversations; see the Global Conversations section's doc comment).
+func (s *Service) publishGlobalChatTrigger(ctx context.Context, agentID, convID, sessionID, actorUserID uuid.UUID, message string) error {
+	payload := map[string]any{
+		"conversation_id": convID.String(),
+		"agent_id":        agentID.String(),
+		"chat_session_id": sessionID.String(),
+		"actor_user_id":   actorUserID.String(),
+		"trigger_type":    "chat_message",
+		"message":         message,
 	}
 	return s.publishTrigger(ctx, events.TopicAgentChatMessage, payload)
 }

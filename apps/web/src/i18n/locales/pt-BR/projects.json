@@ -30,7 +30,7 @@
 			"projectRoleHint": "Controla o que o agente pode ler e modificar neste projeto.",
 			"agentTypeLabel": "Tipo de agente",
 			"agentTypeLLM": "LLM (chave de API)",
-			"agentTypeLLMHint": "O Paca chama diretamente a API de um modelo e executa o agente em um sandbox na nuvem.",
+			"agentTypeLLMHint": "O Paca chama diretamente a API de um modelo e executa o agente em um contêiner isolado no servidor que hospeda o Paca.",
 			"agentTypeACP": "ACP (CLI local)",
 			"agentTypeACPHint": "Delega a uma CLI de código que você mesmo executa — Claude Code, Codex, Gemini CLI ou um servidor ACP personalizado.",
 			"modelSection": "Modelo",
@@ -62,7 +62,11 @@
 			"creating": "Criando…",
 			"createAgent": "Criar agente",
 			"namePlaceholder": "Dev Bot",
-			"systemPromptPlaceholder": "Você é um engenheiro de software sênior…"
+			"systemPromptPlaceholder": "Você é um engenheiro de software sênior…",
+			"globalRoleLabel": "Função Global",
+			"globalRolePlaceholder": "Selecione uma função global…",
+			"globalRoleHint": "Determina o que o agente pode fazer em escopo global (por exemplo, no chat da página inicial/admin). Opcional — uma função concedida depois, ao ser convidado para um projeto, é separada.",
+			"noGlobalRoleOption": "Sem função"
 		},
 		"card": {
 			"configure": "Configurar",
@@ -72,6 +76,8 @@
 			"deleteDialog": {
 				"title": "Excluir {{name}}?",
 				"description": "Isso exclui permanentemente o agente e o remove do projeto. As conversas em andamento serão interrompidas.",
+				"descriptionGlobal": "Isso exclui permanentemente o agente e o remove de todos os projetos aos quais foi convidado. As conversas em andamento serão interrompidas.",
+				"deleteFailed": "Falha ao excluir o agente. Tente novamente.",
 				"cancel": "Cancelar",
 				"delete": "Excluir"
 			}
@@ -103,15 +109,23 @@
 			"generating": "Gerando…",
 			"generateFailed": "Não foi possível gerar um token. Tente novamente.",
 			"tokenWarning": "Copie agora — ele não será mostrado novamente.",
+			"claudeSetupTokenHint": "O Claude Code também precisa de seu próprio login único — execute isto antes de iniciar a ponte abaixo, ou a ponte não terá com o que se autenticar:",
+			"claudeOauthExportHint": "Este comando apenas exibe o token — copie-o e exporte-o para que a ponte possa realmente usá-lo:",
+			"localAuthExportHint": "O {{provider}} também precisa de sua própria autenticação local antes que a ponte inicie, ou ela não terá com o que se autenticar:",
 			"copy": "Copiar",
 			"copied": "Copiado!",
-			"step3Title": "Instalar a skill do Paca",
-			"step3Description": "Permite que sua CLI encaminhe solicitações pelas ferramentas MCP do Paca — adicionada a cada prompt via /paca por padrão.",
+			"stepSkillMcpTitle": "Instalar a skill e conectar o servidor MCP",
+			"stepSkillMcpDescription": "Gere a chave MCP própria deste agente uma vez e execute os dois comandos abaixo — para que as chamadas de ferramentas apareçam como atividade do agente, não sua.",
+			"stepSkillMcpSkillLabel": "Instalar a skill:",
+			"stepSkillMcpConnectLabel": "Conectar o servidor MCP:",
 			"step3NotAvailable": "A instalação automática está disponível para Claude Code, Gemini CLI e Codex. O {{provider}} ainda não tem um instalador de prompts personalizados conhecido — as ferramentas MCP do Paca abaixo funcionam mesmo sem ele.",
 			"step3ViewContent": "Ver instruções da skill",
-			"step4Title": "Conectar o servidor MCP",
-			"step4Description": "Usa uma chave de API pessoal para que a CLI possa chamar as ferramentas do Paca diretamente.",
-			"step4ApiKeyLink": "Obter uma chave de API",
+			"step4NoKeyYet": "Gere uma chave para revelar os comandos de configuração.",
+			"step4GenerateButton": "Gerar chave",
+			"step4RegenerateButton": "Regenerar chave",
+			"step4Generating": "Gerando…",
+			"step4GenerateFailed": "Não foi possível gerar a chave. Tente novamente.",
+			"step4KeyWarning": "Copie agora — ela não será mostrada novamente, e a chave anterior deixa de funcionar imediatamente.",
 			"step4GenericHint": "As etapas exatas para registrar um servidor MCP variam de acordo com a CLI — o {{provider}} geralmente lê isso do seu próprio arquivo de configuração. Use este comando como referência:",
 			"customProviderLabel": "seu servidor ACP personalizado",
 			"done": "Concluído"
@@ -121,7 +135,19 @@
 				"overview": "Visão geral",
 				"mcpServers": "Servidores MCP",
 				"skills": "Skills",
-				"envVars": "Ambiente"
+				"envVars": "Ambiente",
+				"activity": "Atividade"
+			},
+			"avatar": {
+				"change": "Alterar avatar",
+				"remove": "Remover avatar",
+				"uploading": "Enviando…",
+				"errors": {
+					"invalidType": "Escolha uma imagem PNG, JPEG, WEBP ou GIF.",
+					"tooLarge": "A imagem deve ter no máximo 5 MB.",
+					"uploadFailed": "Falha ao enviar o avatar. Tente novamente.",
+					"removeFailed": "Falha ao remover o avatar. Tente novamente."
+				}
 			},
 			"overview": {
 				"nameLabel": "Nome",
@@ -211,6 +237,30 @@
 					"cancel": "Cancelar",
 					"addSkill": "Adicionar skill"
 				}
+			},
+			"activity": {
+				"commented": "comentou",
+				"sourceType": {
+					"task": "Tarefa",
+					"doc": "Documento"
+				},
+				"empty": {
+					"title": "Nenhuma atividade ainda",
+					"description": "A atividade em tarefas e documentos realizada por este agente aparecerá aqui."
+				},
+				"emptyFiltered": {
+					"title": "Nenhuma atividade correspondente",
+					"description": "Tente ajustar seus filtros ou busca."
+				},
+				"filters": {
+					"title": "Filtros",
+					"type": "Tipo",
+					"dateRange": "Intervalo de datas",
+					"searchPlaceholder": "Pesquisar atividade…",
+					"dateFrom": "De",
+					"dateTo": "Até",
+					"clearAll": "Limpar filtros"
+				}
 			}
 		},
 		"conversationView": {
@@ -222,7 +272,10 @@
 			"conversationEnded": "Esta conversa foi encerrada.",
 			"textOnlyMessage": "Apenas mensagens de texto são suportadas.",
 			"failed": "A conversa falhou",
-			"noOutput": "O agente não produziu nenhuma saída."
+			"noOutput": "O agente não produziu nenhuma saída.",
+			"loadingOlder": "Carregando…",
+			"newBelow_one": "{{count}} nova mensagem",
+			"newBelow_other": "{{count}} novas mensagens"
 		},
 		"thread": {
 			"composerPlaceholder": "Enviar mensagem ao agente…",
@@ -392,12 +445,12 @@
 				"description": "Criar, configurar e excluir agentes de IA"
 			},
 			"workflowsRead": {
-				"label": "Ver workflows",
-				"description": "Navegar pelos workflows de automação e suas configurações"
+				"label": "Ver automação",
+				"description": "Navegar pelas automações e suas configurações"
 			},
 			"workflowsWrite": {
-				"label": "Gerenciar workflows",
-				"description": "Criar, editar, ativar e excluir workflows de automação"
+				"label": "Gerenciar automação",
+				"description": "Criar, editar, ativar e excluir automações"
 			}
 		},
 		"permissionGroups": {
@@ -415,6 +468,17 @@
 	"settings": {
 		"general": {
 			"title": "Geral",
+			"avatar": {
+				"change": "Alterar avatar",
+				"remove": "Remover avatar",
+				"uploading": "Enviando…",
+				"errors": {
+					"invalidType": "Escolha uma imagem PNG, JPEG, WEBP ou GIF.",
+					"tooLarge": "A imagem deve ter no máximo 5 MB.",
+					"uploadFailed": "Falha ao enviar o avatar. Tente novamente.",
+					"removeFailed": "Falha ao remover o avatar. Tente novamente."
+				}
+			},
 			"projectNameLabel": "Nome do projeto",
 			"projectNamePlaceholder": "Meu projeto incrível",
 			"taskIdPrefixLabel": "Prefixo de ID de tarefa",
@@ -638,7 +702,11 @@
 			"addMember": "Adicionar membro",
 			"errors": {
 				"addFailed": "Falha ao adicionar o membro. Tente novamente."
-			}
+			},
+			"modeUser": "Usuário",
+			"modeAgent": "Agente de IA",
+			"agentLabel": "Agente",
+			"noAgentsAvailable": "Nenhum agente global disponível para convidar."
 		},
 		"roleChip": {
 			"changeRole": "Alterar papel",
@@ -661,9 +729,9 @@
 		"chatWithAgent": "Conversar com o agente de IA",
 		"newConversation": "Nova conversa",
 		"agentLabel": "Agente",
-		"noAgentsConfigured": "Nenhum agente configurado para este projeto.",
 		"selectAgentPlaceholder": "Selecione um agente…",
-		"selectAgentFirst": "Selecione um agente primeiro."
+		"selectAgentFirst": "Selecione um agente primeiro.",
+		"noAgentsAvailable": "Ainda não há agentes disponíveis."
 	},
 	"taskTypes": {
 		"deleteDialog": {
@@ -769,11 +837,6 @@
 			"openTask": "Abrir tarefa",
 			"removeLink": "Remover vínculo",
 			"empty": "Nenhuma tarefa vinculada"
-		},
-		"workflows": {
-			"title": "Workflows",
-			"open": "Abrir workflow",
-			"empty": "Nenhum workflow ainda"
 		},
 		"attachments": {
 			"title": "Anexos",
@@ -998,13 +1061,29 @@
 		"triggerChat": "Chat",
 		"triggerWriteDescription": "Escrever descrição",
 		"triggerTask": "Tarefa",
+		"triggerAutomation": "Automação",
 		"iterations_one": "{{count}} iteração",
 		"iterations_other": "{{count}} iterações",
 		"prOpened": "PR aberto",
+		"filters": {
+			"title": "Filtros",
+			"agent": "Agente",
+			"status": "Status",
+			"type": "Tipo",
+			"dateRange": "Intervalo de datas",
+			"searchPlaceholder": "Pesquisar mensagens…",
+			"dateFrom": "De",
+			"dateTo": "Até",
+			"clearAll": "Limpar filtros"
+		},
 		"list": {
 			"empty": {
 				"title": "Nenhuma conversa ainda",
 				"description": "As conversas começam quando uma tarefa é atribuída a um agente ou quando alguém envia uma mensagem a ele."
+			},
+			"emptyFiltered": {
+				"title": "Nenhuma conversa correspondente",
+				"description": "Tente ajustar ou limpar seus filtros."
 			}
 		},
 		"detail": {
@@ -1142,6 +1221,21 @@
 			"statusCompleted": "Concluído",
 			"description": "Sprint {{status}}",
 			"descriptionWithStartDate": "Sprint {{status}} · iniciado em {{date}}",
+			"editSprint": "Editar sprint",
+			"editSprintModal": {
+				"title": "Editar sprint",
+				"nameLabel": "Nome",
+				"goalLabel": "Objetivo",
+				"optional": "(opcional)",
+				"goalPlaceholder": "O que essa sprint deve alcançar?",
+				"startDateLabel": "Data de início",
+				"dueDateLabel": "Data de entrega",
+				"dateRangeError": "A data de entrega não pode ser anterior à data de início.",
+				"error": "Não foi possível atualizar a sprint. Tente novamente.",
+				"cancel": "Cancelar",
+				"saving": "Salvando…",
+				"save": "Salvar alterações"
+			},
 			"completeSprint": "Concluir sprint",
 			"completeSprintModal": {
 				"title": "Concluir sprint",
@@ -1219,77 +1313,278 @@
 	"automation": {
 		"list": {
 			"title": "Automação",
-			"subtitle": "Automatize repasses de tarefas conforme o trabalho avança pelo seu projeto",
-			"newWorkflow": "Novo workflow",
+			"subtitle": "Reaja a eventos de tarefas com gatilhos, condições e ações",
+			"newAutomation": "Nova automação",
 			"empty": {
-				"title": "Nenhum workflow ainda",
-				"description": "Crie um workflow para automatizar repasses de tarefas conforme o trabalho avança pelo seu projeto.",
-				"createFirstWorkflow": "Crie seu primeiro workflow"
+				"title": "Nenhuma automação ainda",
+				"description": "Crie uma automação para reagir a eventos de tarefas com condições e ações.",
+				"createFirst": "Crie sua primeira automação"
 			},
 			"noDescription": "Sem descrição",
 			"updated": "Atualizado {{time}}"
 		},
 		"status": {
-			"draft": "Rascunho",
 			"active": "Ativo",
-			"archived": "Arquivado"
+			"inactive": "Inativo"
 		},
 		"createDialog": {
-			"title": "Novo workflow de automação",
+			"title": "Nova automação",
 			"nameLabel": "Nome",
-			"namePlaceholder": "ex.: Pipeline de release",
+			"namePlaceholder": "ex.: Triagem de bugs",
 			"descriptionLabel": "Descrição",
-			"descriptionPlaceholder": "Detalhes opcionais sobre este workflow…",
+			"descriptionPlaceholder": "Detalhes opcionais sobre esta automação…",
 			"cancel": "Cancelar",
 			"create": "Criar"
 		},
 		"deleteDialog": {
-			"title": "Excluir workflow",
+			"title": "Excluir automação",
 			"body": "Tem certeza de que deseja excluir \"{{name}}\"? Isso não pode ser desfeito.",
 			"cancel": "Cancelar",
 			"confirm": "Excluir"
 		},
 		"builder": {
-			"addTask": "Adicionar tarefa",
-			"activate": "Ativar",
-			"archive": "Arquivar",
-			"deactivate": "Desativar",
-			"readOnlyNoticeArchived": "Este workflow está arquivado e é somente leitura — workflows arquivados não podem ser editados.",
+			"toggleActiveLabel": "Ativar ou desativar esta automação",
 			"genericError": "Algo deu errado. Tente novamente.",
-			"collapseSidebar": "Recolher barra lateral",
-			"expandSidebar": "Expandir barra lateral"
+			"taskLessTriggerConnectionError": "Este gatilho não tem uma tarefa alvo definida, então só pode se conectar a uma ação Chamar API ou Acionar agente de IA — condições e as demais ações precisam de uma tarefa para agir.",
+			"collapseSidebar": "Recolher painel",
+			"expandSidebar": "Expandir painel",
+			"tabGraph": "Gráfico",
+			"tabRuns": "Histórico de execuções",
+			"tabDependencyMap": "Mapa de dependências"
+		},
+		"palette": {
+			"title": "Adicionar nó",
+			"addTrigger": "Adicionar gatilho",
+			"addCondition": "Adicionar condição",
+			"addAction": "Adicionar ação",
+			"builtIn": "Nativo",
+			"plugins": "Plugins",
+			"triggerGroups": {
+				"taskEvents": "Eventos de tarefas",
+				"sprintEvents": "Eventos de sprints",
+				"scheduleWebhook": "Agendamento e webhook"
+			}
+		},
+		"nodeKind": {
+			"trigger": "Gatilho",
+			"condition": "Condição",
+			"action": "Ação"
 		},
 		"canvas": {
-			"unknownTask": "Tarefa desconhecida",
-			"deleteEdge": "Excluir conexão"
+			"deleteEdge": "Excluir conexão",
+			"deleteNode": "Excluir nó"
 		},
-		"addNodeModal": {
-			"title": "Adicionar tarefa ao workflow",
-			"searchPlaceholder": "Buscar tarefas...",
-			"loadingTasks": "Carregando tarefas...",
-			"noTasksFound": "Nenhuma tarefa encontrada"
+		"triggerTypes": {
+			"status_changed": "Status alterado",
+			"task_created": "Tarefa criada",
+			"assignee_changed": "Responsável alterado",
+			"priority_changed": "Prioridade alterada",
+			"tag_added": "Tag adicionada",
+			"due_date_reached": "Prazo atingido",
+			"predecessor_done": "Predecessora(s) concluída(s)",
+			"cron": "Agendamento cron",
+			"api_trigger": "Webhook",
+			"sprint_created": "Sprint criado",
+			"sprint_started": "Sprint iniciado",
+			"sprint_completed": "Sprint concluído",
+			"sprint_deleted": "Sprint excluído"
 		},
-		"nodePanel": {
-			"title": "Tarefa",
-			"removeNode": "Remover do workflow",
-			"removeConfirmTitle": "Remover tarefa do workflow",
-			"removeConfirmBody": "Isso remove a tarefa do grafo do workflow, junto com todas as suas conexões. A tarefa em si não é afetada.",
+		"actionTypes": {
+			"update_task": "Atualizar tarefa",
+			"trigger_ai_agent": "Acionar agente de IA",
+			"call_api": "Chamar API",
+			"wait": "Aguardar",
+			"update_sprint": "Atualizar sprint",
+			"complete_sprint": "Concluir sprint"
+		},
+		"nodeConfig": {
+			"save": "Salvar",
 			"cancel": "Cancelar",
-			"removeConfirmAction": "Remover"
+			"remove": "Remover nó",
+			"removeConfirmTitle": "Remover nó",
+			"removeConfirmBody": "Isso remove o nó do gráfico, junto com todas as suas conexões.",
+			"removeConfirmAction": "Remover",
+			"genericFormHint": "Este tipo de nó vem de um plugin que não declarou um esquema de configuração, então suas configurações são editadas como JSON bruto. Plugins que declaram um configSchema em seu manifesto exibem campos de interface aqui.",
+			"trigger": {
+				"anyStatus": "Qualquer status",
+				"noConfigNeeded": "Este gatilho não precisa de configuração — ele é acionado automaticamente quando o evento ocorre.",
+				"statusLabel": "Status",
+				"tagLabel": "Tag",
+				"anyTag": "Qualquer tag",
+				"dueDateOffsetLabel": "Deslocamento (minutos)",
+				"dueDateOffsetHint": "0 = no prazo, negativo = antes, positivo = depois",
+				"watchedTasksLabel": "Tarefas observadas",
+				"watchedTasksHint": "Dispara quando TODAS estas tarefas estiverem em um status \"concluído\"",
+				"addWatchedTaskPlaceholder": "Adicionar uma tarefa para observar…",
+				"targetTaskLabel": "Tarefa alvo (opcional)",
+				"targetTaskHint": "A tarefa em que esta automação atua assim que todas as tarefas observadas acima estiverem concluídas — uma tarefa diferente de suas predecessoras, reavaliada com base em seu próprio estado atual. Deixe em branco se isso deve alcançar apenas uma ação Chamar API ou Acionar agente de IA, que não precisam de uma tarefa.",
+				"selectTaskPlaceholder": "Selecione uma tarefa…",
+				"searchTaskPlaceholder": "Buscar tarefas…",
+				"noTasksFound": "Nenhuma tarefa correspondente",
+				"noTasksYet": "Ainda não há tarefas neste projeto",
+				"loadingMore": "Carregando…",
+				"clearTargetTask": "Limpar tarefa alvo",
+				"cronExpressionLabel": "Expressão cron",
+				"cronExpressionPlaceholder": "*/15 * * * *",
+				"cronExpressionHint": "Cron padrão de 5 campos (minuto hora dia-do-mês mês dia-da-semana), avaliado em UTC",
+				"cronTargetTaskHint": "A tarefa em que esta automação atua a cada disparo agendado. Deixe em branco se isso deve alcançar apenas uma ação Chamar API ou Acionar agente de IA, que não precisam de uma tarefa.",
+				"apiTriggerTargetTaskHint": "A tarefa em que esta automação atua sempre que o webhook abaixo é chamado. Deixe em branco se isso deve alcançar apenas uma ação Chamar API ou Acionar agente de IA, que não precisam de uma tarefa.",
+				"webhookUrlLabel": "URL do webhook",
+				"webhookTokenLabel": "Token do webhook",
+				"generateTokenButton": "Gerar token",
+				"regenerateTokenButton": "Regenerar token",
+				"tokenShownOnceWarning": "Copie este token agora — ele não será mostrado novamente.",
+				"copy": "Copiar",
+				"copied": "Copiado",
+				"noTokenYet": "Nenhum token gerado ainda"
+			},
+			"condition": {
+				"branchesTitle": "Ramificações",
+				"addBranch": "Adicionar ramificação",
+				"branchLabel": "Rótulo da ramificação",
+				"elseLabel": "Senão (nenhuma ramificação correspondeu)",
+				"removeBranch": "Remover ramificação",
+				"field": "Campo",
+				"operator": "Operador",
+				"value": "Valor",
+				"addGroup": "Adicionar grupo",
+				"addCondition": "Adicionar condição",
+				"removeCondition": "Remover",
+				"logicAnd": "E",
+				"logicOr": "OU",
+				"logicNot": "NÃO",
+				"fields": {
+					"status_id": "Status",
+					"task_type_id": "Tipo de tarefa",
+					"importance": "Prioridade",
+					"assignee_ids": "Responsável",
+					"tags": "Tags",
+					"custom_field": "Campo personalizado",
+					"title": "Título",
+					"story_points": "Story points",
+					"sprint_id": "Sprint",
+					"parent_task_id": "Tarefa pai",
+					"reporter_id": "Relator",
+					"start_date": "Data de início",
+					"due_date": "Data de entrega",
+					"sprint_name": "Nome do sprint",
+					"sprint_status": "Status do sprint",
+					"sprint_goal": "Objetivo do sprint",
+					"sprint_start_date": "Data de início do sprint",
+					"sprint_end_date": "Data de término do sprint"
+				}
+			},
+			"action": {
+				"memberLabel": "Responsável",
+				"agentLabel": "Agente",
+				"statusLabel": "Status",
+				"importanceLabel": "Prioridade",
+				"tagLabel": "Tag",
+				"fieldKeyLabel": "Campo",
+				"valueLabel": "Valor",
+				"messageLabel": "Instrução para o agente",
+				"messagePlaceholder": "ex.: Resuma esta tarefa e sugira uma prioridade.",
+				"methodLabel": "Método",
+				"urlLabel": "URL",
+				"urlPlaceholder": "https://exemplo.com/webhook",
+				"headersLabel": "Cabeçalhos",
+				"headerKeyPlaceholder": "Nome do cabeçalho",
+				"headerValuePlaceholder": "Valor",
+				"addHeader": "Adicionar cabeçalho",
+				"bodyLabel": "Corpo",
+				"waitMinutesLabel": "Espera (minutos)",
+				"waitMinutesHint": "Por quanto tempo pausar aqui antes de continuar para o próximo nó.",
+				"updateSprintHint": "Somente os campos preenchidos abaixo são alterados — o restante do sprint permanece intacto.",
+				"sprintNameLabel": "Nome",
+				"sprintStartDateLabel": "Data de início",
+				"sprintEndDateLabel": "Data de término",
+				"sprintGoalLabel": "Objetivo",
+				"sprintStatusLabel": "Status",
+				"sprintStatusUnchanged": "Não alterar",
+				"sprintStatusPlanned": "Planejado",
+				"sprintStatusActive": "Ativo",
+				"sprintStatusCompleted": "Concluído",
+				"completeSprintHint": "Marca o sprint como concluído e move suas tarefas não finalizadas.",
+				"moveToSprintLabel": "Mover tarefas não finalizadas para",
+				"moveToSprintBacklog": "Backlog",
+				"moveToSprintHint": "Tarefas não concluídas deste sprint são movidas para cá quando ele é concluído.",
+				"variablesHint": "Suporta {{task.title}}, {{sprint.name}} e outros marcadores {{variable}} semelhantes da execução atual.",
+				"updateTaskHint": "Somente os campos habilitados abaixo são alterados — o restante da tarefa permanece intacto.",
+				"addFieldToUpdate": "Adicionar campo para atualizar…",
+				"customFieldsLabel": "Campo personalizado",
+				"enableField": "Definir {{field}}",
+				"titleLabel": "Título",
+				"storyPointsLabel": "Story points",
+				"sprintLabel": "Sprint",
+				"parentTaskLabel": "Tarefa pai",
+				"reporterLabel": "Relator",
+				"startDateLabel": "Data de início",
+				"dueDateLabel": "Data de entrega",
+				"tagsLabel": "Tags",
+				"tagsPlaceholder": "Adicionar uma tag…",
+				"assigneesLabel": "Responsáveis",
+				"noSprint": "Sem sprint",
+				"pluginConditionLabel": "Condição de plugin",
+				"pluginConditionHint": "Delega a correspondência deste ramo a uma condição fornecida por um plugin em vez de comparar um campo da tarefa.",
+				"selectPluginPlaceholder": "Selecione uma condição de plugin…",
+				"addCustomField": "Adicionar campo personalizado…"
+			},
+			"target": {
+				"label": "Aplica-se a",
+				"kinds": {
+					"self": "Esta tarefa",
+					"parent": "Tarefa pai",
+					"children": "Tarefas filhas",
+					"blocks": "Bloqueia",
+					"is_blocked_by": "É bloqueada por",
+					"relates_to": "Tarefa relacionada",
+					"duplicates": "Duplica",
+					"is_duplicated_by": "É duplicada por",
+					"other": "Outra tarefa…"
+				},
+				"matchMode": {
+					"any": "Qualquer correspondência",
+					"all": "Todas correspondem"
+				}
+			},
+			"description": {
+				"dueDateAt": "No prazo",
+				"dueDateBefore": "{{minutes}} min antes do prazo",
+				"dueDateAfter": "{{minutes}} min depois do prazo",
+				"branches": "{{count}} ramificação(ões)",
+				"priority": "Prioridade: {{level}}",
+				"fieldValue": "{{field}} → {{value}}",
+				"unassigned": "Sem responsável",
+				"notConfigured": "Não configurado",
+				"elseShort": "Senão",
+				"pluginConditionMatched": "Corresponde",
+				"branchFallback": "Ramificação {{n}}",
+				"cronSchedule": "Executa {{expression}}",
+				"webhookReady": "Webhook configurado",
+				"callApiSummary": "{{method}} {{host}}"
+			}
 		},
-		"statusRules": {
-			"title": "Regras de status → responsável",
-			"hint": "Atribua automaticamente uma tarefa a um membro sempre que ela mudar para um destes status. Isso se aplica a qualquer tarefa neste workflow — quando alguém altera o status de uma tarefa diretamente, ou quando uma tarefa predecessora é concluída e uma tarefa subsequente é reavaliada no seu status atual.",
-			"noRules": "Nenhuma regra ainda",
-			"statusPlaceholder": "Status",
-			"memberPlaceholder": "Responsável"
+		"runHistory": {
+			"title": "Histórico de execuções",
+			"empty": "Nenhuma execução ainda",
+			"status": {
+				"running": "Em execução",
+				"completed": "Concluído",
+				"failed": "Falhou"
+			},
+			"stepStatus": {
+				"completed": "Concluído",
+				"failed": "Falhou",
+				"skipped": "Ignorado (já aplicado)"
+			},
+			"startedAt": "Iniciado {{time}}",
+			"viewSteps": "Ver etapas"
 		},
-		"statusTransitions": {
-			"title": "Fluxo de status",
-			"hint": "Defina qual status vem em seguida assim que o trabalho em cada status é concluído. Isso desbloqueia tarefas subsequentes e informa a um agente de IA responsável exatamente qual status definir a seguir, em vez de adivinhar. Uma cadeia padrão é gerada automaticamente a partir dos status do seu projeto quando o workflow é criado.",
-			"nextStatusLabel": "Próximo status",
-			"terminalOption": "__END__",
-			"ambiguousWarning": "Exatamente um status não deve ter próximo status (este se torna o status __END__ do workflow). Atualmente: {{count}} configurados."
+		"dependencyMap": {
+			"title": "Mapa de dependências",
+			"subtitle": "Visão somente leitura de cada automação aguardando outras tarefas terminarem",
+			"empty": "Nenhuma dependência de predecessora configurada ainda",
+			"watchedTasks": "Aguardando {{count}} tarefa(s)"
 		}
 	}
 }

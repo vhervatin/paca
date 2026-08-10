@@ -17,6 +17,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Paca-AI/api/internal/apierr"
+	attachmentdom "github.com/Paca-AI/api/internal/domain/attachment"
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
 	sprintdom "github.com/Paca-AI/api/internal/domain/sprint"
 	taskdom "github.com/Paca-AI/api/internal/domain/task"
@@ -34,6 +35,7 @@ type TaskHandler struct {
 	activitySvc taskdom.ActivityService
 	publisher   *messaging.Publisher
 	projectSvc  projectServiceForAssigned
+	avatarSvc   attachmentdom.AvatarService
 }
 
 // NewTaskHandler returns a TaskHandler wired to the task service, view service,
@@ -55,6 +57,25 @@ func WithTaskPublisher(p *messaging.Publisher) TaskHandlerOption {
 	return func(h *TaskHandler) {
 		h.publisher = p
 	}
+}
+
+// WithTaskAvatarService configures avatar URL resolution for activity
+// responses (comments/system events show the actor's avatar).
+func WithTaskAvatarService(svc attachmentdom.AvatarService) TaskHandlerOption {
+	return func(h *TaskHandler) {
+		h.avatarSvc = svc
+	}
+}
+
+// toActivityResponse maps a to an ActivityResponse and, if an AvatarService
+// is configured, resolves the actor's avatar keys into presigned display URLs.
+func (h *TaskHandler) toActivityResponse(ctx context.Context, a *taskdom.Activity) dto.ActivityResponse {
+	resp := dto.ActivityFromEntity(a)
+	if h.avatarSvc != nil {
+		resp.ActorAvatarURL, _ = h.avatarSvc.ResolveAvatarURL(ctx, a.ActorAvatarKey)
+		resp.ActorAvatarThumbURL, _ = h.avatarSvc.ResolveAvatarURL(ctx, a.ActorAvatarThumbKey)
+	}
+	return resp
 }
 
 // assignedToMeMemberLookupConcurrency caps how many per-project ListMembers
@@ -953,7 +974,7 @@ func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 		// Enqueue one assignment event per assignee so the NotificationConsumer
 		// can create the in-app notification asynchronously (best-effort).
 		for _, memberID := range req.AssigneeIDs {
-			_ = events.PublishAssignmentChanged(r.Context(), h.publisher, t.ID, projectID, memberID, nil, actorID, nil)
+			_ = events.PublishAssignmentChanged(r.Context(), h.publisher, t.ID, projectID, memberID, nil, actorID, agentIDPtr, nil)
 		}
 	}
 
@@ -1041,7 +1062,7 @@ func (h *TaskHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 				if _, alreadyAssigned := oldSet[memberID]; alreadyAssigned {
 					continue
 				}
-				_ = events.PublishAssignmentChanged(r.Context(), h.publisher, taskID, projectID, memberID, nil, actorID, nil)
+				_ = events.PublishAssignmentChanged(r.Context(), h.publisher, taskID, projectID, memberID, nil, actorID, agentIDPtr, nil)
 			}
 		}
 	}
@@ -1471,7 +1492,7 @@ func (h *TaskHandler) ListTaskActivities(w http.ResponseWriter, r *http.Request)
 	}
 	resp := make([]dto.ActivityResponse, 0, len(activities))
 	for _, a := range activities {
-		resp = append(resp, dto.ActivityFromEntity(a))
+		resp = append(resp, h.toActivityResponse(r.Context(), a))
 	}
 	presenter.OK(w, r, map[string]any{"items": resp})
 }
@@ -1522,7 +1543,7 @@ func (h *TaskHandler) AddComment(w http.ResponseWriter, r *http.Request) {
 		presenter.Error(w, r, err)
 		return
 	}
-	presenter.Created(w, r, dto.ActivityFromEntity(a))
+	presenter.Created(w, r, h.toActivityResponse(r.Context(), a))
 }
 
 // UpdateComment handles PATCH /projects/:projectId/tasks/:taskId/activities/comments/:commentId.
@@ -1565,7 +1586,7 @@ func (h *TaskHandler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 		presenter.Error(w, r, err)
 		return
 	}
-	presenter.OK(w, r, dto.ActivityFromEntity(a))
+	presenter.OK(w, r, h.toActivityResponse(r.Context(), a))
 }
 
 // DeleteComment handles DELETE /projects/:projectId/tasks/:taskId/activities/comments/:commentId.

@@ -329,11 +329,12 @@ class _SeenEvents:
 
 async def persist_conversation_event(
     conversation_id: str,
-    project_id: str,
+    project_id: str | None,
     event_type: str,
     event_source: str,
     event_index: int,
     payload: str,
+    actor_user_id: str | None = None,
 ) -> None:
     """Write a single event to Postgres + Valkey and fan it out over realtime.
 
@@ -341,7 +342,8 @@ async def persist_conversation_event(
     which additionally filters and indexes SDK event objects) and
     routes/bridge.py, which persists events reported by a local ACP bridge
     daemon — both paths must write to the same destinations so the frontend
-    renders either source identically.
+    renders either source identically. project_id is None and actor_user_id
+    is set for a global-chat conversation (see TriggerMessage).
     """
     await conversation_repository.insert_conversation_event(
         conversation_id=conversation_id,
@@ -353,7 +355,14 @@ async def persist_conversation_event(
     await stream_store.publish_event(
         {
             "conversation_id": conversation_id,
-            "project_id": project_id,
+            # EVENTS_STREAM is a flat Valkey stream (XADD), not the variable
+            # JSON payload publish_realtime below builds — every entry keeps
+            # the same fixed set of fields, so "unset" is spelled as ""
+            # rather than omitted (unlike the None-omitted convention used
+            # everywhere else in this PR, e.g. publish_realtime/TriggerMessage
+            # /build_mcp_config, where the payload shape does vary).
+            "project_id": project_id or "",
+            "actor_user_id": actor_user_id or "",
             "event_type": event_type,
             "event_source": event_source,
             "event_index": str(event_index),
@@ -361,10 +370,14 @@ async def persist_conversation_event(
             "status": "running",
         }
     )
+    # The index lets a client holding a window of events fetch only what it is
+    # missing. Stringified to match publish_event above.
     await stream_store.publish_realtime(
+        extra_payload={"event_index": str(event_index)},
         project_id=project_id,
         conversation_id=conversation_id,
         event_type=f"agent.{event_type.lower()}",
+        actor_user_id=actor_user_id,
     )
 
 
@@ -404,6 +417,7 @@ def _persist_event(
             event_source=event_source,
             event_index=event_index,
             payload=payload,
+            actor_user_id=trigger.actor_user_id,
         ),
         loop,
     )
@@ -523,10 +537,17 @@ async def run_conversation(trigger: TriggerMessage, agent_config: AgentConfig) -
             merge_skills_by_name(plugin_skills, default_skills),
         )
         trigger_skills.append_trigger_skill(
-            skills, trigger.trigger_type, trigger.task_id, trigger.conversation_id
+            skills,
+            trigger.trigger_type,
+            trigger.task_id,
+            trigger.conversation_id,
+            is_automation=trigger.actor_member_id is None,
         )
         mcp_config = build_mcp_config(
-            agent_config.mcp_servers, agent_config.agent_id, trigger.project_id
+            agent_config.mcp_servers,
+            agent_config.agent_id,
+            trigger.project_id,
+            trigger.actor_user_id,
         )
 
         system_suffix = agent_config.system_prompt or ""
@@ -702,6 +723,7 @@ async def run_conversation(trigger: TriggerMessage, agent_config: AgentConfig) -
                     handle=handle,
                     sdk_conversation_id=conversation.id,
                     project_id=trigger.project_id,
+                    actor_user_id=trigger.actor_user_id,
                     last_active_at=time.monotonic(),
                 )
             else:
@@ -727,7 +749,12 @@ async def run_conversation(trigger: TriggerMessage, agent_config: AgentConfig) -
                 project_id=trigger.project_id,
                 conversation_id=trigger.conversation_id,
                 event_type=event_type,
+                actor_user_id=trigger.actor_user_id,
             )
+            if status.is_terminal():
+                await stream_store.publish_conversation_status(
+                    trigger.conversation_id, status.value
+                )
 
     except Exception as exc:
         if not stop_event.is_set() and not pause_event.is_set():
@@ -739,6 +766,10 @@ async def run_conversation(trigger: TriggerMessage, agent_config: AgentConfig) -
                 project_id=trigger.project_id,
                 conversation_id=trigger.conversation_id,
                 event_type="agent.conversation.failed",
+                actor_user_id=trigger.actor_user_id,
+            )
+            await stream_store.publish_conversation_status(
+                trigger.conversation_id, ConversationStatus.FAILED.value
             )
 
     finally:
@@ -788,6 +819,7 @@ async def teardown_paused_chat_sandbox(conversation_id: str) -> bool:
         project_id=entry.project_id,
         conversation_id=conversation_id,
         event_type="agent.conversation.stopped",
+        actor_user_id=entry.actor_user_id,
     )
     return True
 

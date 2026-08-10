@@ -30,7 +30,7 @@
 			"projectRoleHint": "Kiểm soát những gì agent có thể đọc và sửa đổi trong dự án này.",
 			"agentTypeLabel": "Loại agent",
 			"agentTypeLLM": "LLM (khóa API)",
-			"agentTypeLLMHint": "Paca gọi trực tiếp API của mô hình và chạy agent trong sandbox trên cloud.",
+			"agentTypeLLMHint": "Paca gọi trực tiếp API của mô hình và chạy agent trong một container sandbox trên máy chủ lưu trữ Paca.",
 			"agentTypeACP": "ACP (CLI cục bộ)",
 			"agentTypeACPHint": "Ủy quyền cho một CLI lập trình mà bạn tự chạy — Claude Code, Codex, Gemini CLI hoặc máy chủ ACP tùy chỉnh.",
 			"modelSection": "Mô hình",
@@ -62,7 +62,11 @@
 			"creating": "Đang tạo…",
 			"createAgent": "Tạo Agent",
 			"namePlaceholder": "Dev Bot",
-			"systemPromptPlaceholder": "Bạn là một kỹ sư phần mềm cấp cao…"
+			"systemPromptPlaceholder": "Bạn là một kỹ sư phần mềm cấp cao…",
+			"globalRoleLabel": "Vai trò toàn cục",
+			"globalRolePlaceholder": "Chọn một vai trò toàn cục…",
+			"globalRoleHint": "Quyết định những gì agent có thể làm ở phạm vi toàn cục (ví dụ: từ trang chat trang chủ/quản trị). Tùy chọn — vai trò được cấp sau, khi được mời vào một dự án, là riêng biệt.",
+			"noGlobalRoleOption": "Không có vai trò"
 		},
 		"card": {
 			"configure": "Cấu hình",
@@ -72,6 +76,8 @@
 			"deleteDialog": {
 				"title": "Xóa {{name}}?",
 				"description": "Thao tác này sẽ xóa vĩnh viễn agent và loại bỏ nó khỏi dự án. Các cuộc trò chuyện đang chạy sẽ bị dừng.",
+				"descriptionGlobal": "Thao tác này sẽ xóa vĩnh viễn agent và loại bỏ nó khỏi mọi dự án mà agent đã được mời tham gia. Các cuộc trò chuyện đang chạy sẽ bị dừng.",
+				"deleteFailed": "Xóa agent thất bại. Vui lòng thử lại.",
 				"cancel": "Hủy",
 				"delete": "Xóa"
 			}
@@ -103,15 +109,23 @@
 			"generating": "Đang tạo…",
 			"generateFailed": "Không thể tạo token. Vui lòng thử lại.",
 			"tokenWarning": "Hãy sao chép ngay bây giờ — nó sẽ không hiển thị lại lần nữa.",
+			"claudeSetupTokenHint": "Claude Code cũng cần đăng nhập một lần riêng — hãy chạy lệnh này trước khi khởi động cầu nối bên dưới, nếu không cầu nối sẽ không có gì để xác thực:",
+			"claudeOauthExportHint": "Lệnh này chỉ in ra token — hãy sao chép và export nó để cầu nối có thể thực sự sử dụng:",
+			"localAuthExportHint": "{{provider}} cũng cần xác thực cục bộ riêng trước khi cầu nối khởi động, nếu không sẽ không có gì để xác thực:",
 			"copy": "Sao chép",
 			"copied": "Đã sao chép!",
-			"step3Title": "Cài đặt skill Paca",
-			"step3Description": "Cho phép CLI của bạn định tuyến yêu cầu qua các công cụ MCP của Paca — được thêm vào mỗi prompt qua /paca theo mặc định.",
+			"stepSkillMcpTitle": "Cài đặt skill & kết nối máy chủ MCP",
+			"stepSkillMcpDescription": "Tạo khóa MCP riêng của agent này một lần, sau đó chạy cả hai lệnh bên dưới — để các lệnh gọi công cụ được ghi nhận là hoạt động của agent, không phải của bạn.",
+			"stepSkillMcpSkillLabel": "Cài đặt skill:",
+			"stepSkillMcpConnectLabel": "Kết nối máy chủ MCP:",
 			"step3NotAvailable": "Cài đặt tự động khả dụng cho Claude Code, Gemini CLI và Codex. {{provider}} chưa có trình cài đặt prompt tùy chỉnh nào được biết đến — các công cụ MCP của Paca bên dưới vẫn hoạt động mà không cần nó.",
 			"step3ViewContent": "Xem hướng dẫn skill",
-			"step4Title": "Kết nối máy chủ MCP",
-			"step4Description": "Sử dụng khóa API cá nhân để CLI có thể gọi trực tiếp các công cụ của Paca.",
-			"step4ApiKeyLink": "Lấy khóa API",
+			"step4NoKeyYet": "Tạo một khóa để hiển thị các lệnh thiết lập.",
+			"step4GenerateButton": "Tạo khóa",
+			"step4RegenerateButton": "Tạo lại khóa",
+			"step4Generating": "Đang tạo…",
+			"step4GenerateFailed": "Không thể tạo khóa. Vui lòng thử lại.",
+			"step4KeyWarning": "Hãy sao chép ngay bây giờ — nó sẽ không hiển thị lại, và khóa trước đó sẽ ngừng hoạt động ngay lập tức.",
 			"step4GenericHint": "Các bước chính xác để đăng ký máy chủ MCP khác nhau tùy theo CLI — {{provider}} thường đọc thông tin này từ tệp cấu hình riêng. Hãy dùng lệnh này để tham khảo:",
 			"customProviderLabel": "máy chủ ACP tùy chỉnh của bạn",
 			"done": "Xong"
@@ -121,7 +135,19 @@
 				"overview": "Tổng quan",
 				"mcpServers": "Máy chủ MCP",
 				"skills": "Skill",
-				"envVars": "Môi trường"
+				"envVars": "Môi trường",
+				"activity": "Hoạt động"
+			},
+			"avatar": {
+				"change": "Đổi ảnh đại diện",
+				"remove": "Xóa ảnh đại diện",
+				"uploading": "Đang tải lên…",
+				"errors": {
+					"invalidType": "Vui lòng chọn ảnh định dạng PNG, JPEG, WEBP hoặc GIF.",
+					"tooLarge": "Ảnh phải nhỏ hơn hoặc bằng 5 MB.",
+					"uploadFailed": "Tải ảnh đại diện lên thất bại. Vui lòng thử lại.",
+					"removeFailed": "Xóa ảnh đại diện thất bại. Vui lòng thử lại."
+				}
 			},
 			"overview": {
 				"nameLabel": "Tên",
@@ -211,6 +237,30 @@
 					"cancel": "Hủy",
 					"addSkill": "Thêm skill"
 				}
+			},
+			"activity": {
+				"commented": "đã bình luận",
+				"sourceType": {
+					"task": "Công việc",
+					"doc": "Tài liệu"
+				},
+				"empty": {
+					"title": "Chưa có hoạt động nào",
+					"description": "Hoạt động trên công việc và tài liệu do tác nhân này thực hiện sẽ hiển thị ở đây."
+				},
+				"emptyFiltered": {
+					"title": "Không có hoạt động phù hợp",
+					"description": "Hãy thử điều chỉnh bộ lọc hoặc tìm kiếm."
+				},
+				"filters": {
+					"title": "Bộ lọc",
+					"type": "Loại",
+					"dateRange": "Khoảng thời gian",
+					"searchPlaceholder": "Tìm kiếm hoạt động…",
+					"dateFrom": "Từ ngày",
+					"dateTo": "Đến ngày",
+					"clearAll": "Xóa bộ lọc"
+				}
 			}
 		},
 		"conversationView": {
@@ -222,7 +272,10 @@
 			"conversationEnded": "Cuộc trò chuyện này đã kết thúc.",
 			"textOnlyMessage": "Chỉ hỗ trợ tin nhắn văn bản.",
 			"failed": "Cuộc trò chuyện thất bại",
-			"noOutput": "Agent không tạo ra kết quả nào."
+			"noOutput": "Agent không tạo ra kết quả nào.",
+			"loadingOlder": "Đang tải…",
+			"newBelow_one": "{{count}} tin nhắn mới",
+			"newBelow_other": "{{count}} tin nhắn mới"
 		},
 		"thread": {
 			"composerPlaceholder": "Nhắn tin cho agent…",
@@ -392,12 +445,12 @@
 				"description": "Tạo, cấu hình và xóa AI agent"
 			},
 			"workflowsRead": {
-				"label": "Xem quy trình",
-				"description": "Xem các quy trình tự động hóa và cấu hình của chúng"
+				"label": "Xem tự động hóa",
+				"description": "Xem các tự động hóa và cấu hình của chúng"
 			},
 			"workflowsWrite": {
-				"label": "Quản lý quy trình",
-				"description": "Tạo, chỉnh sửa, kích hoạt và xóa các quy trình tự động hóa"
+				"label": "Quản lý tự động hóa",
+				"description": "Tạo, chỉnh sửa, kích hoạt và xóa tự động hóa"
 			}
 		},
 		"permissionGroups": {
@@ -415,6 +468,17 @@
 	"settings": {
 		"general": {
 			"title": "Chung",
+			"avatar": {
+				"change": "Đổi ảnh đại diện",
+				"remove": "Xóa ảnh đại diện",
+				"uploading": "Đang tải lên…",
+				"errors": {
+					"invalidType": "Vui lòng chọn ảnh định dạng PNG, JPEG, WEBP hoặc GIF.",
+					"tooLarge": "Ảnh phải nhỏ hơn hoặc bằng 5 MB.",
+					"uploadFailed": "Tải ảnh đại diện lên thất bại. Vui lòng thử lại.",
+					"removeFailed": "Xóa ảnh đại diện thất bại. Vui lòng thử lại."
+				}
+			},
 			"projectNameLabel": "Tên dự án",
 			"projectNamePlaceholder": "Dự án tuyệt vời của tôi",
 			"taskIdPrefixLabel": "Tiền tố mã nhiệm vụ",
@@ -638,7 +702,11 @@
 			"addMember": "Thêm thành viên",
 			"errors": {
 				"addFailed": "Thêm thành viên thất bại. Vui lòng thử lại."
-			}
+			},
+			"modeUser": "Người dùng",
+			"modeAgent": "Agent AI",
+			"agentLabel": "Agent",
+			"noAgentsAvailable": "Không có agent toàn cục nào để mời."
 		},
 		"roleChip": {
 			"changeRole": "Đổi vai trò",
@@ -661,9 +729,9 @@
 		"chatWithAgent": "Trò chuyện với AI Agent",
 		"newConversation": "Hội thoại mới",
 		"agentLabel": "Agent",
-		"noAgentsConfigured": "Chưa có agent nào được cấu hình cho dự án này.",
 		"selectAgentPlaceholder": "Chọn một agent…",
-		"selectAgentFirst": "Vui lòng chọn một agent trước."
+		"selectAgentFirst": "Vui lòng chọn một agent trước.",
+		"noAgentsAvailable": "Chưa có agent nào khả dụng."
 	},
 	"taskTypes": {
 		"deleteDialog": {
@@ -769,11 +837,6 @@
 			"openTask": "Mở nhiệm vụ",
 			"removeLink": "Gỡ liên kết",
 			"empty": "Không có nhiệm vụ liên kết"
-		},
-		"workflows": {
-			"title": "Quy trình",
-			"open": "Mở quy trình",
-			"empty": "Chưa có quy trình nào"
 		},
 		"attachments": {
 			"title": "Tệp đính kèm",
@@ -998,13 +1061,29 @@
 		"triggerChat": "Trò chuyện",
 		"triggerWriteDescription": "Viết mô tả",
 		"triggerTask": "Nhiệm vụ",
+		"triggerAutomation": "Tự động hóa",
 		"iterations_one": "{{count}} lượt lặp",
 		"iterations_other": "{{count}} lượt lặp",
 		"prOpened": "PR đã mở",
+		"filters": {
+			"title": "Bộ lọc",
+			"agent": "Tác nhân",
+			"status": "Trạng thái",
+			"type": "Loại",
+			"dateRange": "Khoảng thời gian",
+			"searchPlaceholder": "Tìm kiếm tin nhắn…",
+			"dateFrom": "Từ ngày",
+			"dateTo": "Đến ngày",
+			"clearAll": "Xóa bộ lọc"
+		},
 		"list": {
 			"empty": {
 				"title": "Chưa có hội thoại nào",
 				"description": "Hội thoại bắt đầu khi một nhiệm vụ được giao cho agent hoặc khi có ai đó nhắn tin cho agent đó."
+			},
+			"emptyFiltered": {
+				"title": "Không có hội thoại phù hợp",
+				"description": "Hãy thử điều chỉnh hoặc xóa bộ lọc của bạn."
 			}
 		},
 		"detail": {
@@ -1142,6 +1221,21 @@
 			"statusCompleted": "Đã hoàn thành",
 			"description": "Sprint {{status}}",
 			"descriptionWithStartDate": "Sprint {{status}} · bắt đầu {{date}}",
+			"editSprint": "Chỉnh sửa sprint",
+			"editSprintModal": {
+				"title": "Chỉnh sửa sprint",
+				"nameLabel": "Tên",
+				"goalLabel": "Mục tiêu",
+				"optional": "(không bắt buộc)",
+				"goalPlaceholder": "Sprint này cần đạt được điều gì?",
+				"startDateLabel": "Ngày bắt đầu",
+				"dueDateLabel": "Ngày đến hạn",
+				"dateRangeError": "Ngày đến hạn không thể trước ngày bắt đầu.",
+				"error": "Không thể cập nhật sprint. Vui lòng thử lại.",
+				"cancel": "Hủy",
+				"saving": "Đang lưu…",
+				"save": "Lưu thay đổi"
+			},
 			"completeSprint": "Hoàn thành sprint",
 			"completeSprintModal": {
 				"title": "Hoàn thành sprint",
@@ -1219,77 +1313,278 @@
 	"automation": {
 		"list": {
 			"title": "Tự động hóa",
-			"subtitle": "Tự động hóa việc bàn giao công việc khi tiến trình dự án thay đổi",
-			"newWorkflow": "Quy trình mới",
+			"subtitle": "Phản ứng với các sự kiện công việc bằng trình kích hoạt, điều kiện và hành động",
+			"newAutomation": "Tự động hóa mới",
 			"empty": {
-				"title": "Chưa có quy trình nào",
-				"description": "Tạo một quy trình để tự động hóa việc bàn giao công việc khi tiến trình dự án thay đổi.",
-				"createFirstWorkflow": "Tạo quy trình đầu tiên của bạn"
+				"title": "Chưa có tự động hóa nào",
+				"description": "Tạo một tự động hóa để phản ứng với các sự kiện công việc bằng điều kiện và hành động.",
+				"createFirst": "Tạo tự động hóa đầu tiên của bạn"
 			},
 			"noDescription": "Không có mô tả",
 			"updated": "Đã cập nhật {{time}}"
 		},
 		"status": {
-			"draft": "Bản nháp",
 			"active": "Đang hoạt động",
-			"archived": "Đã lưu trữ"
+			"inactive": "Không hoạt động"
 		},
 		"createDialog": {
-			"title": "Quy trình tự động mới",
+			"title": "Tự động hóa mới",
 			"nameLabel": "Tên",
-			"namePlaceholder": "vd: Quy trình phát hành",
+			"namePlaceholder": "vd: Phân loại lỗi",
 			"descriptionLabel": "Mô tả",
-			"descriptionPlaceholder": "Chi tiết tùy chọn về quy trình này…",
+			"descriptionPlaceholder": "Chi tiết tùy chọn về tự động hóa này…",
 			"cancel": "Hủy",
 			"create": "Tạo"
 		},
 		"deleteDialog": {
-			"title": "Xóa quy trình",
+			"title": "Xóa tự động hóa",
 			"body": "Bạn có chắc muốn xóa \"{{name}}\" không? Hành động này không thể hoàn tác.",
 			"cancel": "Hủy",
 			"confirm": "Xóa"
 		},
 		"builder": {
-			"addTask": "Thêm công việc",
-			"activate": "Kích hoạt",
-			"archive": "Lưu trữ",
-			"deactivate": "Hủy kích hoạt",
-			"readOnlyNoticeArchived": "Quy trình này đã được lưu trữ và ở chế độ chỉ xem — quy trình đã lưu trữ không thể chỉnh sửa.",
+			"toggleActiveLabel": "Bật hoặc tắt tự động hóa này",
 			"genericError": "Đã xảy ra lỗi. Vui lòng thử lại.",
-			"collapseSidebar": "Thu gọn thanh bên",
-			"expandSidebar": "Mở rộng thanh bên"
+			"taskLessTriggerConnectionError": "Trình kích hoạt này chưa đặt công việc mục tiêu nên chỉ có thể kết nối với hành động Gọi API hoặc Kích hoạt tác nhân AI — điều kiện và các hành động khác cần một công việc để thực hiện.",
+			"collapseSidebar": "Thu gọn bảng",
+			"expandSidebar": "Mở rộng bảng",
+			"tabGraph": "Sơ đồ",
+			"tabRuns": "Lịch sử chạy",
+			"tabDependencyMap": "Bản đồ phụ thuộc"
+		},
+		"palette": {
+			"title": "Thêm nút",
+			"addTrigger": "Thêm trình kích hoạt",
+			"addCondition": "Thêm điều kiện",
+			"addAction": "Thêm hành động",
+			"builtIn": "Tích hợp sẵn",
+			"plugins": "Plugin",
+			"triggerGroups": {
+				"taskEvents": "Sự kiện công việc",
+				"sprintEvents": "Sự kiện sprint",
+				"scheduleWebhook": "Lịch và webhook"
+			}
+		},
+		"nodeKind": {
+			"trigger": "Trình kích hoạt",
+			"condition": "Điều kiện",
+			"action": "Hành động"
 		},
 		"canvas": {
-			"unknownTask": "Công việc không xác định",
-			"deleteEdge": "Xóa kết nối"
+			"deleteEdge": "Xóa kết nối",
+			"deleteNode": "Xóa nút"
 		},
-		"addNodeModal": {
-			"title": "Thêm công việc vào quy trình",
-			"searchPlaceholder": "Tìm kiếm công việc...",
-			"loadingTasks": "Đang tải công việc...",
-			"noTasksFound": "Không tìm thấy công việc nào"
+		"triggerTypes": {
+			"status_changed": "Trạng thái thay đổi",
+			"task_created": "Công việc được tạo",
+			"assignee_changed": "Người được giao thay đổi",
+			"priority_changed": "Độ ưu tiên thay đổi",
+			"tag_added": "Nhãn được thêm",
+			"due_date_reached": "Đến hạn chót",
+			"predecessor_done": "(Các) công việc trước đã xong",
+			"cron": "Lịch cron",
+			"api_trigger": "Webhook",
+			"sprint_created": "Sprint được tạo",
+			"sprint_started": "Sprint bắt đầu",
+			"sprint_completed": "Sprint hoàn thành",
+			"sprint_deleted": "Sprint bị xóa"
 		},
-		"nodePanel": {
-			"title": "Công việc",
-			"removeNode": "Xóa khỏi quy trình",
-			"removeConfirmTitle": "Xóa công việc khỏi quy trình",
-			"removeConfirmBody": "Thao tác này xóa công việc khỏi sơ đồ quy trình, cùng với các kết nối của nó. Bản thân công việc không bị ảnh hưởng.",
+		"actionTypes": {
+			"update_task": "Cập nhật công việc",
+			"trigger_ai_agent": "Kích hoạt tác nhân AI",
+			"call_api": "Gọi API",
+			"wait": "Chờ",
+			"update_sprint": "Cập nhật sprint",
+			"complete_sprint": "Hoàn thành sprint"
+		},
+		"nodeConfig": {
+			"save": "Lưu",
 			"cancel": "Hủy",
-			"removeConfirmAction": "Xóa"
+			"remove": "Xóa nút",
+			"removeConfirmTitle": "Xóa nút",
+			"removeConfirmBody": "Thao tác này sẽ xóa nút khỏi sơ đồ, cùng với tất cả các kết nối của nó.",
+			"removeConfirmAction": "Xóa",
+			"genericFormHint": "Loại nút này đến từ một plugin chưa khai báo schema cấu hình, nên cài đặt của nó được chỉnh sửa dưới dạng JSON thô. Các plugin khai báo configSchema trong manifest sẽ hiển thị các trường giao diện ở đây thay vào đó.",
+			"trigger": {
+				"anyStatus": "Bất kỳ trạng thái nào",
+				"noConfigNeeded": "Trình kích hoạt này không cần cấu hình — nó tự động chạy khi sự kiện xảy ra.",
+				"statusLabel": "Trạng thái",
+				"tagLabel": "Nhãn",
+				"anyTag": "Bất kỳ nhãn nào",
+				"dueDateOffsetLabel": "Độ lệch (phút)",
+				"dueDateOffsetHint": "0 = đúng hạn chót, âm = trước, dương = sau",
+				"watchedTasksLabel": "Công việc đang theo dõi",
+				"watchedTasksHint": "Kích hoạt khi TẤT CẢ các công việc này đều ở trạng thái \"hoàn thành\"",
+				"addWatchedTaskPlaceholder": "Thêm công việc cần theo dõi…",
+				"targetTaskLabel": "Công việc mục tiêu (tùy chọn)",
+				"targetTaskHint": "Công việc mà tự động hóa này tác động khi tất cả công việc theo dõi ở trên đã hoàn thành — một công việc khác với các công việc trước đó, được đánh giá lại theo trạng thái hiện tại của chính nó. Để trống nếu chỉ nên kết nối tới hành động Gọi API hoặc Kích hoạt tác nhân AI, vốn không cần công việc.",
+				"selectTaskPlaceholder": "Chọn một công việc…",
+				"searchTaskPlaceholder": "Tìm kiếm công việc…",
+				"noTasksFound": "Không tìm thấy công việc phù hợp",
+				"noTasksYet": "Dự án này chưa có công việc nào",
+				"loadingMore": "Đang tải…",
+				"clearTargetTask": "Xóa công việc mục tiêu",
+				"cronExpressionLabel": "Biểu thức cron",
+				"cronExpressionPlaceholder": "*/15 * * * *",
+				"cronExpressionHint": "Cron chuẩn 5 trường (phút giờ ngày-trong-tháng tháng ngày-trong-tuần), tính theo UTC",
+				"cronTargetTaskHint": "Công việc mà tự động hóa này tác động mỗi khi kích hoạt theo lịch. Để trống nếu chỉ nên kết nối tới hành động Gọi API hoặc Kích hoạt tác nhân AI, vốn không cần công việc.",
+				"apiTriggerTargetTaskHint": "Công việc mà tự động hóa này tác động mỗi khi webhook bên dưới được gọi. Để trống nếu chỉ nên kết nối tới hành động Gọi API hoặc Kích hoạt tác nhân AI, vốn không cần công việc.",
+				"webhookUrlLabel": "URL webhook",
+				"webhookTokenLabel": "Token webhook",
+				"generateTokenButton": "Tạo token",
+				"regenerateTokenButton": "Tạo lại token",
+				"tokenShownOnceWarning": "Hãy sao chép token này ngay — nó sẽ không hiển thị lại nữa.",
+				"copy": "Sao chép",
+				"copied": "Đã sao chép",
+				"noTokenYet": "Chưa có token nào được tạo"
+			},
+			"condition": {
+				"branchesTitle": "Nhánh",
+				"addBranch": "Thêm nhánh",
+				"branchLabel": "Nhãn nhánh",
+				"elseLabel": "Trường hợp khác (không nhánh nào khớp)",
+				"removeBranch": "Xóa nhánh",
+				"field": "Trường",
+				"operator": "Toán tử",
+				"value": "Giá trị",
+				"addGroup": "Thêm nhóm",
+				"addCondition": "Thêm điều kiện",
+				"removeCondition": "Xóa",
+				"logicAnd": "VÀ",
+				"logicOr": "HOẶC",
+				"logicNot": "KHÔNG",
+				"fields": {
+					"status_id": "Trạng thái",
+					"task_type_id": "Loại công việc",
+					"importance": "Độ ưu tiên",
+					"assignee_ids": "Người được giao",
+					"tags": "Nhãn",
+					"custom_field": "Trường tùy chỉnh",
+					"title": "Tiêu đề",
+					"story_points": "Story points",
+					"sprint_id": "Sprint",
+					"parent_task_id": "Công việc cha",
+					"reporter_id": "Người báo cáo",
+					"start_date": "Ngày bắt đầu",
+					"due_date": "Ngày đến hạn",
+					"sprint_name": "Tên sprint",
+					"sprint_status": "Trạng thái sprint",
+					"sprint_goal": "Mục tiêu sprint",
+					"sprint_start_date": "Ngày bắt đầu sprint",
+					"sprint_end_date": "Ngày kết thúc sprint"
+				}
+			},
+			"action": {
+				"memberLabel": "Người được giao",
+				"agentLabel": "Tác nhân",
+				"statusLabel": "Trạng thái",
+				"importanceLabel": "Độ ưu tiên",
+				"tagLabel": "Nhãn",
+				"fieldKeyLabel": "Trường",
+				"valueLabel": "Giá trị",
+				"messageLabel": "Hướng dẫn cho tác nhân",
+				"messagePlaceholder": "vd: Tóm tắt công việc này và đề xuất mức độ ưu tiên.",
+				"methodLabel": "Phương thức",
+				"urlLabel": "URL",
+				"urlPlaceholder": "https://example.com/webhook",
+				"headersLabel": "Tiêu đề",
+				"headerKeyPlaceholder": "Tên tiêu đề",
+				"headerValuePlaceholder": "Giá trị",
+				"addHeader": "Thêm tiêu đề",
+				"bodyLabel": "Nội dung",
+				"waitMinutesLabel": "Thời gian chờ (phút)",
+				"waitMinutesHint": "Thời gian tạm dừng tại đây trước khi tiếp tục sang node kế tiếp.",
+				"updateSprintHint": "Chỉ những trường bạn điền bên dưới mới được thay đổi — mọi thứ khác trên sprint vẫn giữ nguyên.",
+				"sprintNameLabel": "Tên",
+				"sprintStartDateLabel": "Ngày bắt đầu",
+				"sprintEndDateLabel": "Ngày kết thúc",
+				"sprintGoalLabel": "Mục tiêu",
+				"sprintStatusLabel": "Trạng thái",
+				"sprintStatusUnchanged": "Giữ nguyên",
+				"sprintStatusPlanned": "Đã lên kế hoạch",
+				"sprintStatusActive": "Đang hoạt động",
+				"sprintStatusCompleted": "Đã hoàn thành",
+				"completeSprintHint": "Đánh dấu sprint hoàn thành và di chuyển các tác vụ chưa xong.",
+				"moveToSprintLabel": "Di chuyển tác vụ chưa xong đến",
+				"moveToSprintBacklog": "Backlog",
+				"moveToSprintHint": "Các tác vụ chưa xong trong sprint này sẽ chuyển đến đây khi sprint hoàn thành.",
+				"variablesHint": "Hỗ trợ {{task.title}}, {{sprint.name}} và các placeholder {{variable}} khác từ lần chạy hiện tại.",
+				"updateTaskHint": "Chỉ những trường bạn bật dưới đây mới bị thay đổi — phần còn lại của công việc không bị ảnh hưởng.",
+				"addFieldToUpdate": "Thêm trường cần cập nhật…",
+				"customFieldsLabel": "Trường tùy chỉnh",
+				"enableField": "Đặt {{field}}",
+				"titleLabel": "Tiêu đề",
+				"storyPointsLabel": "Story points",
+				"sprintLabel": "Sprint",
+				"parentTaskLabel": "Công việc cha",
+				"reporterLabel": "Người báo cáo",
+				"startDateLabel": "Ngày bắt đầu",
+				"dueDateLabel": "Ngày đến hạn",
+				"tagsLabel": "Nhãn",
+				"tagsPlaceholder": "Thêm nhãn…",
+				"assigneesLabel": "Người được giao",
+				"noSprint": "Không có sprint",
+				"pluginConditionLabel": "Điều kiện plugin",
+				"pluginConditionHint": "Giao việc khớp của nhánh này cho một điều kiện do plugin cung cấp thay vì so sánh trường công việc.",
+				"selectPluginPlaceholder": "Chọn điều kiện plugin…",
+				"addCustomField": "Thêm trường tùy chỉnh…"
+			},
+			"target": {
+				"label": "Áp dụng cho",
+				"kinds": {
+					"self": "Công việc này",
+					"parent": "Công việc cha",
+					"children": "Công việc con",
+					"blocks": "Chặn",
+					"is_blocked_by": "Bị chặn bởi",
+					"relates_to": "Công việc liên quan",
+					"duplicates": "Trùng lặp với",
+					"is_duplicated_by": "Bị trùng lặp bởi",
+					"other": "Công việc khác…"
+				},
+				"matchMode": {
+					"any": "Khớp bất kỳ",
+					"all": "Khớp tất cả"
+				}
+			},
+			"description": {
+				"dueDateAt": "Đúng hạn chót",
+				"dueDateBefore": "{{minutes}} phút trước hạn chót",
+				"dueDateAfter": "{{minutes}} phút sau hạn chót",
+				"branches": "{{count}} nhánh",
+				"priority": "Độ ưu tiên: {{level}}",
+				"fieldValue": "{{field}} → {{value}}",
+				"unassigned": "Chưa giao",
+				"notConfigured": "Chưa cấu hình",
+				"elseShort": "Trường hợp khác",
+				"pluginConditionMatched": "Khớp",
+				"branchFallback": "Nhánh {{n}}",
+				"cronSchedule": "Chạy {{expression}}",
+				"webhookReady": "Đã cấu hình webhook",
+				"callApiSummary": "{{method}} {{host}}"
+			}
 		},
-		"statusRules": {
-			"title": "Quy tắc trạng thái → người được giao",
-			"hint": "Tự động giao một công việc cho thành viên bất cứ khi nào nó chuyển sang một trong các trạng thái này. Điều này áp dụng cho bất kỳ công việc nào trong quy trình này — dù ai đó thay đổi trực tiếp trạng thái của công việc, hay một công việc tiền nhiệm hoàn tất khiến công việc kế tiếp được đánh giá lại theo trạng thái hiện tại của nó.",
-			"noRules": "Chưa có quy tắc nào",
-			"statusPlaceholder": "Trạng thái",
-			"memberPlaceholder": "Người được giao"
+		"runHistory": {
+			"title": "Lịch sử chạy",
+			"empty": "Chưa có lần chạy nào",
+			"status": {
+				"running": "Đang chạy",
+				"completed": "Hoàn thành",
+				"failed": "Thất bại"
+			},
+			"stepStatus": {
+				"completed": "Hoàn thành",
+				"failed": "Thất bại",
+				"skipped": "Đã bỏ qua (đã áp dụng)"
+			},
+			"startedAt": "Bắt đầu {{time}}",
+			"viewSteps": "Xem các bước"
 		},
-		"statusTransitions": {
-			"title": "Quy trình trạng thái",
-			"hint": "Xác định trạng thái nào sẽ đến tiếp theo khi công việc ở mỗi trạng thái hoàn tất. Điều này mở khóa các công việc kế tiếp và cho agent AI được giao biết chính xác trạng thái cần đặt tiếp theo, thay vì phải đoán. Một chuỗi mặc định được tự động tạo từ các trạng thái của dự án khi quy trình được tạo.",
-			"nextStatusLabel": "Trạng thái tiếp theo",
-			"terminalOption": "__END__",
-			"ambiguousWarning": "Phải có chính xác một trạng thái không có trạng thái tiếp theo (đây sẽ là trạng thái __END__ của quy trình). Hiện tại: {{count}} được cấu hình."
+		"dependencyMap": {
+			"title": "Bản đồ phụ thuộc",
+			"subtitle": "Chế độ xem chỉ đọc về mọi tự động hóa đang chờ các công việc khác hoàn thành",
+			"empty": "Chưa có phụ thuộc công việc trước nào được cấu hình",
+			"watchedTasks": "Đang chờ {{count}} công việc"
 		}
 	}
 }

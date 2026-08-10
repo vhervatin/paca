@@ -12,14 +12,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
+	attachmentdom "github.com/Paca-AI/api/internal/domain/attachment"
 	domainauth "github.com/Paca-AI/api/internal/domain/auth"
 	globalroledom "github.com/Paca-AI/api/internal/domain/globalrole"
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
+	settingsdom "github.com/Paca-AI/api/internal/domain/settings"
 	userdom "github.com/Paca-AI/api/internal/domain/user"
 	"github.com/Paca-AI/api/internal/platform/authz"
 	jwttoken "github.com/Paca-AI/api/internal/platform/token"
 	"github.com/Paca-AI/api/internal/transport/http/handler"
-	"github.com/google/uuid"
 )
 
 type mockAuthSvc struct{}
@@ -40,6 +43,9 @@ func (m *mockUserSvc) GetByID(context.Context, uuid.UUID) (*userdom.User, error)
 func (m *mockUserSvc) List(context.Context, int, int) ([]*userdom.User, int64, error) {
 	return []*userdom.User{}, 0, nil
 }
+func (m *mockUserSvc) CountUsers(context.Context) (int64, error) {
+	return 0, nil
+}
 func (m *mockUserSvc) ListGlobalPermissions(context.Context, uuid.UUID) ([]string, error) {
 	return []string{string(authz.PermissionUsersRead)}, nil
 }
@@ -55,6 +61,15 @@ func (m *mockUserSvc) AdminUpdate(context.Context, uuid.UUID, userdom.AdminUpdat
 func (m *mockUserSvc) ResetPassword(context.Context, uuid.UUID, string) error            { return nil }
 func (m *mockUserSvc) ChangeMyPassword(context.Context, uuid.UUID, string, string) error { return nil }
 func (m *mockUserSvc) Delete(context.Context, uuid.UUID) error                           { return nil }
+func (m *mockUserSvc) InitiateAvatarUpload(context.Context, uuid.UUID, string, string, int64) (*attachmentdom.UploadSession, error) {
+	return &attachmentdom.UploadSession{}, nil
+}
+func (m *mockUserSvc) CompleteAvatarUpload(context.Context, uuid.UUID, uuid.UUID) (*userdom.User, error) {
+	return &userdom.User{ID: uuid.New(), Username: "alice", FullName: "Alice", Role: userdom.RoleUser}, nil
+}
+func (m *mockUserSvc) RemoveAvatar(context.Context, uuid.UUID) (*userdom.User, error) {
+	return &userdom.User{ID: uuid.New(), Username: "alice", FullName: "Alice", Role: userdom.RoleUser}, nil
+}
 
 type mockGlobalRoleSvc struct{}
 
@@ -95,8 +110,20 @@ func (s *stubProjectSvc) Update(context.Context, uuid.UUID, projectdom.UpdatePro
 	return nil, nil
 }
 func (s *stubProjectSvc) Delete(context.Context, uuid.UUID) error { return nil }
+func (s *stubProjectSvc) InitiateAvatarUpload(context.Context, uuid.UUID, string, string, int64, uuid.UUID) (*attachmentdom.UploadSession, error) {
+	return &attachmentdom.UploadSession{}, nil
+}
+func (s *stubProjectSvc) CompleteAvatarUpload(context.Context, uuid.UUID, uuid.UUID) (*projectdom.Project, error) {
+	return nil, projectdom.ErrNotFound
+}
+func (s *stubProjectSvc) RemoveAvatar(context.Context, uuid.UUID) (*projectdom.Project, error) {
+	return nil, projectdom.ErrNotFound
+}
 func (s *stubProjectSvc) ListMembers(context.Context, uuid.UUID) ([]*projectdom.ProjectMember, error) {
 	return nil, nil
+}
+func (s *stubProjectSvc) CountDistinctAgentsByProjects(context.Context, []uuid.UUID) (int64, error) {
+	return 0, nil
 }
 func (s *stubProjectSvc) AddMember(context.Context, uuid.UUID, projectdom.AddMemberInput) (*projectdom.ProjectMember, error) {
 	return nil, nil
@@ -128,6 +155,27 @@ func (s *stubProjectSvc) UpdateRole(context.Context, uuid.UUID, uuid.UUID, proje
 	return nil, nil
 }
 func (s *stubProjectSvc) DeleteRole(context.Context, uuid.UUID, uuid.UUID) error { return nil }
+
+// fakeSettingsSvc is a minimal settingsdom.Service — enough to exercise
+// routing/permission checks for the /admin/settings endpoints without a
+// real DB.
+type fakeSettingsSvc struct{}
+
+func (f *fakeSettingsSvc) Get(context.Context) (*settingsdom.WorkspaceSettings, error) {
+	return &settingsdom.WorkspaceSettings{}, nil
+}
+func (f *fakeSettingsSvc) InitiateImageUpload(context.Context, settingsdom.ImageSlot, string, string, int64, uuid.UUID) (*attachmentdom.UploadSession, error) {
+	return &attachmentdom.UploadSession{}, nil
+}
+func (f *fakeSettingsSvc) CompleteImageUpload(context.Context, settingsdom.ImageSlot, uuid.UUID, uuid.UUID) (*settingsdom.WorkspaceSettings, error) {
+	return &settingsdom.WorkspaceSettings{}, nil
+}
+func (f *fakeSettingsSvc) RemoveImage(context.Context, settingsdom.ImageSlot, uuid.UUID) (*settingsdom.WorkspaceSettings, error) {
+	return &settingsdom.WorkspaceSettings{}, nil
+}
+func (f *fakeSettingsSvc) UpdateSettings(context.Context, *string, *string, *string, uuid.UUID) (*settingsdom.WorkspaceSettings, error) {
+	return &settingsdom.WorkspaceSettings{}, nil
+}
 
 type allowAllPermissionStore struct{}
 
@@ -172,6 +220,7 @@ func newTestRouterWithStore(t *testing.T, store authz.PermissionStore) http.Hand
 		User:       handler.NewUserHandler(&mockUserSvc{}),
 		GlobalRole: handler.NewGlobalRoleHandler(&mockGlobalRoleSvc{}),
 		Project:    handler.NewProjectHandler(&stubProjectSvc{}, authorizer),
+		Settings:   handler.NewSettingsHandler(&fakeSettingsSvc{}),
 		Log:        slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
@@ -343,6 +392,38 @@ func TestAdminRoute_CreateGlobalRole_RequiresWritePermission(t *testing.T) {
 
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("expected 403 without write permission, got %d (%s)", w.Code, w.Body.String())
+	}
+}
+
+func TestAdminRoute_UpdateSettings_RequiresWritePermission(t *testing.T) {
+	r := newTestRouterWithStore(t, &staticPermissionStore{globalPerms: []authz.Permission{authz.PermissionUsersRead}})
+	tok := issueAccessTokenForRouterTests(t)
+
+	body := bytes.NewBufferString(`{"brand_name":"Acme"}`)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/api/v1/admin/settings", body)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 without settings.write permission, got %d (%s)", w.Code, w.Body.String())
+	}
+}
+
+func TestAdminRoute_UpdateSettings_WithWritePermission(t *testing.T) {
+	r := newTestRouterWithStore(t, &staticPermissionStore{globalPerms: []authz.Permission{authz.PermissionSettingsWrite}})
+	tok := issueAccessTokenForRouterTests(t)
+
+	body := bytes.NewBufferString(`{"brand_name":"Acme"}`)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/api/v1/admin/settings", body)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 with settings.write permission, got %d (%s)", w.Code, w.Body.String())
 	}
 }
 

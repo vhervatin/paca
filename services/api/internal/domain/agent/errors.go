@@ -22,6 +22,13 @@ var (
 	ErrNotSupportedForACPAgent = errors.New("not supported for ACP-type agents — the local ACP client owns its own tool/MCP/skill/environment configuration")
 )
 
+// Global agent errors
+var (
+	// ErrAgentNotGlobal is returned when a global-agent-only operation
+	// (admin CRUD, global chat) targets a project-scoped agent.
+	ErrAgentNotGlobal = errors.New("agent is not a global agent")
+)
+
 // MCP server errors
 var (
 	ErrMCPServerNotFound        = errors.New("MCP server not found")
@@ -55,9 +62,19 @@ var (
 	// ErrConversationInvalidCursor is returned when a client-supplied
 	// pagination cursor fails to decode.
 	ErrConversationInvalidCursor = errors.New("invalid pagination cursor")
+	// ErrConversationEventInvalidCursor is returned when a client-supplied
+	// conversation-events window cursor (after/before) fails to decode.
+	ErrConversationEventInvalidCursor = errors.New("invalid pagination cursor")
 )
 
 // Chat session errors
 var (
 	ErrChatSessionNotFound = errors.New("chat session not found")
+)
+
+// Activity feed errors
+var (
+	// ErrActivityFeedInvalidCursor is returned when a client-supplied
+	// activity feed pagination cursor fails to decode.
+	ErrActivityFeedInvalidCursor = errors.New("invalid pagination cursor")
 )

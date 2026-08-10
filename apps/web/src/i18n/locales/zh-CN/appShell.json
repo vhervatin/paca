@@ -39,7 +39,8 @@
 	"interactions": {
 		"title": "互动",
 		"timeline": "时间线",
-		"productBacklog": "产品待办列表"
+		"productBacklog": "产品待办列表",
+		"completedSprints": "已完成的冲刺"
 	},
 	"docs": {
 		"documentation": "文档",
@@ -57,7 +58,10 @@
 	"notifications": {
 		"title": "通知",
 		"empty": "暂无通知",
+		"loadingMore": "加载中…",
 		"markAllAsRead": "全部标记为已读",
+		"muteSound": "静音通知提示音",
+		"unmuteSound": "取消静音通知提示音",
 		"text": {
 			"assigned": "{{actor}} 将任务 #{{taskNumber}} — {{taskTitle}} 分配给了您",
 			"mentioned": "{{actor}} 在 #{{taskNumber}} — {{taskTitle}} 中提到了您"

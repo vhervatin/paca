@@ -11,9 +11,10 @@ import (
 	"strings"
 	"time"
 
-	taskdom "github.com/Paca-AI/api/internal/domain/task"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+
+	taskdom "github.com/Paca-AI/api/internal/domain/task"
 )
 
 // --- sqlx models ------------------------------------------------------------
@@ -959,6 +960,17 @@ func applyCFCursorWhere(b *queryBuilder, cur *taskdom.TaskCursor, sort taskdom.T
 	}
 }
 
+// ListChildTasks returns every task whose parent_task_id is parentTaskID —
+// a thin convenience wrapper around ListTasks for callers (e.g. the
+// automation engine's "children" retarget) that just want "this task's
+// children" without building a full TaskFilter. Capped at 200 like the
+// frontend's own subtask fetch (apps/web's listSubtasks) — no further
+// pagination, same existing limitation, not a new one.
+func (r *TaskRepository) ListChildTasks(ctx context.Context, projectID, parentTaskID uuid.UUID) ([]*taskdom.Task, error) {
+	tasks, _, err := r.ListTasks(ctx, projectID, taskdom.TaskFilter{ParentTaskID: &parentTaskID}, 200, taskdom.TaskSort{})
+	return tasks, err
+}
+
 // ListTasks returns a page of tasks with optional filter.
 func (r *TaskRepository) ListTasks(ctx context.Context, projectID uuid.UUID, filter taskdom.TaskFilter, limit int, sort taskdom.TaskSort) ([]*taskdom.Task, bool, error) {
 	b := newQueryBuilder()
@@ -1127,6 +1139,33 @@ func (r *TaskRepository) CountTasks(ctx context.Context, projectID uuid.UUID, fi
 	var count int64
 	if err := r.db.GetContext(ctx, &count, `SELECT COUNT(*) FROM tasks WHERE `+whereSQL, b.args...); err != nil {
 		return 0, fmt.Errorf("task repo: count: %w", err)
+	}
+	return count, nil
+}
+
+// CountOpenTasksByProjects returns the number of non-done tasks across all of
+// projectIDs in a single query — the cross-project equivalent of calling
+// CountTasks once per project, used by the home page's workspace stats
+// widget to avoid an N-query fan-out. The INNER JOIN to task_statuses
+// intentionally excludes tasks with no status assigned (status_id NULL),
+// matching CountTasks' status_id-IN-clause semantics for a single project.
+func (r *TaskRepository) CountOpenTasksByProjects(ctx context.Context, projectIDs []uuid.UUID) (int64, error) {
+	if len(projectIDs) == 0 {
+		return 0, nil
+	}
+
+	b := newQueryBuilder()
+	b.addInClause("t.project_id", uuidSliceToStrSlice(projectIDs))
+
+	query := `
+		SELECT COUNT(*) FROM tasks t
+		JOIN task_statuses ts ON ts.id = t.status_id
+		WHERE t.deleted_at IS NULL AND ts.category != 'done' AND ` +
+		strings.Join(b.whereClauses, " AND ")
+
+	var count int64
+	if err := r.db.GetContext(ctx, &count, query, b.args...); err != nil {
+		return 0, fmt.Errorf("task repo: count open tasks by projects: %w", err)
 	}
 	return count, nil
 }

@@ -30,7 +30,7 @@
 			"projectRoleHint": "Определяет, что агент может читать и изменять в этом проекте.",
 			"agentTypeLabel": "Тип агента",
 			"agentTypeLLM": "LLM (API-ключ)",
-			"agentTypeLLMHint": "Paca напрямую обращается к API модели и запускает агента в облачной песочнице.",
+			"agentTypeLLMHint": "Paca напрямую обращается к API модели и запускает агента в изолированном контейнере на сервере, на котором размещён Paca.",
 			"agentTypeACP": "ACP (локальный CLI)",
 			"agentTypeACPHint": "Делегирует работу CLI для кода, который вы запускаете сами, — Claude Code, Codex, Gemini CLI или пользовательский ACP-сервер.",
 			"modelSection": "Модель",
@@ -62,7 +62,11 @@
 			"creating": "Создание…",
 			"createAgent": "Создать агента",
 			"namePlaceholder": "Dev Bot",
-			"systemPromptPlaceholder": "Вы — senior software engineer…"
+			"systemPromptPlaceholder": "Вы — senior software engineer…",
+			"globalRoleLabel": "Глобальная роль",
+			"globalRolePlaceholder": "Выберите глобальную роль…",
+			"globalRoleHint": "Определяет, что агент может делать в глобальной области (например, в чате на главной странице или в админке). Необязательно — роль, назначенная позже, после приглашения в проект, отдельна.",
+			"noGlobalRoleOption": "Без роли"
 		},
 		"card": {
 			"configure": "Настроить",
@@ -72,6 +76,8 @@
 			"deleteDialog": {
 				"title": "Удалить {{name}}?",
 				"description": "Агент будет удалён навсегда и убран из проекта. Запущенные диалоги будут остановлены.",
+				"descriptionGlobal": "Агент будет удалён навсегда и убран из всех проектов, в которые он был приглашён. Запущенные диалоги будут остановлены.",
+				"deleteFailed": "Не удалось удалить агента. Попробуйте ещё раз.",
 				"cancel": "Отмена",
 				"delete": "Удалить"
 			}
@@ -103,15 +109,23 @@
 			"generating": "Создание…",
 			"generateFailed": "Не удалось создать токен. Попробуйте ещё раз.",
 			"tokenWarning": "Скопируйте сейчас — повторно он не будет показан.",
+			"claudeSetupTokenHint": "Claude Code также требует отдельного одноразового входа — выполните это перед запуском моста ниже, иначе мосту не с чем будет аутентифицироваться:",
+			"claudeOauthExportHint": "Эта команда только выводит токен — скопируйте его и экспортируйте, чтобы мост действительно мог его использовать:",
+			"localAuthExportHint": "{{provider}} также требует собственной локальной аутентификации перед запуском моста, иначе ему не с чем будет аутентифицироваться:",
 			"copy": "Копировать",
 			"copied": "Скопировано!",
-			"step3Title": "Установите навык Paca",
-			"step3Description": "Позволяет вашему CLI направлять запросы через MCP-инструменты Paca — по умолчанию добавляется в каждый промпт через /paca.",
+			"stepSkillMcpTitle": "Установите навык и подключите MCP-сервер",
+			"stepSkillMcpDescription": "Создайте собственный MCP-ключ агента один раз, затем выполните обе команды ниже — вызовы инструментов будут записываться как активность агента, а не ваша.",
+			"stepSkillMcpSkillLabel": "Установите навык:",
+			"stepSkillMcpConnectLabel": "Подключите MCP-сервер:",
 			"step3NotAvailable": "Автоматическая установка доступна для Claude Code, Gemini CLI и Codex. У {{provider}} пока нет известного установщика пользовательских промптов — инструменты MCP Paca ниже всё равно работают без этого.",
 			"step3ViewContent": "Посмотреть инструкции навыка",
-			"step4Title": "Подключите MCP-сервер",
-			"step4Description": "Использует личный API-ключ, чтобы CLI мог напрямую вызывать инструменты Paca.",
-			"step4ApiKeyLink": "Получить API-ключ",
+			"step4NoKeyYet": "Создайте ключ, чтобы увидеть команды настройки.",
+			"step4GenerateButton": "Создать ключ",
+			"step4RegenerateButton": "Пересоздать ключ",
+			"step4Generating": "Создание…",
+			"step4GenerateFailed": "Не удалось создать ключ. Попробуйте ещё раз.",
+			"step4KeyWarning": "Скопируйте сейчас — он больше не будет показан, а предыдущий ключ сразу перестанет работать.",
 			"step4GenericHint": "Точные шаги для регистрации MCP-сервера зависят от CLI — {{provider}} обычно считывает это из собственного файла конфигурации. Используйте эту команду как образец:",
 			"customProviderLabel": "ваш собственный ACP-сервер",
 			"done": "Готово"
@@ -121,7 +135,19 @@
 				"overview": "Обзор",
 				"mcpServers": "MCP-серверы",
 				"skills": "Навыки",
-				"envVars": "Окружение"
+				"envVars": "Окружение",
+				"activity": "Активность"
+			},
+			"avatar": {
+				"change": "Изменить аватар",
+				"remove": "Удалить аватар",
+				"uploading": "Загрузка…",
+				"errors": {
+					"invalidType": "Выберите изображение в формате PNG, JPEG, WEBP или GIF.",
+					"tooLarge": "Размер изображения не должен превышать 5 МБ.",
+					"uploadFailed": "Не удалось загрузить аватар. Попробуйте снова.",
+					"removeFailed": "Не удалось удалить аватар. Попробуйте снова."
+				}
 			},
 			"overview": {
 				"nameLabel": "Имя",
@@ -217,6 +243,30 @@
 					"cancel": "Отмена",
 					"addSkill": "Добавить навык"
 				}
+			},
+			"activity": {
+				"commented": "оставил комментарий",
+				"sourceType": {
+					"task": "Задача",
+					"doc": "Документ"
+				},
+				"empty": {
+					"title": "Пока нет активности",
+					"description": "Здесь будет отображаться активность этого агента по задачам и документам."
+				},
+				"emptyFiltered": {
+					"title": "Нет подходящей активности",
+					"description": "Попробуйте изменить фильтры или запрос поиска."
+				},
+				"filters": {
+					"title": "Фильтры",
+					"type": "Тип",
+					"dateRange": "Диапазон дат",
+					"searchPlaceholder": "Поиск по активности…",
+					"dateFrom": "С",
+					"dateTo": "По",
+					"clearAll": "Сбросить фильтры"
+				}
 			}
 		},
 		"conversationView": {
@@ -228,7 +278,12 @@
 			"conversationEnded": "Этот диалог завершён.",
 			"textOnlyMessage": "Поддерживаются только текстовые сообщения.",
 			"failed": "Диалог завершился с ошибкой",
-			"noOutput": "Агент не выдал результат."
+			"noOutput": "Агент не выдал результат.",
+			"loadingOlder": "Загрузка…",
+			"newBelow_one": "{{count}} новое сообщение",
+			"newBelow_few": "{{count}} новых сообщения",
+			"newBelow_many": "{{count}} новых сообщений",
+			"newBelow_other": "{{count}} новых сообщения"
 		},
 		"thread": {
 			"composerPlaceholder": "Сообщение агенту…",
@@ -402,12 +457,12 @@
 				"description": "Создавать, настраивать и удалять AI-агентов"
 			},
 			"workflowsRead": {
-				"label": "Просмотр workflow",
-				"description": "Просмотр workflow автоматизации и их настроек"
+				"label": "Просмотр автоматизации",
+				"description": "Просмотр автоматизаций и их настроек"
 			},
 			"workflowsWrite": {
-				"label": "Управление workflow",
-				"description": "Создание, редактирование, активация и удаление workflow автоматизации"
+				"label": "Управление автоматизацией",
+				"description": "Создание, редактирование, активация и удаление автоматизаций"
 			}
 		},
 		"permissionGroups": {
@@ -425,6 +480,17 @@
 	"settings": {
 		"general": {
 			"title": "Общие",
+			"avatar": {
+				"change": "Изменить аватар",
+				"remove": "Удалить аватар",
+				"uploading": "Загрузка…",
+				"errors": {
+					"invalidType": "Выберите изображение в формате PNG, JPEG, WEBP или GIF.",
+					"tooLarge": "Размер изображения не должен превышать 5 МБ.",
+					"uploadFailed": "Не удалось загрузить аватар. Попробуйте снова.",
+					"removeFailed": "Не удалось удалить аватар. Попробуйте снова."
+				}
+			},
 			"projectNameLabel": "Название проекта",
 			"projectNamePlaceholder": "Мой отличный проект",
 			"taskIdPrefixLabel": "Префикс ID задач",
@@ -652,7 +718,11 @@
 			"addMember": "Добавить участника",
 			"errors": {
 				"addFailed": "Не удалось добавить участника. Попробуйте ещё раз."
-			}
+			},
+			"modeUser": "Пользователь",
+			"modeAgent": "ИИ-агент",
+			"agentLabel": "Агент",
+			"noAgentsAvailable": "Нет доступных глобальных агентов для приглашения."
 		},
 		"roleChip": {
 			"changeRole": "Изменить роль",
@@ -675,9 +745,9 @@
 		"chatWithAgent": "Чат с AI-агентом",
 		"newConversation": "Новый диалог",
 		"agentLabel": "Агент",
-		"noAgentsConfigured": "Для этого проекта агенты не настроены.",
 		"selectAgentPlaceholder": "Выберите агента…",
-		"selectAgentFirst": "Сначала выберите агента."
+		"selectAgentFirst": "Сначала выберите агента.",
+		"noAgentsAvailable": "Пока нет доступных агентов."
 	},
 	"taskTypes": {
 		"deleteDialog": {
@@ -783,11 +853,6 @@
 			"openTask": "Открыть задачу",
 			"removeLink": "Удалить связь",
 			"empty": "Связанных задач нет"
-		},
-		"workflows": {
-			"title": "Автоматизация",
-			"open": "Открыть workflow",
-			"empty": "Пока нет workflow"
 		},
 		"attachments": {
 			"title": "Вложения",
@@ -1014,15 +1079,31 @@
 		"triggerChat": "Чат",
 		"triggerWriteDescription": "Написать описание",
 		"triggerTask": "Задача",
+		"triggerAutomation": "Автоматизация",
 		"iterations_one": "{{count}} итерация",
 		"iterations_few": "{{count}} итерации",
 		"iterations_many": "{{count}} итераций",
 		"iterations_other": "{{count}} итерации",
 		"prOpened": "PR открыт",
+		"filters": {
+			"title": "Фильтры",
+			"agent": "Агент",
+			"status": "Статус",
+			"type": "Тип",
+			"dateRange": "Диапазон дат",
+			"searchPlaceholder": "Поиск сообщений…",
+			"dateFrom": "С",
+			"dateTo": "По",
+			"clearAll": "Сбросить фильтры"
+		},
 		"list": {
 			"empty": {
 				"title": "Диалогов пока нет",
 				"description": "Диалоги начинаются, когда задача назначена агенту или кто-то пишет ему сообщение."
+			},
+			"emptyFiltered": {
+				"title": "Нет подходящих диалогов",
+				"description": "Попробуйте изменить или сбросить фильтры."
 			}
 		},
 		"detail": {
@@ -1160,6 +1241,21 @@
 			"statusCompleted": "Завершён",
 			"description": "{{status}} спринт",
 			"descriptionWithStartDate": "{{status}} спринт · начат {{date}}",
+			"editSprint": "Изменить спринт",
+			"editSprintModal": {
+				"title": "Изменить спринт",
+				"nameLabel": "Название",
+				"goalLabel": "Цель",
+				"optional": "(необязательно)",
+				"goalPlaceholder": "Чего должен достичь этот спринт?",
+				"startDateLabel": "Дата начала",
+				"dueDateLabel": "Срок выполнения",
+				"dateRangeError": "Срок выполнения не может быть раньше даты начала.",
+				"error": "Не удалось обновить спринт. Попробуйте снова.",
+				"cancel": "Отмена",
+				"saving": "Сохранение…",
+				"save": "Сохранить изменения"
+			},
 			"completeSprint": "Завершить спринт",
 			"completeSprintModal": {
 				"title": "Завершить спринт",
@@ -1239,77 +1335,278 @@
 	"automation": {
 		"list": {
 			"title": "Автоматизация",
-			"subtitle": "Автоматизируйте передачу задач по мере продвижения работы в проекте",
-			"newWorkflow": "Новый workflow",
+			"subtitle": "Реагируйте на события задач с помощью триггеров, условий и действий",
+			"newAutomation": "Новая автоматизация",
 			"empty": {
-				"title": "Пока нет workflow",
-				"description": "Создайте workflow, чтобы автоматизировать передачу задач по мере продвижения работы в проекте.",
-				"createFirstWorkflow": "Создать первый workflow"
+				"title": "Автоматизаций пока нет",
+				"description": "Создайте автоматизацию, чтобы реагировать на события задач с помощью условий и действий.",
+				"createFirst": "Создать первую автоматизацию"
 			},
-			"noDescription": "Без описания",
+			"noDescription": "Нет описания",
 			"updated": "Обновлено {{time}}"
 		},
 		"status": {
-			"draft": "Черновик",
-			"active": "Активен",
-			"archived": "В архиве"
+			"active": "Активна",
+			"inactive": "Неактивна"
 		},
 		"createDialog": {
-			"title": "Новый workflow автоматизации",
+			"title": "Новая автоматизация",
 			"nameLabel": "Название",
-			"namePlaceholder": "напр. Конвейер релиза",
+			"namePlaceholder": "напр. Сортировка багов",
 			"descriptionLabel": "Описание",
-			"descriptionPlaceholder": "Необязательные детали об этом workflow…",
+			"descriptionPlaceholder": "Необязательные сведения об этой автоматизации…",
 			"cancel": "Отмена",
 			"create": "Создать"
 		},
 		"deleteDialog": {
-			"title": "Удалить workflow",
+			"title": "Удалить автоматизацию",
 			"body": "Вы уверены, что хотите удалить «{{name}}»? Это действие нельзя отменить.",
 			"cancel": "Отмена",
 			"confirm": "Удалить"
 		},
 		"builder": {
-			"addTask": "Добавить задачу",
-			"activate": "Активировать",
-			"archive": "Архивировать",
-			"deactivate": "Деактивировать",
-			"readOnlyNoticeArchived": "Этот workflow в архиве и доступен только для чтения — архивные workflow нельзя редактировать.",
+			"toggleActiveLabel": "Переключить активность этой автоматизации",
 			"genericError": "Что-то пошло не так. Попробуйте ещё раз.",
-			"collapseSidebar": "Свернуть боковую панель",
-			"expandSidebar": "Развернуть боковую панель"
+			"taskLessTriggerConnectionError": "У этого триггера не задана целевая задача, поэтому он может подключаться только к действию «Вызвать API» или «Запустить ИИ-агента» — условиям и остальным действиям для работы нужна задача.",
+			"collapseSidebar": "Свернуть панель",
+			"expandSidebar": "Развернуть панель",
+			"tabGraph": "Граф",
+			"tabRuns": "История запусков",
+			"tabDependencyMap": "Карта зависимостей"
+		},
+		"palette": {
+			"title": "Добавить узел",
+			"addTrigger": "Добавить триггер",
+			"addCondition": "Добавить условие",
+			"addAction": "Добавить действие",
+			"builtIn": "Встроенные",
+			"plugins": "Плагины",
+			"triggerGroups": {
+				"taskEvents": "События задач",
+				"sprintEvents": "События спринтов",
+				"scheduleWebhook": "Расписание и webhook"
+			}
+		},
+		"nodeKind": {
+			"trigger": "Триггер",
+			"condition": "Условие",
+			"action": "Действие"
 		},
 		"canvas": {
-			"unknownTask": "Неизвестная задача",
-			"deleteEdge": "Удалить связь"
+			"deleteEdge": "Удалить связь",
+			"deleteNode": "Удалить узел"
 		},
-		"addNodeModal": {
-			"title": "Добавить задачу в workflow",
-			"searchPlaceholder": "Поиск задач...",
-			"loadingTasks": "Загрузка задач...",
-			"noTasksFound": "Задачи не найдены"
+		"triggerTypes": {
+			"status_changed": "Статус изменён",
+			"task_created": "Задача создана",
+			"assignee_changed": "Исполнитель изменён",
+			"priority_changed": "Приоритет изменён",
+			"tag_added": "Добавлен тег",
+			"due_date_reached": "Наступил срок",
+			"predecessor_done": "Предшествующая(ие) задача(и) завершена(ы)",
+			"cron": "Расписание cron",
+			"api_trigger": "Webhook",
+			"sprint_created": "Спринт создан",
+			"sprint_started": "Спринт начат",
+			"sprint_completed": "Спринт завершён",
+			"sprint_deleted": "Спринт удалён"
 		},
-		"nodePanel": {
-			"title": "Задача",
-			"removeNode": "Убрать из workflow",
-			"removeConfirmTitle": "Убрать задачу из workflow",
-			"removeConfirmBody": "Задача будет убрана из графа workflow вместе со всеми её связями. Сама задача при этом не изменится.",
+		"actionTypes": {
+			"update_task": "Обновить задачу",
+			"trigger_ai_agent": "Запустить ИИ-агента",
+			"call_api": "Вызвать API",
+			"wait": "Подождать",
+			"update_sprint": "Обновить спринт",
+			"complete_sprint": "Завершить спринт"
+		},
+		"nodeConfig": {
+			"save": "Сохранить",
 			"cancel": "Отмена",
-			"removeConfirmAction": "Убрать"
+			"remove": "Удалить узел",
+			"removeConfirmTitle": "Удалить узел",
+			"removeConfirmBody": "Это удалит узел из графа вместе со всеми его связями.",
+			"removeConfirmAction": "Удалить",
+			"genericFormHint": "Этот тип узла предоставлен плагином, который не объявил схему настроек, поэтому его параметры редактируются как необработанный JSON. Плагины, объявляющие configSchema в манифесте, вместо этого показывают здесь поля интерфейса.",
+			"trigger": {
+				"anyStatus": "Любой статус",
+				"noConfigNeeded": "Этот триггер не требует настройки — он срабатывает автоматически при наступлении события.",
+				"statusLabel": "Статус",
+				"tagLabel": "Тег",
+				"anyTag": "Любой тег",
+				"dueDateOffsetLabel": "Смещение (минуты)",
+				"dueDateOffsetHint": "0 = в срок, отрицательное = раньше, положительное = позже",
+				"watchedTasksLabel": "Отслеживаемые задачи",
+				"watchedTasksHint": "Срабатывает, когда ВСЕ эти задачи получают статус «выполнено»",
+				"addWatchedTaskPlaceholder": "Добавить задачу для отслеживания…",
+				"targetTaskLabel": "Целевая задача (необязательно)",
+				"targetTaskHint": "Задача, для которой выполняется эта автоматизация после завершения всех отслеживаемых задач выше — задача, отличная от предшествующих, повторно оцениваемая по её собственному текущему состоянию. Оставьте пустым, если это должно достигать только действия «Вызвать API» или «Запустить ИИ-агента», которым задача не нужна.",
+				"selectTaskPlaceholder": "Выберите задачу…",
+				"searchTaskPlaceholder": "Поиск задач…",
+				"noTasksFound": "Совпадающих задач не найдено",
+				"noTasksYet": "В этом проекте пока нет задач",
+				"loadingMore": "Загрузка…",
+				"clearTargetTask": "Очистить целевую задачу",
+				"cronExpressionLabel": "Cron-выражение",
+				"cronExpressionPlaceholder": "*/15 * * * *",
+				"cronExpressionHint": "Стандартный cron из 5 полей (минута час день-месяца месяц день-недели), вычисляется по UTC",
+				"cronTargetTaskHint": "Задача, для которой выполняется эта автоматизация при каждом срабатывании по расписанию. Оставьте пустым, если это должно достигать только действия «Вызвать API» или «Запустить ИИ-агента», которым задача не нужна.",
+				"apiTriggerTargetTaskHint": "Задача, для которой выполняется эта автоматизация при каждом вызове указанного ниже webhook. Оставьте пустым, если это должно достигать только действия «Вызвать API» или «Запустить ИИ-агента», которым задача не нужна.",
+				"webhookUrlLabel": "URL webhook",
+				"webhookTokenLabel": "Токен webhook",
+				"generateTokenButton": "Сгенерировать токен",
+				"regenerateTokenButton": "Перегенерировать токен",
+				"tokenShownOnceWarning": "Скопируйте этот токен сейчас — он больше не будет показан.",
+				"copy": "Копировать",
+				"copied": "Скопировано",
+				"noTokenYet": "Токен ещё не сгенерирован"
+			},
+			"condition": {
+				"branchesTitle": "Ветви",
+				"addBranch": "Добавить ветвь",
+				"branchLabel": "Метка ветви",
+				"elseLabel": "Иначе (ни одна ветвь не совпала)",
+				"removeBranch": "Удалить ветвь",
+				"field": "Поле",
+				"operator": "Оператор",
+				"value": "Значение",
+				"addGroup": "Добавить группу",
+				"addCondition": "Добавить условие",
+				"removeCondition": "Удалить",
+				"logicAnd": "И",
+				"logicOr": "ИЛИ",
+				"logicNot": "НЕ",
+				"fields": {
+					"status_id": "Статус",
+					"task_type_id": "Тип задачи",
+					"importance": "Приоритет",
+					"assignee_ids": "Исполнитель",
+					"tags": "Теги",
+					"custom_field": "Настраиваемое поле",
+					"title": "Название",
+					"story_points": "Story points",
+					"sprint_id": "Спринт",
+					"parent_task_id": "Родительская задача",
+					"reporter_id": "Автор",
+					"start_date": "Дата начала",
+					"due_date": "Срок",
+					"sprint_name": "Название спринта",
+					"sprint_status": "Статус спринта",
+					"sprint_goal": "Цель спринта",
+					"sprint_start_date": "Дата начала спринта",
+					"sprint_end_date": "Дата окончания спринта"
+				}
+			},
+			"action": {
+				"memberLabel": "Исполнитель",
+				"agentLabel": "Агент",
+				"statusLabel": "Статус",
+				"importanceLabel": "Приоритет",
+				"tagLabel": "Тег",
+				"fieldKeyLabel": "Поле",
+				"valueLabel": "Значение",
+				"messageLabel": "Инструкция для агента",
+				"messagePlaceholder": "напр. Опиши эту задачу и предложи приоритет.",
+				"methodLabel": "Метод",
+				"urlLabel": "URL",
+				"urlPlaceholder": "https://example.com/webhook",
+				"headersLabel": "Заголовки",
+				"headerKeyPlaceholder": "Имя заголовка",
+				"headerValuePlaceholder": "Значение",
+				"addHeader": "Добавить заголовок",
+				"bodyLabel": "Тело запроса",
+				"waitMinutesLabel": "Ожидание (минут)",
+				"waitMinutesHint": "Сколько времени приостановить выполнение здесь, прежде чем перейти к следующему узлу.",
+				"updateSprintHint": "Изменяются только заполненные ниже поля — остальная часть спринта остаётся без изменений.",
+				"sprintNameLabel": "Название",
+				"sprintStartDateLabel": "Дата начала",
+				"sprintEndDateLabel": "Дата окончания",
+				"sprintGoalLabel": "Цель",
+				"sprintStatusLabel": "Статус",
+				"sprintStatusUnchanged": "Не изменять",
+				"sprintStatusPlanned": "Запланирован",
+				"sprintStatusActive": "Активный",
+				"sprintStatusCompleted": "Завершён",
+				"completeSprintHint": "Отмечает спринт как завершённый и переносит его незавершённые задачи.",
+				"moveToSprintLabel": "Перенести незавершённые задачи в",
+				"moveToSprintBacklog": "Бэклог",
+				"moveToSprintHint": "Незавершённые задачи из этого спринта переносятся сюда при его завершении.",
+				"variablesHint": "Поддерживает {{task.title}}, {{sprint.name}} и похожие плейсхолдеры {{variable}} из текущего запуска.",
+				"updateTaskHint": "Изменяются только поля, включённые ниже — остальная часть задачи остаётся без изменений.",
+				"addFieldToUpdate": "Добавить поле для обновления…",
+				"customFieldsLabel": "Пользовательское поле",
+				"enableField": "Установить {{field}}",
+				"titleLabel": "Название",
+				"storyPointsLabel": "Story points",
+				"sprintLabel": "Спринт",
+				"parentTaskLabel": "Родительская задача",
+				"reporterLabel": "Автор",
+				"startDateLabel": "Дата начала",
+				"dueDateLabel": "Срок",
+				"tagsLabel": "Теги",
+				"tagsPlaceholder": "Добавить тег…",
+				"assigneesLabel": "Исполнители",
+				"noSprint": "Без спринта",
+				"pluginConditionLabel": "Условие плагина",
+				"pluginConditionHint": "Передаёт проверку этой ветки условию из плагина вместо сравнения поля задачи.",
+				"selectPluginPlaceholder": "Выберите условие плагина…",
+				"addCustomField": "Добавить настраиваемое поле…"
+			},
+			"target": {
+				"label": "Применяется к",
+				"kinds": {
+					"self": "Эта задача",
+					"parent": "Родительская задача",
+					"children": "Дочерние задачи",
+					"blocks": "Блокирует",
+					"is_blocked_by": "Заблокирована задачей",
+					"relates_to": "Связанная задача",
+					"duplicates": "Дублирует",
+					"is_duplicated_by": "Дублируется задачей",
+					"other": "Другая задача…"
+				},
+				"matchMode": {
+					"any": "Совпадает хотя бы одна",
+					"all": "Совпадают все"
+				}
+			},
+			"description": {
+				"dueDateAt": "В срок",
+				"dueDateBefore": "за {{minutes}} мин до срока",
+				"dueDateAfter": "через {{minutes}} мин после срока",
+				"branches": "Ветвей: {{count}}",
+				"priority": "Приоритет: {{level}}",
+				"fieldValue": "{{field}} → {{value}}",
+				"unassigned": "Не назначено",
+				"notConfigured": "Не настроено",
+				"elseShort": "Иначе",
+				"pluginConditionMatched": "Совпадает",
+				"branchFallback": "Ветвь {{n}}",
+				"cronSchedule": "Выполняется {{expression}}",
+				"webhookReady": "Webhook настроен",
+				"callApiSummary": "{{method}} {{host}}"
+			}
 		},
-		"statusRules": {
-			"title": "Правила «статус → исполнитель»",
-			"hint": "Автоматически назначает задачу участнику при переходе в один из этих статусов. Правило применяется к любой задаче в этом workflow — когда кто-то напрямую меняет статус задачи или когда предшествующая задача завершается и последующая задача повторно оценивается в её текущем статусе.",
-			"noRules": "Пока нет правил",
-			"statusPlaceholder": "Статус",
-			"memberPlaceholder": "Исполнитель"
+		"runHistory": {
+			"title": "История запусков",
+			"empty": "Запусков пока нет",
+			"status": {
+				"running": "Выполняется",
+				"completed": "Завершено",
+				"failed": "Ошибка"
+			},
+			"stepStatus": {
+				"completed": "Завершено",
+				"failed": "Ошибка",
+				"skipped": "Пропущено (уже применено)"
+			},
+			"startedAt": "Запущено {{time}}",
+			"viewSteps": "Просмотреть шаги"
 		},
-		"statusTransitions": {
-			"title": "Workflow статусов",
-			"hint": "Определите, какой статус наступает следующим после завершения работы в каждом статусе. Это открывает последующие задачи и точно указывает агенту-исполнителю ИИ, какой статус установить далее, вместо того чтобы гадать. При создании workflow цепочка по умолчанию формируется автоматически на основе статусов проекта.",
-			"nextStatusLabel": "Следующий статус",
-			"terminalOption": "__END__",
-			"ambiguousWarning": "Ровно один статус не должен иметь следующего статуса (он становится статусом __END__ workflow). Сейчас настроено: {{count}}."
+		"dependencyMap": {
+			"title": "Карта зависимостей",
+			"subtitle": "Доступный только для чтения обзор всех автоматизаций, ожидающих завершения других задач",
+			"empty": "Зависимости от предшествующих задач пока не настроены",
+			"watchedTasks": "Ожидание {{count}} задач(и)"
 		}
 	}
 }

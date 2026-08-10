@@ -30,7 +30,7 @@
 			"projectRoleHint": "このプロジェクト内でエージェントが読み取り・変更できる範囲を制御します。",
 			"agentTypeLabel": "エージェントタイプ",
 			"agentTypeLLM": "LLM（APIキー）",
-			"agentTypeLLMHint": "Pacaがモデル API を直接呼び出し、クラウドサンドボックスでエージェントを実行します。",
+			"agentTypeLLMHint": "Pacaがモデル API を直接呼び出し、Paca をホストしているサーバー上のサンドボックス化されたコンテナでエージェントを実行します。",
 			"agentTypeACP": "ACP（ローカルCLI）",
 			"agentTypeACPHint": "自分で実行するコーディングCLI（Claude Code、Codex、Gemini CLI、またはカスタムACPサーバー）に処理を委任します。",
 			"modelSection": "モデル",
@@ -62,7 +62,11 @@
 			"creating": "作成中…",
 			"createAgent": "エージェントを作成",
 			"namePlaceholder": "Dev Bot",
-			"systemPromptPlaceholder": "あなたはシニアソフトウェアエンジニアです…"
+			"systemPromptPlaceholder": "あなたはシニアソフトウェアエンジニアです…",
+			"globalRoleLabel": "グローバルロール",
+			"globalRolePlaceholder": "グローバルロールを選択…",
+			"globalRoleHint": "エージェントがグローバルスコープ(ホーム/管理チャットなど)で何を実行できるかを制御します。任意 — プロジェクトに招待された後に付与されるロールとは別物です。",
+			"noGlobalRoleOption": "ロールなし"
 		},
 		"card": {
 			"configure": "設定",
@@ -72,6 +76,8 @@
 			"deleteDialog": {
 				"title": "{{name}}を削除しますか？",
 				"description": "このエージェントを完全に削除し、プロジェクトから除外します。実行中の会話は停止されます。",
+				"descriptionGlobal": "このエージェントを完全に削除し、招待されているすべてのプロジェクトから除外します。実行中の会話は停止されます。",
+				"deleteFailed": "エージェントの削除に失敗しました。もう一度お試しください。",
 				"cancel": "キャンセル",
 				"delete": "削除"
 			}
@@ -103,15 +109,23 @@
 			"generating": "生成中…",
 			"generateFailed": "トークンを生成できませんでした。もう一度お試しください。",
 			"tokenWarning": "今すぐコピーしてください — 二度と表示されません。",
+			"claudeSetupTokenHint": "Claude Codeには別途1回限りのサインインも必要です — 下のブリッジを開始する前にこれを実行してください。そうしないと、ブリッジには認証する対象がありません:",
+			"claudeOauthExportHint": "このコマンドはトークンを表示するだけです — コピーして、ブリッジが実際に使用できるようにエクスポートしてください:",
+			"localAuthExportHint": "{{provider}}もブリッジが開始する前に独自のローカル認証が必要です。そうしないと、認証する対象がありません:",
 			"copy": "コピー",
 			"copied": "コピーしました！",
-			"step3Title": "Pacaスキルをインストール",
-			"step3Description": "CLIがPacaのMCPツール経由でリクエストをルーティングできるようにします — デフォルトで /paca が全プロンプトに追加されます。",
+			"stepSkillMcpTitle": "スキルのインストールとMCPサーバーの接続",
+			"stepSkillMcpDescription": "このエージェント自身のMCPキーを一度生成し、以下の両方のコマンドを実行してください — ツール呼び出しはあなたではなくエージェントのアクティビティとして記録されます。",
+			"stepSkillMcpSkillLabel": "スキルをインストール:",
+			"stepSkillMcpConnectLabel": "MCPサーバーに接続:",
 			"step3NotAvailable": "自動インストールはClaude Code、Gemini CLI、Codexで利用できます。{{provider}}には既知のカスタムプロンプトインストーラーがまだありません — 下記のPacaのMCPツールはこれがなくても機能します。",
 			"step3ViewContent": "スキルの内容を見る",
-			"step4Title": "MCPサーバーを接続",
-			"step4Description": "個人のAPIキーを使用して、CLIがPacaのツールを直接呼び出せるようにします。",
-			"step4ApiKeyLink": "APIキーを取得",
+			"step4NoKeyYet": "キーを生成すると設定コマンドが表示されます。",
+			"step4GenerateButton": "キーを生成",
+			"step4RegenerateButton": "キーを再生成",
+			"step4Generating": "生成中…",
+			"step4GenerateFailed": "キーを生成できませんでした。もう一度お試しください。",
+			"step4KeyWarning": "今すぐコピーしてください — 二度と表示されず、以前のキーは即座に使用できなくなります。",
 			"step4GenericHint": "MCPサーバーの登録手順はCLIによって異なります — {{provider}}は通常、独自の設定ファイルから読み込みます。参考としてこのコマンドを使用してください:",
 			"customProviderLabel": "お使いのカスタムACPサーバー",
 			"done": "完了"
@@ -121,7 +135,19 @@
 				"overview": "概要",
 				"mcpServers": "MCPサーバー",
 				"skills": "スキル",
-				"envVars": "環境変数"
+				"envVars": "環境変数",
+				"activity": "アクティビティ"
+			},
+			"avatar": {
+				"change": "アバターを変更",
+				"remove": "アバターを削除",
+				"uploading": "アップロード中…",
+				"errors": {
+					"invalidType": "PNG、JPEG、WEBP、GIF形式の画像を選択してください。",
+					"tooLarge": "画像は5MB以下にしてください。",
+					"uploadFailed": "アバターのアップロードに失敗しました。もう一度お試しください。",
+					"removeFailed": "アバターの削除に失敗しました。もう一度お試しください。"
+				}
 			},
 			"overview": {
 				"nameLabel": "名前",
@@ -211,6 +237,30 @@
 					"cancel": "キャンセル",
 					"addSkill": "スキルを追加"
 				}
+			},
+			"activity": {
+				"commented": "コメントしました",
+				"sourceType": {
+					"task": "タスク",
+					"doc": "ドキュメント"
+				},
+				"empty": {
+					"title": "まだアクティビティはありません",
+					"description": "このエージェントによるタスクおよびドキュメントのアクティビティがここに表示されます。"
+				},
+				"emptyFiltered": {
+					"title": "該当するアクティビティがありません",
+					"description": "フィルターや検索条件を調整してみてください。"
+				},
+				"filters": {
+					"title": "フィルター",
+					"type": "タイプ",
+					"dateRange": "日付範囲",
+					"searchPlaceholder": "アクティビティを検索…",
+					"dateFrom": "開始日",
+					"dateTo": "終了日",
+					"clearAll": "フィルターをクリア"
+				}
 			}
 		},
 		"conversationView": {
@@ -222,7 +272,10 @@
 			"conversationEnded": "この会話は終了しました。",
 			"textOnlyMessage": "テキストメッセージのみサポートされています。",
 			"failed": "会話が失敗しました",
-			"noOutput": "エージェントは出力を生成しませんでした。"
+			"noOutput": "エージェントは出力を生成しませんでした。",
+			"loadingOlder": "読み込み中…",
+			"newBelow_one": "新着メッセージ{{count}}件",
+			"newBelow_other": "新着メッセージ{{count}}件"
 		},
 		"thread": {
 			"composerPlaceholder": "エージェントにメッセージ…",
@@ -392,12 +445,12 @@
 				"description": "AIエージェントの作成・設定・削除を行います"
 			},
 			"workflowsRead": {
-				"label": "ワークフローを表示",
-				"description": "自動化ワークフローとその設定を閲覧します"
+				"label": "自動化を表示",
+				"description": "自動化とその設定を閲覧する"
 			},
 			"workflowsWrite": {
-				"label": "ワークフローを管理",
-				"description": "自動化ワークフローの作成、編集、有効化、削除を行います"
+				"label": "自動化を管理",
+				"description": "自動化の作成、編集、有効化、削除を行う"
 			}
 		},
 		"permissionGroups": {
@@ -415,6 +468,17 @@
 	"settings": {
 		"general": {
 			"title": "一般",
+			"avatar": {
+				"change": "アバターを変更",
+				"remove": "アバターを削除",
+				"uploading": "アップロード中…",
+				"errors": {
+					"invalidType": "PNG、JPEG、WEBP、GIF形式の画像を選択してください。",
+					"tooLarge": "画像は5MB以下にしてください。",
+					"uploadFailed": "アバターのアップロードに失敗しました。もう一度お試しください。",
+					"removeFailed": "アバターの削除に失敗しました。もう一度お試しください。"
+				}
+			},
 			"projectNameLabel": "プロジェクト名",
 			"projectNamePlaceholder": "My awesome project",
 			"taskIdPrefixLabel": "タスクIDプレフィックス",
@@ -638,7 +702,11 @@
 			"addMember": "メンバーを追加",
 			"errors": {
 				"addFailed": "メンバーの追加に失敗しました。もう一度お試しください。"
-			}
+			},
+			"modeUser": "ユーザー",
+			"modeAgent": "AIエージェント",
+			"agentLabel": "エージェント",
+			"noAgentsAvailable": "招待できるグローバルエージェントがありません。"
 		},
 		"roleChip": {
 			"changeRole": "ロールを変更",
@@ -661,9 +729,9 @@
 		"chatWithAgent": "AIエージェントとチャット",
 		"newConversation": "新しい会話",
 		"agentLabel": "エージェント",
-		"noAgentsConfigured": "このプロジェクトにはエージェントが設定されていません。",
 		"selectAgentPlaceholder": "エージェントを選択…",
-		"selectAgentFirst": "まずエージェントを選択してください。"
+		"selectAgentFirst": "まずエージェントを選択してください。",
+		"noAgentsAvailable": "利用できるエージェントはまだありません。"
 	},
 	"taskTypes": {
 		"deleteDialog": {
@@ -769,11 +837,6 @@
 			"openTask": "タスクを開く",
 			"removeLink": "リンクを削除",
 			"empty": "関連タスクはありません"
-		},
-		"workflows": {
-			"title": "ワークフロー",
-			"open": "ワークフローを開く",
-			"empty": "ワークフローはまだありません"
 		},
 		"attachments": {
 			"title": "添付ファイル",
@@ -998,13 +1061,29 @@
 		"triggerChat": "チャット",
 		"triggerWriteDescription": "説明の作成",
 		"triggerTask": "タスク",
+		"triggerAutomation": "自動化",
 		"iterations_one": "{{count}}回の反復",
 		"iterations_other": "{{count}}回の反復",
 		"prOpened": "PRを作成しました",
+		"filters": {
+			"title": "フィルター",
+			"agent": "エージェント",
+			"status": "ステータス",
+			"type": "タイプ",
+			"dateRange": "日付範囲",
+			"searchPlaceholder": "メッセージを検索…",
+			"dateFrom": "開始日",
+			"dateTo": "終了日",
+			"clearAll": "フィルターをクリア"
+		},
 		"list": {
 			"empty": {
 				"title": "会話はまだありません",
 				"description": "タスクがエージェントに割り当てられるか、誰かがメッセージを送ると会話が始まります。"
+			},
+			"emptyFiltered": {
+				"title": "一致する会話がありません",
+				"description": "フィルターを調整するかクリアしてみてください。"
 			}
 		},
 		"detail": {
@@ -1142,6 +1221,21 @@
 			"statusCompleted": "完了",
 			"description": "{{status}}のスプリント",
 			"descriptionWithStartDate": "{{status}}のスプリント・{{date}}に開始",
+			"editSprint": "スプリントを編集",
+			"editSprintModal": {
+				"title": "スプリントを編集",
+				"nameLabel": "名前",
+				"goalLabel": "ゴール",
+				"optional": "(任意)",
+				"goalPlaceholder": "このスプリントで達成すべきことは?",
+				"startDateLabel": "開始日",
+				"dueDateLabel": "期限日",
+				"dateRangeError": "期限日は開始日より前にできません。",
+				"error": "スプリントの更新に失敗しました。もう一度お試しください。",
+				"cancel": "キャンセル",
+				"saving": "保存中…",
+				"save": "変更を保存"
+			},
 			"completeSprint": "スプリントを完了",
 			"completeSprintModal": {
 				"title": "スプリントを完了",
@@ -1219,77 +1313,278 @@
 	"automation": {
 		"list": {
 			"title": "自動化",
-			"subtitle": "作業が進むにつれてタスクの引き継ぎを自動化します",
-			"newWorkflow": "新しいワークフロー",
+			"subtitle": "トリガー、条件、アクションでタスクイベントに反応させる",
+			"newAutomation": "新規自動化",
 			"empty": {
-				"title": "ワークフローはまだありません",
-				"description": "ワークフローを作成して、作業が進むにつれてタスクの引き継ぎを自動化しましょう。",
-				"createFirstWorkflow": "最初のワークフローを作成"
+				"title": "自動化はまだありません",
+				"description": "条件とアクションでタスクイベントに反応する自動化を作成しましょう。",
+				"createFirst": "最初の自動化を作成"
 			},
 			"noDescription": "説明なし",
 			"updated": "{{time}}に更新"
 		},
 		"status": {
-			"draft": "下書き",
 			"active": "有効",
-			"archived": "アーカイブ済み"
+			"inactive": "無効"
 		},
 		"createDialog": {
-			"title": "新しい自動化ワークフロー",
+			"title": "新規自動化",
 			"nameLabel": "名前",
-			"namePlaceholder": "例: リリースパイプライン",
+			"namePlaceholder": "例：バグトリアージ",
 			"descriptionLabel": "説明",
-			"descriptionPlaceholder": "このワークフローに関する任意の詳細…",
+			"descriptionPlaceholder": "この自動化に関する任意の詳細…",
 			"cancel": "キャンセル",
 			"create": "作成"
 		},
 		"deleteDialog": {
-			"title": "ワークフローを削除",
+			"title": "自動化を削除",
 			"body": "「{{name}}」を削除してもよろしいですか？この操作は元に戻せません。",
 			"cancel": "キャンセル",
 			"confirm": "削除"
 		},
 		"builder": {
-			"addTask": "タスクを追加",
-			"activate": "有効化",
-			"archive": "アーカイブ",
-			"deactivate": "無効化",
-			"readOnlyNoticeArchived": "このワークフローはアーカイブ済みで読み取り専用です — アーカイブされたワークフローは編集できません。",
+			"toggleActiveLabel": "この自動化の有効/無効を切り替える",
 			"genericError": "問題が発生しました。もう一度お試しください。",
-			"collapseSidebar": "サイドバーを折りたたむ",
-			"expandSidebar": "サイドバーを展開する"
+			"taskLessTriggerConnectionError": "このトリガーには対象タスクが設定されていないため、「API呼び出し」または「AIエージェントを起動」アクションにしか接続できません — 条件やその他のアクションは実行対象となるタスクが必要です。",
+			"collapseSidebar": "パネルを折りたたむ",
+			"expandSidebar": "パネルを展開する",
+			"tabGraph": "グラフ",
+			"tabRuns": "実行履歴",
+			"tabDependencyMap": "依存関係マップ"
+		},
+		"palette": {
+			"title": "ノードを追加",
+			"addTrigger": "トリガーを追加",
+			"addCondition": "条件を追加",
+			"addAction": "アクションを追加",
+			"builtIn": "組み込み",
+			"plugins": "プラグイン",
+			"triggerGroups": {
+				"taskEvents": "タスクイベント",
+				"sprintEvents": "スプリントイベント",
+				"scheduleWebhook": "スケジュールとWebhook"
+			}
+		},
+		"nodeKind": {
+			"trigger": "トリガー",
+			"condition": "条件",
+			"action": "アクション"
 		},
 		"canvas": {
-			"unknownTask": "不明なタスク",
-			"deleteEdge": "接続を削除"
+			"deleteEdge": "接続を削除",
+			"deleteNode": "ノードを削除"
 		},
-		"addNodeModal": {
-			"title": "ワークフローにタスクを追加",
-			"searchPlaceholder": "タスクを検索...",
-			"loadingTasks": "タスクを読み込み中...",
-			"noTasksFound": "タスクが見つかりません"
+		"triggerTypes": {
+			"status_changed": "ステータス変更時",
+			"task_created": "タスク作成時",
+			"assignee_changed": "担当者変更時",
+			"priority_changed": "優先度変更時",
+			"tag_added": "タグ追加時",
+			"due_date_reached": "期日到達時",
+			"predecessor_done": "先行タスク完了時",
+			"cron": "Cronスケジュール",
+			"api_trigger": "Webhook",
+			"sprint_created": "スプリント作成",
+			"sprint_started": "スプリント開始",
+			"sprint_completed": "スプリント完了",
+			"sprint_deleted": "スプリント削除"
 		},
-		"nodePanel": {
-			"title": "タスク",
-			"removeNode": "ワークフローから削除",
-			"removeConfirmTitle": "ワークフローからタスクを削除",
-			"removeConfirmBody": "タスクをワークフローグラフから、関連する接続とともに削除します。タスク自体には影響しません。",
+		"actionTypes": {
+			"update_task": "タスクを更新",
+			"trigger_ai_agent": "AIエージェントを起動",
+			"call_api": "APIを呼び出し",
+			"wait": "待機",
+			"update_sprint": "スプリントを更新",
+			"complete_sprint": "スプリントを完了"
+		},
+		"nodeConfig": {
+			"save": "保存",
 			"cancel": "キャンセル",
-			"removeConfirmAction": "削除"
+			"remove": "ノードを削除",
+			"removeConfirmTitle": "ノードを削除",
+			"removeConfirmBody": "グラフからこのノードと、そのすべての接続が削除されます。",
+			"removeConfirmAction": "削除",
+			"genericFormHint": "このノードタイプは設定スキーマを宣言していないプラグインによって提供されているため、設定は生のJSONとして編集します。マニフェストでconfigSchemaを宣言しているプラグインは、代わりにUIフィールドをここに表示します。",
+			"trigger": {
+				"anyStatus": "任意のステータス",
+				"noConfigNeeded": "このトリガーに設定は不要です。イベントが発生すると自動的に実行されます。",
+				"statusLabel": "ステータス",
+				"tagLabel": "タグ",
+				"anyTag": "任意のタグ",
+				"dueDateOffsetLabel": "オフセット（分）",
+				"dueDateOffsetHint": "0 = 期日当日、負の値 = 期日より前、正の値 = 期日より後",
+				"watchedTasksLabel": "監視対象タスク",
+				"watchedTasksHint": "これらのタスクがすべて「完了」ステータスになったときに発火します",
+				"addWatchedTaskPlaceholder": "監視するタスクを追加…",
+				"targetTaskLabel": "対象タスク（任意）",
+				"targetTaskHint": "上記の監視対象タスクがすべて完了した時点でこの自動化が実行対象とするタスク — 先行タスクとは別のタスクで、そのタスク自身の現在の状態に基づいて再評価されます。「API呼び出し」または「AIエージェントを起動」アクションのみに到達させたい場合は未設定のままにしてください（これらはタスクを必要としません）。",
+				"selectTaskPlaceholder": "タスクを選択…",
+				"searchTaskPlaceholder": "タスクを検索…",
+				"noTasksFound": "一致するタスクがありません",
+				"noTasksYet": "このプロジェクトにはまだタスクがありません",
+				"loadingMore": "読み込み中…",
+				"clearTargetTask": "対象タスクをクリア",
+				"cronExpressionLabel": "Cron式",
+				"cronExpressionPlaceholder": "*/15 * * * *",
+				"cronExpressionHint": "標準の5フィールドCron形式（分 時 日 月 曜日）。UTCで評価されます",
+				"cronTargetTaskHint": "スケジュールされた発火のたびにこの自動化が実行対象とするタスク。「API呼び出し」または「AIエージェントを起動」アクションのみに到達させたい場合は未設定のままにしてください（これらはタスクを必要としません）。",
+				"apiTriggerTargetTaskHint": "下記のWebhookが呼び出されるたびにこの自動化が実行対象とするタスク。「API呼び出し」または「AIエージェントを起動」アクションのみに到達させたい場合は未設定のままにしてください（これらはタスクを必要としません）。",
+				"webhookUrlLabel": "Webhook URL",
+				"webhookTokenLabel": "Webhookトークン",
+				"generateTokenButton": "トークンを生成",
+				"regenerateTokenButton": "トークンを再生成",
+				"tokenShownOnceWarning": "このトークンを今すぐコピーしてください — 二度と表示されません。",
+				"copy": "コピー",
+				"copied": "コピーしました",
+				"noTokenYet": "トークンはまだ生成されていません"
+			},
+			"condition": {
+				"branchesTitle": "分岐",
+				"addBranch": "分岐を追加",
+				"branchLabel": "分岐ラベル",
+				"elseLabel": "それ以外（どの分岐にも一致しない場合）",
+				"removeBranch": "分岐を削除",
+				"field": "フィールド",
+				"operator": "演算子",
+				"value": "値",
+				"addGroup": "グループを追加",
+				"addCondition": "条件を追加",
+				"removeCondition": "削除",
+				"logicAnd": "AND",
+				"logicOr": "OR",
+				"logicNot": "NOT",
+				"fields": {
+					"status_id": "ステータス",
+					"task_type_id": "タスクタイプ",
+					"importance": "優先度",
+					"assignee_ids": "担当者",
+					"tags": "タグ",
+					"custom_field": "カスタムフィールド",
+					"title": "タイトル",
+					"story_points": "ストーリーポイント",
+					"sprint_id": "スプリント",
+					"parent_task_id": "親タスク",
+					"reporter_id": "報告者",
+					"start_date": "開始日",
+					"due_date": "期日",
+					"sprint_name": "スプリント名",
+					"sprint_status": "スプリントステータス",
+					"sprint_goal": "スプリントの目標",
+					"sprint_start_date": "スプリント開始日",
+					"sprint_end_date": "スプリント終了日"
+				}
+			},
+			"action": {
+				"memberLabel": "担当者",
+				"agentLabel": "エージェント",
+				"statusLabel": "ステータス",
+				"importanceLabel": "優先度",
+				"tagLabel": "タグ",
+				"fieldKeyLabel": "フィールド",
+				"valueLabel": "値",
+				"messageLabel": "エージェントへの指示",
+				"messagePlaceholder": "例：このタスクを要約し、優先度を提案してください。",
+				"methodLabel": "メソッド",
+				"urlLabel": "URL",
+				"urlPlaceholder": "https://example.com/webhook",
+				"headersLabel": "ヘッダー",
+				"headerKeyPlaceholder": "ヘッダー名",
+				"headerValuePlaceholder": "値",
+				"addHeader": "ヘッダーを追加",
+				"bodyLabel": "本文",
+				"waitMinutesLabel": "待機時間(分)",
+				"waitMinutesHint": "次のノードに進む前にここで待機する時間です。",
+				"updateSprintHint": "以下で入力したフィールドのみが変更されます。スプリントの他の項目はそのまま維持されます。",
+				"sprintNameLabel": "名前",
+				"sprintStartDateLabel": "開始日",
+				"sprintEndDateLabel": "終了日",
+				"sprintGoalLabel": "目標",
+				"sprintStatusLabel": "ステータス",
+				"sprintStatusUnchanged": "変更しない",
+				"sprintStatusPlanned": "計画中",
+				"sprintStatusActive": "進行中",
+				"sprintStatusCompleted": "完了",
+				"completeSprintHint": "スプリントを完了とし、未完了のタスクを移動します。",
+				"moveToSprintLabel": "未完了タスクの移動先",
+				"moveToSprintBacklog": "バックログ",
+				"moveToSprintHint": "スプリントが完了すると、未完了のタスクはここに移動します。",
+				"variablesHint": "{{task.title}}、{{sprint.name}} など、現在の実行の {{variable}} プレースホルダーを使用できます。",
+				"updateTaskHint": "以下で有効にしたフィールドのみが変更されます。その他のタスクの内容は変更されません。",
+				"addFieldToUpdate": "更新するフィールドを追加…",
+				"customFieldsLabel": "カスタムフィールド",
+				"enableField": "{{field}} を設定",
+				"titleLabel": "タイトル",
+				"storyPointsLabel": "ストーリーポイント",
+				"sprintLabel": "スプリント",
+				"parentTaskLabel": "親タスク",
+				"reporterLabel": "報告者",
+				"startDateLabel": "開始日",
+				"dueDateLabel": "期日",
+				"tagsLabel": "タグ",
+				"tagsPlaceholder": "タグを追加…",
+				"assigneesLabel": "担当者",
+				"noSprint": "スプリントなし",
+				"pluginConditionLabel": "プラグイン条件",
+				"pluginConditionHint": "タスクフィールドの比較の代わりに、このブランチの判定をプラグイン提供の条件に委任します。",
+				"selectPluginPlaceholder": "プラグイン条件を選択…",
+				"addCustomField": "カスタムフィールドを追加…"
+			},
+			"target": {
+				"label": "適用先",
+				"kinds": {
+					"self": "このタスク",
+					"parent": "親タスク",
+					"children": "子タスク",
+					"blocks": "ブロックしているタスク",
+					"is_blocked_by": "ブロックされているタスク",
+					"relates_to": "関連タスク",
+					"duplicates": "重複しているタスク",
+					"is_duplicated_by": "重複されているタスク",
+					"other": "別のタスク…"
+				},
+				"matchMode": {
+					"any": "いずれかが一致",
+					"all": "すべてが一致"
+				}
+			},
+			"description": {
+				"dueDateAt": "期日に実行",
+				"dueDateBefore": "期日の{{minutes}}分前",
+				"dueDateAfter": "期日の{{minutes}}分後",
+				"branches": "{{count}}件の分岐",
+				"priority": "優先度：{{level}}",
+				"fieldValue": "{{field}} → {{value}}",
+				"unassigned": "未割り当て",
+				"notConfigured": "未設定",
+				"elseShort": "それ以外",
+				"pluginConditionMatched": "一致",
+				"branchFallback": "分岐{{n}}",
+				"cronSchedule": "{{expression}} に実行",
+				"webhookReady": "Webhook設定済み",
+				"callApiSummary": "{{method}} {{host}}"
+			}
 		},
-		"statusRules": {
-			"title": "ステータス → 担当者ルール",
-			"hint": "タスクがこれらのいずれかのステータスに変わるたびに、自動的にメンバーに割り当てます。これはこのワークフロー内のどのタスクにも適用されます — 誰かがタスクのステータスを直接変更した場合も、先行タスクが完了して後続タスクが現在のステータスで再評価された場合も同様です。",
-			"noRules": "ルールはまだありません",
-			"statusPlaceholder": "ステータス",
-			"memberPlaceholder": "担当者"
+		"runHistory": {
+			"title": "実行履歴",
+			"empty": "実行履歴はまだありません",
+			"status": {
+				"running": "実行中",
+				"completed": "完了",
+				"failed": "失敗"
+			},
+			"stepStatus": {
+				"completed": "完了",
+				"failed": "失敗",
+				"skipped": "スキップ（適用済み）"
+			},
+			"startedAt": "{{time}}に開始",
+			"viewSteps": "ステップを表示"
 		},
-		"statusTransitions": {
-			"title": "ステータスワークフロー",
-			"hint": "各ステータスでの作業が完了したときに次に来るステータスを定義します。これにより後続タスクが解除され、AIエージェントの担当者に次に設定すべきステータスを推測ではなく正確に伝えられます。ワークフロー作成時にプロジェクトのステータスからデフォルトのチェーンが自動生成されます。",
-			"nextStatusLabel": "次のステータス",
-			"terminalOption": "__END__",
-			"ambiguousWarning": "次のステータスがないステータスがちょうど1つ必要です（それがワークフローの __END__ ステータスになります）。現在: {{count}} 件設定済み。"
+		"dependencyMap": {
+			"title": "依存関係マップ",
+			"subtitle": "他のタスクの完了を待っているすべての自動化を表示する読み取り専用ビュー",
+			"empty": "先行タスクの依存関係はまだ設定されていません",
+			"watchedTasks": "{{count}}件のタスクの完了待ち"
 		}
 	}
 }
