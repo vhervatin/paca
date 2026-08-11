@@ -15,7 +15,7 @@ import (
 
 // settingsColumns is shared between Get and WithLock's locked read so the
 // two queries can't drift apart.
-const settingsColumns = `logo_key, logo_thumb_key, favicon_key, favicon_thumb_key, primary_color_light, primary_color_dark, brand_name, updated_at, updated_by`
+const settingsColumns = `logo_key, logo_thumb_key, favicon_key, favicon_thumb_key, primary_color_light, primary_color_dark, brand_name, smtp_from_email, smtp_from_name, smtp_host, smtp_port, smtp_username, smtp_password_encrypted, smtp_use_ssl, smtp_use_tls, send_user_created_email, updated_at, updated_by`
 
 // workspaceSettingsRecord is the sqlx write model for the singleton
 // workspace_settings row.
@@ -27,8 +27,19 @@ type workspaceSettingsRecord struct {
 	PrimaryColorLight *string   `db:"primary_color_light"`
 	PrimaryColorDark  *string   `db:"primary_color_dark"`
 	BrandName         *string   `db:"brand_name"`
-	UpdatedAt         time.Time `db:"updated_at"`
-	UpdatedBy         *string   `db:"updated_by"`
+
+	SMTPFromEmail         *string `db:"smtp_from_email"`
+	SMTPFromName          *string `db:"smtp_from_name"`
+	SMTPHost              *string `db:"smtp_host"`
+	SMTPPort              *int    `db:"smtp_port"`
+	SMTPUsername          *string `db:"smtp_username"`
+	SMTPPasswordEncrypted *string `db:"smtp_password_encrypted"`
+	SMTPUseSSL            bool    `db:"smtp_use_ssl"`
+	SMTPUseTLS            bool    `db:"smtp_use_tls"`
+	SendUserCreatedEmail  bool    `db:"send_user_created_email"`
+
+	UpdatedAt time.Time `db:"updated_at"`
+	UpdatedBy *string   `db:"updated_by"`
 }
 
 func workspaceSettingsToEntity(r *workspaceSettingsRecord) (*settingsdom.WorkspaceSettings, error) {
@@ -45,11 +56,20 @@ func workspaceSettingsToEntity(r *workspaceSettingsRecord) (*settingsdom.Workspa
 		LogoThumbKey:      r.LogoThumbKey,
 		FaviconKey:        r.FaviconKey,
 		FaviconThumbKey:   r.FaviconThumbKey,
-		PrimaryColorLight: r.PrimaryColorLight,
-		PrimaryColorDark:  r.PrimaryColorDark,
-		BrandName:         r.BrandName,
-		UpdatedAt:         r.UpdatedAt,
-		UpdatedBy:         updatedBy,
+		PrimaryColorLight:     r.PrimaryColorLight,
+		PrimaryColorDark:      r.PrimaryColorDark,
+		BrandName:             r.BrandName,
+		SMTPFromEmail:         r.SMTPFromEmail,
+		SMTPFromName:          r.SMTPFromName,
+		SMTPHost:              r.SMTPHost,
+		SMTPPort:              r.SMTPPort,
+		SMTPUsername:          r.SMTPUsername,
+		SMTPPasswordEncrypted: r.SMTPPasswordEncrypted,
+		SMTPUseSSL:            r.SMTPUseSSL,
+		SMTPUseTLS:            r.SMTPUseTLS,
+		SendUserCreatedEmail:  r.SendUserCreatedEmail,
+		UpdatedAt:             r.UpdatedAt,
+		UpdatedBy:             updatedBy,
 	}, nil
 }
 
@@ -131,8 +151,10 @@ func updateRow(ctx context.Context, tx *sqlx.Tx, s *settingsdom.WorkspaceSetting
 		id := s.UpdatedBy.String()
 		updatedBy = &id
 	}
-	_, err := tx.ExecContext(ctx, `UPDATE workspace_settings SET logo_key = $1, logo_thumb_key = $2, favicon_key = $3, favicon_thumb_key = $4, primary_color_light = $5, primary_color_dark = $6, brand_name = $7, updated_at = $8, updated_by = $9 WHERE id = true`,
-		s.LogoKey, s.LogoThumbKey, s.FaviconKey, s.FaviconThumbKey, s.PrimaryColorLight, s.PrimaryColorDark, s.BrandName, s.UpdatedAt, updatedBy,
+	_, err := tx.ExecContext(ctx, `UPDATE workspace_settings SET logo_key = $1, logo_thumb_key = $2, favicon_key = $3, favicon_thumb_key = $4, primary_color_light = $5, primary_color_dark = $6, brand_name = $7, smtp_from_email = $8, smtp_from_name = $9, smtp_host = $10, smtp_port = $11, smtp_username = $12, smtp_password_encrypted = $13, smtp_use_ssl = $14, smtp_use_tls = $15, send_user_created_email = $16, updated_at = $17, updated_by = $18 WHERE id = true`,
+		s.LogoKey, s.LogoThumbKey, s.FaviconKey, s.FaviconThumbKey, s.PrimaryColorLight, s.PrimaryColorDark, s.BrandName,
+		s.SMTPFromEmail, s.SMTPFromName, s.SMTPHost, s.SMTPPort, s.SMTPUsername, s.SMTPPasswordEncrypted, s.SMTPUseSSL, s.SMTPUseTLS, s.SendUserCreatedEmail,
+		s.UpdatedAt, updatedBy,
 	)
 	if err != nil {
 		return fmt.Errorf("settings repo: update: %w", err)
