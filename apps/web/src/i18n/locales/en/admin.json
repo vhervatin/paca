@@ -363,7 +363,9 @@
 				"button": "Send test email",
 				"success": "Test email sent successfully.",
 				"failed": "Failed to send the test email."
-			}
+			},
+			"skipVerifyLabel": "Skip TLS certificate verification",
+			"skipVerifyHint": "Insecure — use only when the hosting server presents a certificate that doesn't match the SMTP hostname (the x509 certificate error)."
 		}
 	}
 }

@@ -37,6 +37,9 @@ type WorkspaceSettings struct {
 	SMTPPasswordEncrypted *string
 	SMTPUseSSL            bool
 	SMTPUseTLS            bool
+	// SMTPSkipVerify disables TLS certificate verification (insecure; for
+	// shared hosting whose cert doesn't match the SMTP hostname).
+	SMTPSkipVerify bool
 	// SendUserCreatedEmail is the "Enviar e-mail de usuário criado" toggle
 	// (true by default): when true, creating a user or resetting a password
 	// e-mails their credentials to the user's e-mail address.

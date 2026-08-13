@@ -42,6 +42,7 @@ func emailSettingsResponse(v *emailsvc.SettingsView) dto.EmailSettingsResponse {
 		Username:             v.Username,
 		UseSSL:               v.UseSSL,
 		UseTLS:               v.UseTLS,
+		SkipVerify:           v.SkipVerify,
 		SendUserCreatedEmail: v.SendUserCreatedEmail,
 		PasswordSet:          v.PasswordSet,
 		Configured:           v.Configured,
@@ -77,6 +78,7 @@ func (h *EmailSettingsHandler) UpdateEmailSettings(w http.ResponseWriter, r *htt
 		Password:             req.Password,
 		UseSSL:               req.UseSSL,
 		UseTLS:               req.UseTLS,
+		SkipVerify:           req.SkipVerify,
 		SendUserCreatedEmail: req.SendUserCreatedEmail,
 	}, id)
 	if err != nil {

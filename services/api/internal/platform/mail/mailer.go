@@ -32,6 +32,15 @@ type SMTPConfig struct {
 	UseSSL bool
 	// UseTLS issues STARTTLS after connecting in plaintext (usually :587).
 	UseTLS bool
+	// SkipVerify disables TLS certificate verification (both implicit TLS and
+	// STARTTLS). Insecure — set only for shared hosting whose certificate
+	// doesn't match the SMTP hostname.
+	SkipVerify bool
+}
+
+// tlsConfig builds the TLS settings for cfg, honoring SkipVerify.
+func (c SMTPConfig) tlsConfig() *tls.Config {
+	return &tls.Config{ServerName: c.Host, InsecureSkipVerify: c.SkipVerify} //nolint:gosec // opt-in, admin-controlled for shared hosting cert mismatch
 }
 
 func (c SMTPConfig) configured() bool {
@@ -89,7 +98,7 @@ func (s *SMTPSender) Send(cfg SMTPConfig, msg Message) error {
 
 	if cfg.UseTLS && !cfg.UseSSL {
 		if ok, _ := client.Extension("STARTTLS"); ok {
-			if err := client.StartTLS(&tls.Config{ServerName: cfg.Host}); err != nil {
+			if err := client.StartTLS(cfg.tlsConfig()); err != nil {
 				return fmt.Errorf("mail: starttls: %w", err)
 			}
 		}
@@ -125,7 +134,7 @@ func (s *SMTPSender) Send(cfg SMTPConfig, msg Message) error {
 func dial(addr string, cfg SMTPConfig, timeout time.Duration) (*smtp.Client, error) {
 	d := net.Dialer{Timeout: timeout}
 	if cfg.UseSSL {
-		conn, err := tls.DialWithDialer(&d, "tcp", addr, &tls.Config{ServerName: cfg.Host})
+		conn, err := tls.DialWithDialer(&d, "tcp", addr, cfg.tlsConfig())
 		if err != nil {
 			return nil, err
 		}

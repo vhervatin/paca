@@ -363,7 +363,9 @@
 				"button": "Enviar correo de prueba",
 				"success": "Correo de prueba enviado correctamente.",
 				"failed": "No se pudo enviar el correo de prueba."
-			}
+			},
+			"skipVerifyLabel": "Omitir la verificación del certificado TLS",
+			"skipVerifyHint": "Inseguro — úsalo solo cuando el servidor de alojamiento presenta un certificado que no coincide con el host SMTP (el error de certificado x509)."
 		}
 	}
 }

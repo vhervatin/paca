@@ -46,6 +46,7 @@ type EmailSettingsResponse struct {
 	Username             string `json:"username"`
 	UseSSL               bool   `json:"use_ssl"`
 	UseTLS               bool   `json:"use_tls"`
+	SkipVerify           bool   `json:"skip_verify"`
 	SendUserCreatedEmail bool   `json:"send_user_created_email"`
 	PasswordSet          bool   `json:"password_set"`
 	Configured           bool   `json:"configured"`
@@ -63,6 +64,7 @@ type UpdateEmailSettingsRequest struct {
 	Password             *string `json:"password"`
 	UseSSL               bool    `json:"use_ssl"`
 	UseTLS               bool    `json:"use_tls"`
+	SkipVerify           bool    `json:"skip_verify"`
 	SendUserCreatedEmail bool    `json:"send_user_created_email"`
 }
 

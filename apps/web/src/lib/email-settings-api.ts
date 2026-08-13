@@ -13,6 +13,7 @@ export interface EmailSettings {
 	username: string;
 	use_ssl: boolean;
 	use_tls: boolean;
+	skip_verify: boolean;
 	send_user_created_email: boolean;
 	password_set: boolean;
 	configured: boolean;
@@ -36,6 +37,7 @@ export interface UpdateEmailSettingsPayload {
 	password?: string;
 	use_ssl: boolean;
 	use_tls: boolean;
+	skip_verify: boolean;
 	send_user_created_email: boolean;
 }
 

@@ -363,7 +363,9 @@
 				"button": "Gửi e-mail thử",
 				"success": "Đã gửi e-mail thử thành công.",
 				"failed": "Gửi e-mail thử thất bại."
-			}
+			},
+			"skipVerifyLabel": "Bỏ qua xác minh chứng chỉ TLS",
+			"skipVerifyHint": "Không an toàn — chỉ dùng khi máy chủ lưu trữ có chứng chỉ không khớp với máy chủ SMTP (lỗi chứng chỉ x509)."
 		}
 	}
 }

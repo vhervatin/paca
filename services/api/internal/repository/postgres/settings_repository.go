@@ -15,7 +15,7 @@ import (
 
 // settingsColumns is shared between Get and WithLock's locked read so the
 // two queries can't drift apart.
-const settingsColumns = `logo_key, logo_thumb_key, favicon_key, favicon_thumb_key, primary_color_light, primary_color_dark, brand_name, smtp_from_email, smtp_from_name, smtp_host, smtp_port, smtp_username, smtp_password_encrypted, smtp_use_ssl, smtp_use_tls, send_user_created_email, updated_at, updated_by`
+const settingsColumns = `logo_key, logo_thumb_key, favicon_key, favicon_thumb_key, primary_color_light, primary_color_dark, brand_name, smtp_from_email, smtp_from_name, smtp_host, smtp_port, smtp_username, smtp_password_encrypted, smtp_use_ssl, smtp_use_tls, smtp_skip_verify, send_user_created_email, updated_at, updated_by`
 
 // workspaceSettingsRecord is the sqlx write model for the singleton
 // workspace_settings row.
@@ -36,6 +36,7 @@ type workspaceSettingsRecord struct {
 	SMTPPasswordEncrypted *string `db:"smtp_password_encrypted"`
 	SMTPUseSSL            bool    `db:"smtp_use_ssl"`
 	SMTPUseTLS            bool    `db:"smtp_use_tls"`
+	SMTPSkipVerify        bool    `db:"smtp_skip_verify"`
 	SendUserCreatedEmail  bool    `db:"send_user_created_email"`
 
 	UpdatedAt time.Time `db:"updated_at"`
@@ -67,6 +68,7 @@ func workspaceSettingsToEntity(r *workspaceSettingsRecord) (*settingsdom.Workspa
 		SMTPPasswordEncrypted: r.SMTPPasswordEncrypted,
 		SMTPUseSSL:            r.SMTPUseSSL,
 		SMTPUseTLS:            r.SMTPUseTLS,
+		SMTPSkipVerify:        r.SMTPSkipVerify,
 		SendUserCreatedEmail:  r.SendUserCreatedEmail,
 		UpdatedAt:             r.UpdatedAt,
 		UpdatedBy:             updatedBy,
@@ -151,9 +153,9 @@ func updateRow(ctx context.Context, tx *sqlx.Tx, s *settingsdom.WorkspaceSetting
 		id := s.UpdatedBy.String()
 		updatedBy = &id
 	}
-	_, err := tx.ExecContext(ctx, `UPDATE workspace_settings SET logo_key = $1, logo_thumb_key = $2, favicon_key = $3, favicon_thumb_key = $4, primary_color_light = $5, primary_color_dark = $6, brand_name = $7, smtp_from_email = $8, smtp_from_name = $9, smtp_host = $10, smtp_port = $11, smtp_username = $12, smtp_password_encrypted = $13, smtp_use_ssl = $14, smtp_use_tls = $15, send_user_created_email = $16, updated_at = $17, updated_by = $18 WHERE id = true`,
+	_, err := tx.ExecContext(ctx, `UPDATE workspace_settings SET logo_key = $1, logo_thumb_key = $2, favicon_key = $3, favicon_thumb_key = $4, primary_color_light = $5, primary_color_dark = $6, brand_name = $7, smtp_from_email = $8, smtp_from_name = $9, smtp_host = $10, smtp_port = $11, smtp_username = $12, smtp_password_encrypted = $13, smtp_use_ssl = $14, smtp_use_tls = $15, smtp_skip_verify = $16, send_user_created_email = $17, updated_at = $18, updated_by = $19 WHERE id = true`,
 		s.LogoKey, s.LogoThumbKey, s.FaviconKey, s.FaviconThumbKey, s.PrimaryColorLight, s.PrimaryColorDark, s.BrandName,
-		s.SMTPFromEmail, s.SMTPFromName, s.SMTPHost, s.SMTPPort, s.SMTPUsername, s.SMTPPasswordEncrypted, s.SMTPUseSSL, s.SMTPUseTLS, s.SendUserCreatedEmail,
+		s.SMTPFromEmail, s.SMTPFromName, s.SMTPHost, s.SMTPPort, s.SMTPUsername, s.SMTPPasswordEncrypted, s.SMTPUseSSL, s.SMTPUseTLS, s.SMTPSkipVerify, s.SendUserCreatedEmail,
 		s.UpdatedAt, updatedBy,
 	)
 	if err != nil {

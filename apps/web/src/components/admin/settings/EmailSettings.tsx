@@ -33,6 +33,7 @@ export function EmailSettings() {
 	const [password, setPassword] = useState("");
 	const [useSSL, setUseSSL] = useState(settings?.use_ssl ?? false);
 	const [useTLS, setUseTLS] = useState(settings?.use_tls ?? false);
+	const [skipVerify, setSkipVerify] = useState(settings?.skip_verify ?? false);
 
 	const [error, setError] = useState<string | null>(null);
 	const [saved, setSaved] = useState(false);
@@ -60,6 +61,7 @@ export function EmailSettings() {
 				password: password === "" ? undefined : password,
 				use_ssl: useSSL,
 				use_tls: useTLS,
+				skip_verify: skipVerify,
 				send_user_created_email: sendOnCreate,
 			}),
 		onSuccess: (updated) => {
@@ -198,6 +200,22 @@ export function EmailSettings() {
 					<Switch id="smtp-tls" checked={useTLS} onCheckedChange={setUseTLS} />
 					<Label htmlFor="smtp-tls">{t("settings.email.useTLS")}</Label>
 				</div>
+			</div>
+
+			<div className="mt-4 flex items-start justify-between gap-4 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+				<div>
+					<Label htmlFor="smtp-skip-verify" className="font-medium">
+						{t("settings.email.skipVerifyLabel")}
+					</Label>
+					<p className="mt-0.5 text-xs text-muted-foreground">
+						{t("settings.email.skipVerifyHint")}
+					</p>
+				</div>
+				<Switch
+					id="smtp-skip-verify"
+					checked={skipVerify}
+					onCheckedChange={setSkipVerify}
+				/>
 			</div>
 
 			{error ? (

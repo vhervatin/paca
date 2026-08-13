@@ -50,6 +50,20 @@ func TestBuildRFC822_DerivesPlaintextFromHTML(t *testing.T) {
 	}
 }
 
+func TestTLSConfig_SkipVerify(t *testing.T) {
+	secure := SMTPConfig{Host: "smtp.example.com"}.tlsConfig()
+	if secure.InsecureSkipVerify {
+		t.Error("verification should be on by default")
+	}
+	if secure.ServerName != "smtp.example.com" {
+		t.Errorf("ServerName not set: %q", secure.ServerName)
+	}
+	insecure := SMTPConfig{Host: "smtp.example.com", SkipVerify: true}.tlsConfig()
+	if !insecure.InsecureSkipVerify {
+		t.Error("SkipVerify should disable verification")
+	}
+}
+
 func TestSend_NotConfigured_ReturnsErr(t *testing.T) {
 	s := NewSMTPSender()
 	// Missing host/port/from → not configured.

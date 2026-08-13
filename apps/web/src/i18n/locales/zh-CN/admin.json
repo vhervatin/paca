@@ -363,7 +363,9 @@
 				"button": "发送测试邮件",
 				"success": "测试邮件已成功发送。",
 				"failed": "发送测试邮件失败。"
-			}
+			},
+			"skipVerifyLabel": "跳过 TLS 证书校验",
+			"skipVerifyHint": "不安全——仅在主机服务器提供的证书与 SMTP 主机名不匹配时（即 x509 证书错误）使用。"
 		}
 	}
 }

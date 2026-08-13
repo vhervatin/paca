@@ -50,6 +50,7 @@ type SettingsView struct {
 	Username             string
 	UseSSL               bool
 	UseTLS               bool
+	SkipVerify           bool
 	SendUserCreatedEmail bool
 	// PasswordSet reports whether a password is stored, so the UI can show a
 	// "leave blank to keep current" placeholder instead of the secret.
@@ -73,6 +74,7 @@ func (s *Service) Get(ctx context.Context) (*SettingsView, error) {
 		Username:             deref(ws.SMTPUsername),
 		UseSSL:               ws.SMTPUseSSL,
 		UseTLS:               ws.SMTPUseTLS,
+		SkipVerify:           ws.SMTPSkipVerify,
 		SendUserCreatedEmail: ws.SendUserCreatedEmail,
 		PasswordSet:          ws.SMTPPasswordEncrypted != nil && *ws.SMTPPasswordEncrypted != "",
 		Configured:           ws.SMTPConfigured(),
@@ -91,6 +93,7 @@ type UpdateInput struct {
 	Password             *string
 	UseSSL               bool
 	UseTLS               bool
+	SkipVerify           bool
 	SendUserCreatedEmail bool
 }
 
@@ -109,6 +112,7 @@ func (s *Service) Update(ctx context.Context, in UpdateInput, updatedBy uuid.UUI
 		}
 		ws.SMTPUseSSL = in.UseSSL
 		ws.SMTPUseTLS = in.UseTLS
+		ws.SMTPSkipVerify = in.SkipVerify
 		ws.SendUserCreatedEmail = in.SendUserCreatedEmail
 
 		switch {
@@ -158,8 +162,9 @@ func (s *Service) smtpConfig(ctx context.Context) (mail.SMTPConfig, *settingsdom
 		Password:  password,
 		FromEmail: deref(ws.SMTPFromEmail),
 		FromName:  deref(ws.SMTPFromName),
-		UseSSL:    ws.SMTPUseSSL,
-		UseTLS:    ws.SMTPUseTLS,
+		UseSSL:     ws.SMTPUseSSL,
+		UseTLS:     ws.SMTPUseTLS,
+		SkipVerify: ws.SMTPSkipVerify,
 	}
 	return cfg, ws, true, nil
 }
