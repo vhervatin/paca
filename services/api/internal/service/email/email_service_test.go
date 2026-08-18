@@ -98,6 +98,30 @@ func TestUpdate_NilPasswordKeepsExisting(t *testing.T) {
 	}
 }
 
+func TestEnabled(t *testing.T) {
+	cases := []struct {
+		name string
+		ws   *settingsdom.WorkspaceSettings
+		want bool
+	}{
+		{"configured + toggle on", configured(), true},
+		{"configured + toggle off", func() *settingsdom.WorkspaceSettings {
+			w := configured()
+			w.SendUserCreatedEmail = false
+			return w
+		}(), false},
+		{"toggle on but unconfigured", &settingsdom.WorkspaceSettings{SendUserCreatedEmail: true}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := NewService(&fakeRepo{ws: tc.ws}, fakeEnc{}, &fakeSender{}, "")
+			if got := svc.Enabled(context.Background()); got != tc.want {
+				t.Errorf("Enabled = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestNotifyUserCreated_DisabledIsNoOp(t *testing.T) {
 	ws := configured()
 	ws.SendUserCreatedEmail = false

@@ -97,10 +97,14 @@ func (s *SMTPSender) Send(cfg SMTPConfig, msg Message) error {
 	defer func() { _ = client.Close() }()
 
 	if cfg.UseTLS && !cfg.UseSSL {
-		if ok, _ := client.Extension("STARTTLS"); ok {
-			if err := client.StartTLS(cfg.tlsConfig()); err != nil {
-				return fmt.Errorf("mail: starttls: %w", err)
-			}
+		// Fail closed: the admin explicitly required TLS, so refuse to fall
+		// back to a plaintext session (which would leak the message body —
+		// including a new user's credentials — over the wire).
+		if ok, _ := client.Extension("STARTTLS"); !ok {
+			return fmt.Errorf("mail: %s does not advertise STARTTLS but TLS was required; refusing to send over plaintext", addr)
+		}
+		if err := client.StartTLS(cfg.tlsConfig()); err != nil {
+			return fmt.Errorf("mail: starttls: %w", err)
 		}
 	}
 
@@ -130,20 +134,25 @@ func (s *SMTPSender) Send(cfg SMTPConfig, msg Message) error {
 	return client.Quit()
 }
 
-// dial opens an SMTP client, using implicit TLS when UseSSL is set.
+// dial opens an SMTP client, using implicit TLS when UseSSL is set. It arms an
+// absolute deadline covering the whole SMTP conversation (connect, auth, data)
+// so a slow or hung server can never block the caller indefinitely.
 func dial(addr string, cfg SMTPConfig, timeout time.Duration) (*smtp.Client, error) {
 	d := net.Dialer{Timeout: timeout}
+	deadline := time.Now().Add(timeout)
 	if cfg.UseSSL {
 		conn, err := tls.DialWithDialer(&d, "tcp", addr, cfg.tlsConfig())
 		if err != nil {
 			return nil, err
 		}
+		_ = conn.SetDeadline(deadline)
 		return smtp.NewClient(conn, cfg.Host)
 	}
 	conn, err := d.Dial("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
+	_ = conn.SetDeadline(deadline)
 	return smtp.NewClient(conn, cfg.Host)
 }
 

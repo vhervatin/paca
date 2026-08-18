@@ -198,6 +198,18 @@ func (s *Service) SendTest(ctx context.Context, to string) error {
 	return s.sender.Send(cfg, msg)
 }
 
+// Enabled reports, without doing any SMTP work, whether credential e-mails
+// would actually be sent — i.e. SMTP is configured and the send-on-create
+// toggle is on. Callers use it to decide (synchronously) whether an e-mail was
+// queued before firing the real send in the background.
+func (s *Service) Enabled(ctx context.Context) bool {
+	ws, err := s.repo.Get(ctx)
+	if err != nil {
+		return false
+	}
+	return ws.SMTPConfigured() && ws.SendUserCreatedEmail
+}
+
 // NotifyUserCreated e-mails credentials to a newly created user. It is a
 // no-op (returns sent=false, err=nil) when sending is disabled, SMTP is
 // unconfigured, or `to` is empty — so callers can invoke it unconditionally.

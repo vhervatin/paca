@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -24,10 +25,12 @@ type SessionInvalidator interface {
 }
 
 // UserNotifier delivers credential e-mails on user lifecycle events (EVUP).
-// Both methods are best-effort: they return (false, nil) when e-mail sending
-// is disabled or unconfigured, so the caller can invoke them unconditionally.
-// It is satisfied by service/email.Service.
+// The Notify* methods are best-effort: they return (false, nil) when e-mail
+// sending is disabled or unconfigured, so the caller can invoke them
+// unconditionally. Enabled is a cheap, SMTP-free pre-check reporting whether a
+// send would actually happen. It is satisfied by service/email.Service.
 type UserNotifier interface {
+	Enabled(ctx context.Context) bool
 	NotifyUserCreated(ctx context.Context, to, username, password string) (bool, error)
 	NotifyPasswordReset(ctx context.Context, to, username, password string) (bool, error)
 }
@@ -237,30 +240,39 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := h.toUserResponse(r.Context(), u)
-	resp.EmailSent = h.deliverCredentials(r, req.Email, u.Username, req.Password, true)
+	resp.EmailSent = h.queueCredentials(r.Context(), req.Email, u.Username, req.Password, true)
 	presenter.Created(w, r, resp)
 }
 
-// deliverCredentials best-effort e-mails credentials to the user. It never
-// fails the request: a nil return means no attempt (no notifier), otherwise
-// the pointed-to bool reports whether the send succeeded. Errors are logged.
-func (h *UserHandler) deliverCredentials(r *http.Request, to, username, password string, created bool) *bool {
+// queueCredentials fires a best-effort credential e-mail in the background so
+// the SMTP conversation never blocks (or fails) the HTTP request. A nil return
+// means no attempt (no notifier); otherwise the pointed-to bool reports whether
+// an e-mail was queued — i.e. e-mail sending is enabled, configured, and a
+// recipient is present. The actual send runs asynchronously on a detached,
+// bounded context and its outcome is logged.
+func (h *UserHandler) queueCredentials(ctx context.Context, to, username, password string, created bool) *bool {
 	if h.notifier == nil {
 		return nil
 	}
-	var sent bool
-	var err error
-	if created {
-		sent, err = h.notifier.NotifyUserCreated(r.Context(), to, username, password)
-	} else {
-		sent, err = h.notifier.NotifyPasswordReset(r.Context(), to, username, password)
+	queued := to != "" && h.notifier.Enabled(ctx)
+	if queued {
+		go func() {
+			// Detach from the request context (cancelled once the handler
+			// returns) but keep an absolute bound on the async send.
+			bg, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+			defer cancel()
+			var err error
+			if created {
+				_, err = h.notifier.NotifyUserCreated(bg, to, username, password)
+			} else {
+				_, err = h.notifier.NotifyPasswordReset(bg, to, username, password)
+			}
+			if err != nil {
+				slog.Warn("credential email failed", "user", username, "created", created, "error", err)
+			}
+		}()
 	}
-	if err != nil {
-		slog.WarnContext(r.Context(), "credential email failed", "user", username, "created", created, "error", err)
-		failed := false
-		return &failed
-	}
-	return &sent
+	return &queued
 }
 
 // looksLikeEmail is a minimal sanity check (presence of "@" with text on both
@@ -342,7 +354,7 @@ func (h *UserHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 			if u.Email != nil {
 				to = *u.Email
 			}
-			h.deliverCredentials(r, to, u.Username, req.NewPassword, false)
+			h.queueCredentials(r.Context(), to, u.Username, req.NewPassword, false)
 		}
 	}
 
