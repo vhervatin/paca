@@ -77,9 +77,6 @@ export interface User {
 	avatar_url?: string | null;
 	avatar_thumb_url?: string | null;
 	created_at: string;
-	// email_sent is present only on the create-user response: true if the
-	// credential e-mail was sent, false if sending was on but failed.
-	email_sent?: boolean;
 }
 
 export interface PagedUsersResponse {
@@ -103,7 +100,7 @@ export async function createUser(payload: {
 	username: string;
 	password: string;
 	full_name: string;
-	email: string;
+	email?: string;
 	role?: string;
 }): Promise<User> {
 	const { data } = await apiClient.instance.post<SuccessEnvelope<User>>(
@@ -115,7 +112,7 @@ export async function createUser(payload: {
 
 export async function updateUser(
 	userId: string,
-	payload: { full_name?: string; role?: string },
+	payload: { full_name?: string; email?: string; role?: string },
 ): Promise<User> {
 	const { data } = await apiClient.instance.patch<SuccessEnvelope<User>>(
 		`/admin/users/${userId}`,

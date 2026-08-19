@@ -39,13 +39,15 @@ type Agent struct {
 	LLMModel        string
 	LLMAPIKeySecret string // reference to secrets store entry
 	LLMBaseURL      string
-	// ACPProvider is one of claude-code | codex | gemini-cli | custom; nil for
-	// llm-type agents.
+	// ACPProvider is one of claude-code | codex | gemini-cli | goose | custom;
+	// nil for llm-type agents.
 	ACPProvider *string
 	// ACPCommand is the command + args used to launch the ACP server. Only
-	// meaningful (and required) when ACPProvider == "custom" — built-in
-	// providers resolve a default command via the OpenHands SDK's own
-	// provider registry.
+	// meaningful (and required) when ACPProvider == "custom" — the other
+	// built-in providers resolve a default command themselves: claude-code /
+	// codex / gemini-cli via the OpenHands SDK's own provider registry, goose
+	// via a small local override in apps/acp-bridge's runner.py (the SDK's
+	// registry doesn't know about goose).
 	ACPCommand []string
 	// HasACPBridgeToken reports whether a local-bridge auth token has been
 	// generated; the token itself (and its hash) are never exposed here.
@@ -71,10 +73,19 @@ type Agent struct {
 	TimeoutMinutes    int
 	GitCommitterName  string
 	GitCommitterEmail string
-	CreatedBy         *uuid.UUID
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	DeletedAt         *time.Time
+	// DockerEnabled opts this agent into agent-runner's per-conversation
+	// Docker-in-Docker sandbox sidecar (see
+	// services/agent-runner/internal/sandbox/dind.go) — off by default, since
+	// most agents never run a Docker command and the sidecar is a real
+	// per-session cost (a privileged container plus a private network) to
+	// start unconditionally. LLM-only, same as SystemPrompt/GitCommitter*
+	// above — an ACP agent's sandboxing is owned by the user's own local ACP
+	// client, not agent-runner.
+	DockerEnabled bool
+	CreatedBy     *uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     *time.Time
 	// Member ID in project_members (populated on create / list)
 	MemberID   *uuid.UUID
 	MCPServers []*AgentMCPServer
@@ -103,6 +114,7 @@ const (
 	ACPProviderClaudeCode = "claude-code"
 	ACPProviderCodex      = "codex"
 	ACPProviderGeminiCLI  = "gemini-cli"
+	ACPProviderGoose      = "goose"
 	ACPProviderCustom     = "custom"
 )
 
@@ -111,6 +123,7 @@ var ValidACPProviders = map[string]bool{
 	ACPProviderClaudeCode: true,
 	ACPProviderCodex:      true,
 	ACPProviderGeminiCLI:  true,
+	ACPProviderGoose:      true,
 	ACPProviderCustom:     true,
 }
 
@@ -191,6 +204,24 @@ type SkillTemplate struct {
 	Triggers    []string `json:"triggers"`
 }
 
+// ConversationAudience discriminates who may read/write a conversation's
+// transcript. It is a STORED GENERATED column (see migration
+// 000038_add_agent_conversation_audience) derived from chat_session_id /
+// actor_user_id, so it can never drift from those source columns.
+type ConversationAudience string
+
+// ConversationAudience values.
+const (
+	// AudienceOwnerPrivate marks a chat conversation (project chat backed by a
+	// chat session, or global chat backed by actor_user_id): only the acting
+	// member (project) or actor user (global) may read/write the transcript.
+	AudienceOwnerPrivate ConversationAudience = "owner_private"
+	// AudienceProjectShared marks a sessionless run (task_assigned /
+	// comment_mention / description_write / automation_message): any project
+	// member with agents:read may read it.
+	AudienceProjectShared ConversationAudience = "project_shared"
+)
+
 // AgentConversation tracks each OpenHands conversation session.
 type AgentConversation struct {
 	ID            uuid.UUID
@@ -208,11 +239,24 @@ type AgentConversation struct {
 	// ActorUserID is set only for a global-chat conversation (ProjectID is
 	// uuid.Nil): the human user who sent the message, identified directly
 	// since there may be no project_members row for them at all.
-	ActorUserID    *uuid.UUID
+	ActorUserID *uuid.UUID
+	// Audience is the derived transcript audience (owner_private |
+	// project_shared) — see ConversationAudience. Read-only on this entity:
+	// it is a generated column, never set by the repository on write.
+	Audience       ConversationAudience
 	Status         string // queued | running | paused | finished | failed | stopped
 	ContainerID    *string
 	HostPort       *int
 	IterationCount int
+	// InputTokens/OutputTokens/TotalTokens/CostUSD are computed live from
+	// agent_conversation_events (event_type = 'turn_usage'), the same
+	// pattern IterationCount uses — see conversationCols's doc comment in
+	// the postgres repository. CostUSD is nil until at least one turn has
+	// reported a cost.
+	InputTokens    int64
+	OutputTokens   int64
+	TotalTokens    int64
+	CostUSD        *float64
 	ErrorMessage   *string
 	RepoPluginID   *uuid.UUID
 	RepoCloneURL   *string

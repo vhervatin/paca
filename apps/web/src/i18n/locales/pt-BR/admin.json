@@ -53,6 +53,9 @@
 			"usernamePlaceholder": "ex.: joao.silva",
 			"fullNameLabel": "Nome Completo",
 			"fullNamePlaceholder": "ex.: João Silva",
+			"emailLabel": "E-mail",
+			"emailOptionalHint": "(opcional — envia um e-mail de boas-vindas com um link para definir a senha)",
+			"emailPlaceholder": "ex.: joao.silva@example.com",
 			"roleLabel": "Função",
 			"roleOptionalHint": "(opcional — o padrão é USER)",
 			"rolePlaceholder": "Selecione uma função…",
@@ -63,16 +66,15 @@
 			"createUser": "Criar usuário",
 			"errors": {
 				"fullNameRequired": "O nome completo é obrigatório.",
+				"invalidEmail": "Informe um endereço de e-mail válido.",
 				"usernameTaken": "Este nome de usuário já está em uso.",
+				"emailTaken": "Este e-mail já está em uso.",
 				"userNotFound": "Usuário não encontrado. Ele pode já ter sido excluído.",
 				"forbidden": "Você não tem permissão para executar esta ação.",
 				"internalError": "Algo deu errado no servidor. Tente novamente.",
 				"generic": "Algo deu errado.",
 				"emailRequired": "Informe um e-mail válido."
-			},
-			"emailLabel": "E-mail",
-			"emailPlaceholder": "usuario@exemplo.com",
-			"emailEditHint": "O e-mail não pode ser alterado por aqui."
+			}
 		},
 		"resetPasswordDialog": {
 			"title": "Redefinir senha",

@@ -16,7 +16,9 @@ export const ApiErrorCode = {
 	// User domain errors.
 	UserNotFound: "USER_NOT_FOUND",
 	UsernameTaken: "USER_USERNAME_TAKEN",
+	EmailTaken: "USER_EMAIL_TAKEN",
 	InvalidCurrentPassword: "USER_INVALID_CURRENT_PASSWORD",
+	PasswordSetTokenInvalid: "USER_PASSWORD_SET_TOKEN_INVALID",
 	Forbidden: "FORBIDDEN",
 
 	// Global role domain errors.
@@ -98,6 +100,15 @@ export function isPasswordChangeRequired(err: unknown): boolean {
 		e?.response?.status === 403 &&
 		e?.response?.data?.error_code === ApiErrorCode.PasswordChangeRequired
 	);
+}
+
+/**
+ * Returns true when an Axios error is a 404 TASK_NOT_FOUND — i.e. the API has
+ * authoritatively confirmed the task doesn't exist, as opposed to a network
+ * failure, timeout, or 5xx that says nothing about whether the task exists.
+ */
+export function isTaskNotFoundError(err: unknown): boolean {
+	return getApiErrorCode(err) === ApiErrorCode.TaskNotFound;
 }
 
 /** Shape of the success envelope returned by the API on success. */

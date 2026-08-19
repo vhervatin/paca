@@ -43,6 +43,7 @@ type agentRecord struct {
 	TimeoutMinutes     int        `db:"timeout_minutes"`
 	GitCommitterName   string     `db:"git_committer_name"`
 	GitCommitterEmail  string     `db:"git_committer_email"`
+	DockerEnabled      bool       `db:"docker_enabled"`
 	CreatedBy          *string    `db:"created_by"`
 	CreatedAt          time.Time  `db:"created_at"`
 	UpdatedAt          time.Time  `db:"updated_at"`
@@ -96,10 +97,15 @@ type agentConversationRecord struct {
 	ChatSessionID       *string    `db:"chat_session_id"`
 	TriggeredByMemberID *string    `db:"triggered_by_member_id"`
 	ActorUserID         *string    `db:"actor_user_id"`
+	Audience            string     `db:"audience"`
 	Status              string     `db:"status"`
 	ContainerID         *string    `db:"container_id"`
 	HostPort            *int       `db:"host_port"`
 	IterationCount      int64      `db:"iteration_count"`
+	InputTokens         int64      `db:"input_tokens"`
+	OutputTokens        int64      `db:"output_tokens"`
+	TotalTokens         int64      `db:"total_tokens"`
+	CostUSD             *float64   `db:"cost_usd"`
 	ErrorMessage        *string    `db:"error_message"`
 	RepoPluginID        *string    `db:"repo_plugin_id"`
 	RepoCloneURL        *string    `db:"repo_clone_url"`
@@ -151,7 +157,7 @@ func NewAgentRepository(db *sqlx.DB) *AgentRepository {
 const agentSelectColsBase = `a.id, a.project_id, a.agent_scope, a.global_role_id, a.name, a.handle, a.avatar_key, a.avatar_thumb_key, a.agent_type, a.llm_provider, a.llm_model,
 	a.llm_api_key_secret, a.llm_base_url, a.acp_provider, a.acp_command, a.acp_bridge_token_hash, a.mcp_api_key_hash, a.system_prompt,
 	a.max_iterations, a.timeout_minutes,
-	a.git_committer_name, a.git_committer_email, a.created_by, a.created_at, a.updated_at, a.deleted_at`
+	a.git_committer_name, a.git_committer_email, a.docker_enabled, a.created_by, a.created_at, a.updated_at, a.deleted_at`
 
 // agentSelectCols is used with a JOIN/LEFT JOIN against project_members
 // aliased pm, populating member_id from that join.
@@ -367,14 +373,14 @@ func (r *AgentRepository) CreateAgent(ctx context.Context, a *agentdom.Agent) er
 		INSERT INTO agents (id, project_id, name, handle, avatar_key, avatar_thumb_key, agent_type, llm_provider, llm_model,
 		  llm_api_key_secret, llm_base_url, acp_provider, acp_command, system_prompt,
 		  max_iterations, timeout_minutes,
-		  git_committer_name, git_committer_email, created_by, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+		  git_committer_name, git_committer_email, docker_enabled, created_by, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
 		rec.ID, rec.ProjectID, rec.Name, rec.Handle, rec.AvatarKey, rec.AvatarThumbKey, rec.AgentType,
 		rec.LLMProvider, rec.LLMModel, rec.LLMAPIKeySecret, rec.LLMBaseURL,
 		rec.ACPProvider, rec.ACPCommand,
 		rec.SystemPrompt,
 		rec.MaxIterations, rec.TimeoutMinutes,
-		rec.GitCommitterName, rec.GitCommitterEmail, rec.CreatedBy, rec.CreatedAt, rec.UpdatedAt,
+		rec.GitCommitterName, rec.GitCommitterEmail, rec.DockerEnabled, rec.CreatedBy, rec.CreatedAt, rec.UpdatedAt,
 	)
 	return err
 }
@@ -394,13 +400,13 @@ func (r *AgentRepository) UpdateAgent(ctx context.Context, a *agentdom.Agent) er
 			  acp_provider=$8, acp_command=$9,
 			  system_prompt=$10,
 			  max_iterations=$11, timeout_minutes=$12,
-			  git_committer_name=$13, git_committer_email=$14, global_role_id=$15, updated_at=$16
-			WHERE id=$17`,
+			  git_committer_name=$13, git_committer_email=$14, docker_enabled=$15, global_role_id=$16, updated_at=$17
+			WHERE id=$18`,
 			a.Name, a.Handle, a.AvatarKey, a.AvatarThumbKey, a.LLMProvider, a.LLMModel, a.LLMBaseURL,
 			rec.ACPProvider, rec.ACPCommand,
 			a.SystemPrompt,
 			a.MaxIterations, a.TimeoutMinutes,
-			a.GitCommitterName, a.GitCommitterEmail, rec.GlobalRoleID, time.Now(), a.ID.String(),
+			a.GitCommitterName, a.GitCommitterEmail, a.DockerEnabled, rec.GlobalRoleID, time.Now(), a.ID.String(),
 		)
 		if err != nil {
 			return err
@@ -475,14 +481,14 @@ func (r *AgentRepository) CreateAgentWithMembership(ctx context.Context, a *agen
 			INSERT INTO agents (id, project_id, name, handle, avatar_key, avatar_thumb_key, agent_type, llm_provider, llm_model,
 			  llm_api_key_secret, llm_base_url, acp_provider, acp_command, system_prompt,
 			  max_iterations, timeout_minutes,
-			  git_committer_name, git_committer_email, created_by, created_at, updated_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+			  git_committer_name, git_committer_email, docker_enabled, created_by, created_at, updated_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
 			rec.ID, rec.ProjectID, rec.Name, rec.Handle, rec.AvatarKey, rec.AvatarThumbKey, rec.AgentType,
 			rec.LLMProvider, rec.LLMModel, rec.LLMAPIKeySecret, rec.LLMBaseURL,
 			rec.ACPProvider, rec.ACPCommand,
 			rec.SystemPrompt,
 			rec.MaxIterations, rec.TimeoutMinutes,
-			rec.GitCommitterName, rec.GitCommitterEmail, rec.CreatedBy, rec.CreatedAt, rec.UpdatedAt,
+			rec.GitCommitterName, rec.GitCommitterEmail, rec.DockerEnabled, rec.CreatedBy, rec.CreatedAt, rec.UpdatedAt,
 		)
 		if err != nil {
 			return err
@@ -543,14 +549,14 @@ func (r *AgentRepository) CreateGlobalAgent(ctx context.Context, a *agentdom.Age
 		INSERT INTO agents (id, project_id, agent_scope, global_role_id, name, handle, avatar_key, avatar_thumb_key, agent_type, llm_provider, llm_model,
 		  llm_api_key_secret, llm_base_url, acp_provider, acp_command, system_prompt,
 		  max_iterations, timeout_minutes,
-		  git_committer_name, git_committer_email, created_by, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
+		  git_committer_name, git_committer_email, docker_enabled, created_by, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
 		rec.ID, rec.ProjectID, rec.AgentScope, rec.GlobalRoleID, rec.Name, rec.Handle, rec.AvatarKey, rec.AvatarThumbKey, rec.AgentType,
 		rec.LLMProvider, rec.LLMModel, rec.LLMAPIKeySecret, rec.LLMBaseURL,
 		rec.ACPProvider, rec.ACPCommand,
 		rec.SystemPrompt,
 		rec.MaxIterations, rec.TimeoutMinutes,
-		rec.GitCommitterName, rec.GitCommitterEmail, rec.CreatedBy, rec.CreatedAt, rec.UpdatedAt,
+		rec.GitCommitterName, rec.GitCommitterEmail, rec.DockerEnabled, rec.CreatedBy, rec.CreatedAt, rec.UpdatedAt,
 	)
 	return err
 }
@@ -826,13 +832,50 @@ func (r *AgentRepository) DeleteEnvVar(ctx context.Context, id uuid.UUID) error 
 // Conversations
 // -------------------------------------------------------------------------
 
-// iteration_count is computed live from agent_conversation_events (one
-// ActionEvent per agent step) rather than stored: see #314 and migration
-// 000026_drop_conversation_iteration_count.sql for why.
+// iteration_count is computed live from agent_conversation_events (one step
+// per agent turn) rather than stored: see #314 and migration
+// 000026_drop_conversation_iteration_count.sql for why it's computed live at
+// all. 'tool_call' is what both of today's live runtimes count as one
+// "iteration": services/agent-runner's native Go ACP path
+// (internal/handler/handler.go, for llm-type/Goose conversations) and
+// apps/acp-bridge's own Go daemon (for acp-type conversations) both persist
+// the raw ACP SessionUpdateKind directly, with no OpenHands SDK underneath
+// either one — see executor.go's maxToolCalls, the same cap
+// agent_service.go's MaxIterations applies against this count.
+// 'ActionEvent' is kept in the IN-clause only for conversations from before
+// both of those were Go: services/ai-agent and apps/acp-bridge's original
+// Python/OpenHands-SDK-based daemon forwarded the SDK's own event class
+// name, 'ActionEvent', one per agent step, and those historical rows still
+// need to count correctly. Dropping either value from this list would leave
+// the affected conversations' iteration_count stuck at (or frozen at) 0.
+// input_tokens/output_tokens/total_tokens/cost_usd are likewise computed
+// live rather than stored, for the identical reason iteration_count is, and
+// from the identical two origins: services/agent-runner's handler.Handler
+// (llm-type/Goose conversations, see its own doc comment) and
+// apps/acp-bridge's runner package (acp-type conversations, see
+// runner.emitTurnUsage) each persist one 'turn_usage' event per turn with a
+// JSON payload of {input_tokens, output_tokens, total_tokens, cost_usd} —
+// the first three are that turn's own token counts (ACP's
+// PromptResponse.usage, confirmed per-turn not cumulative), so they're
+// summed across every turn_usage row; cost_usd is the underlying agent's
+// (goose's, or whichever local ACP CLI the user's bridge is driving) own
+// session-cumulative total as of that turn (ACP's usage_update
+// notification, backed by totals.accumulated_cost for goose), so only the
+// latest row's value is used, not a sum — summing it would double-count
+// every earlier turn's already-cumulative figure.
 const conversationCols = `id, agent_id, project_id, trigger_type, task_id, comment_id, chat_session_id,
-	triggered_by_member_id, actor_user_id, status, container_id, host_port,
+	triggered_by_member_id, actor_user_id, audience, status, container_id, host_port,
 	(SELECT COUNT(*) FROM agent_conversation_events e
-	 WHERE e.conversation_id = agent_conversations.id AND e.event_type = 'ActionEvent') AS iteration_count,
+	 WHERE e.conversation_id = agent_conversations.id AND e.event_type IN ('ActionEvent', 'tool_call')) AS iteration_count,
+	COALESCE((SELECT SUM((e.payload->>'input_tokens')::bigint) FROM agent_conversation_events e
+	 WHERE e.conversation_id = agent_conversations.id AND e.event_type = 'turn_usage'), 0) AS input_tokens,
+	COALESCE((SELECT SUM((e.payload->>'output_tokens')::bigint) FROM agent_conversation_events e
+	 WHERE e.conversation_id = agent_conversations.id AND e.event_type = 'turn_usage'), 0) AS output_tokens,
+	COALESCE((SELECT SUM((e.payload->>'total_tokens')::bigint) FROM agent_conversation_events e
+	 WHERE e.conversation_id = agent_conversations.id AND e.event_type = 'turn_usage'), 0) AS total_tokens,
+	(SELECT (e.payload->>'cost_usd')::numeric FROM agent_conversation_events e
+	 WHERE e.conversation_id = agent_conversations.id AND e.event_type = 'turn_usage' AND e.payload ? 'cost_usd'
+	 ORDER BY e.event_index DESC LIMIT 1) AS cost_usd,
 	error_message,
 	repo_plugin_id, repo_clone_url, branch_name, pr_url, persistence_dir,
 	started_at, finished_at, created_at, updated_at`
@@ -857,6 +900,18 @@ func (r *AgentRepository) ListConversations(ctx context.Context, in agentdom.Lis
 		p := b.placeholder()
 		b.args = append(b.args, in.ActorUserID.String())
 		b.whereClauses = append(b.whereClauses, "actor_user_id = "+p)
+	}
+	if in.ViewerMemberID != nil {
+		// Audience is enforced in SQL so the search subquery never touches a
+		// private conversation the caller cannot read: project-shared
+		// conversations are visible to any member, owner-private ones only to
+		// their chat-session owner (global chat is already excluded by
+		// ProjectID above, since those rows have project_id IS NULL).
+		p := b.placeholder()
+		b.args = append(b.args, in.ViewerMemberID.String())
+		b.whereClauses = append(b.whereClauses, fmt.Sprintf(
+			"(audience = '%s' OR EXISTS (SELECT 1 FROM agent_chat_sessions cs WHERE cs.id = agent_conversations.chat_session_id AND cs.member_id = %s))",
+			agentdom.AudienceProjectShared, p))
 	}
 	if in.TaskID != nil {
 		p := b.placeholder()
@@ -1228,6 +1283,7 @@ func agentFromReadRow(row agentRecord) (*agentdom.Agent, error) {
 		TimeoutMinutes:    row.TimeoutMinutes,
 		GitCommitterName:  row.GitCommitterName,
 		GitCommitterEmail: row.GitCommitterEmail,
+		DockerEnabled:     row.DockerEnabled,
 		CreatedAt:         row.CreatedAt,
 		UpdatedAt:         row.UpdatedAt,
 		DeletedAt:         row.DeletedAt,
@@ -1297,6 +1353,7 @@ func agentToRecord(a *agentdom.Agent) (agentRecord, error) {
 		TimeoutMinutes:    a.TimeoutMinutes,
 		GitCommitterName:  a.GitCommitterName,
 		GitCommitterEmail: a.GitCommitterEmail,
+		DockerEnabled:     a.DockerEnabled,
 		CreatedAt:         a.CreatedAt,
 		UpdatedAt:         a.UpdatedAt,
 	}
@@ -1414,10 +1471,15 @@ func conversationFromRecord(rec agentConversationRecord) *agentdom.AgentConversa
 		AgentID:        mustParseUUID(rec.AgentID),
 		ProjectID:      uuidFromNullable(rec.ProjectID),
 		TriggerType:    rec.TriggerType,
+		Audience:       agentdom.ConversationAudience(rec.Audience),
 		Status:         rec.Status,
 		ContainerID:    rec.ContainerID,
 		HostPort:       rec.HostPort,
 		IterationCount: int(rec.IterationCount),
+		InputTokens:    rec.InputTokens,
+		OutputTokens:   rec.OutputTokens,
+		TotalTokens:    rec.TotalTokens,
+		CostUSD:        rec.CostUSD,
 		ErrorMessage:   rec.ErrorMessage,
 		RepoCloneURL:   rec.RepoCloneURL,
 		BranchName:     rec.BranchName,

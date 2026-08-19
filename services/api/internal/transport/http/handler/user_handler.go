@@ -2,10 +2,10 @@ package handler
 
 import (
 	"context"
-	"log/slog"
+
 	"net/http"
+	"net/mail"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -18,21 +18,31 @@ import (
 	"github.com/Paca-AI/api/internal/transport/http/presenter"
 )
 
+// normalizeEmail trims raw and, if non-empty, validates it as an RFC 5322
+// address, returning the canonical address lowercased. An empty/whitespace
+// -only input passes through as "" unchanged — every Email input field in
+// this package treats "" as "not provided" (create) or "no change"
+// (update), matching FullName/Role's existing convention. Lowercasing keeps
+// the uniqueness pre-check consistent with the case-sensitive
+// uni_users_email_active index: without it, "User@x.com" and "user@x.com"
+// would be stored as distinct rows for what mail servers treat as the same
+// mailbox.
+func normalizeEmail(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", nil
+	}
+	addr, err := mail.ParseAddress(trimmed)
+	if err != nil {
+		return "", apierr.New(apierr.CodeBadRequest, "invalid email address")
+	}
+	return strings.ToLower(addr.Address), nil
+}
+
 // SessionInvalidator revokes an authentication session by family ID.
 // It is satisfied by domain/auth.Service.
 type SessionInvalidator interface {
 	Logout(ctx context.Context, familyID string) error
-}
-
-// UserNotifier delivers credential e-mails on user lifecycle events (EVUP).
-// The Notify* methods are best-effort: they return (false, nil) when e-mail
-// sending is disabled or unconfigured, so the caller can invoke them
-// unconditionally. Enabled is a cheap, SMTP-free pre-check reporting whether a
-// send would actually happen. It is satisfied by service/email.Service.
-type UserNotifier interface {
-	Enabled(ctx context.Context) bool
-	NotifyUserCreated(ctx context.Context, to, username, password string) (bool, error)
-	NotifyPasswordReset(ctx context.Context, to, username, password string) (bool, error)
 }
 
 // UserHandler handles user-related endpoints.
@@ -40,7 +50,6 @@ type UserHandler struct {
 	svc       domainuser.Service
 	authSvc   SessionInvalidator
 	avatarSvc attachmentdom.AvatarService
-	notifier  UserNotifier
 }
 
 // NewUserHandler returns a UserHandler wired to the provided user service.
@@ -57,12 +66,6 @@ func NewUserHandler(svc domainuser.Service, authSvc ...SessionInvalidator) *User
 // WithAvatarService configures avatar URL resolution for UserResponse.
 func (h *UserHandler) WithAvatarService(svc attachmentdom.AvatarService) *UserHandler {
 	h.avatarSvc = svc
-	return h
-}
-
-// WithNotifier enables credential e-mails on user creation / password reset.
-func (h *UserHandler) WithNotifier(n UserNotifier) *UserHandler {
-	h.notifier = n
 	return h
 }
 
@@ -120,9 +123,15 @@ func (h *UserHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	if !middleware.BindJSON(w, r, &req) {
 		return
 	}
+	email, err := normalizeEmail(req.Email)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
 
 	u, err := h.svc.UpdateProfile(r.Context(), id, domainuser.UpdateProfileInput{
 		FullName: req.FullName,
+		Email:    email,
 	})
 	if err != nil {
 		presenter.Error(w, r, err)
@@ -216,21 +225,21 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "username and full_name are required"))
 		return
 	}
-	if !looksLikeEmail(req.Email) {
-		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "a valid email is required"))
-		return
-	}
 	if len(req.Password) < 8 {
 		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "password must be at least 8 characters"))
 		return
 	}
+	email, err := normalizeEmail(req.Email)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
 
-	emailPtr := req.Email
 	u, err := h.svc.Create(r.Context(), domainuser.CreateInput{
 		Username:           req.Username,
 		Password:           req.Password,
 		FullName:           req.FullName,
-		Email:              &emailPtr,
+		Email:              email,
 		Role:               req.Role,
 		MustChangePassword: true,
 	})
@@ -239,48 +248,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := h.toUserResponse(r.Context(), u)
-	resp.EmailSent = h.queueCredentials(r.Context(), req.Email, u.Username, req.Password, true)
-	presenter.Created(w, r, resp)
-}
-
-// queueCredentials fires a best-effort credential e-mail in the background so
-// the SMTP conversation never blocks (or fails) the HTTP request. A nil return
-// means no attempt (no notifier); otherwise the pointed-to bool reports whether
-// an e-mail was queued — i.e. e-mail sending is enabled, configured, and a
-// recipient is present. The actual send runs asynchronously on a detached,
-// bounded context and its outcome is logged.
-func (h *UserHandler) queueCredentials(ctx context.Context, to, username, password string, created bool) *bool {
-	if h.notifier == nil {
-		return nil
-	}
-	queued := to != "" && h.notifier.Enabled(ctx)
-	if queued {
-		go func() {
-			// Detach from the request context (cancelled once the handler
-			// returns) but keep an absolute bound on the async send.
-			bg, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
-			defer cancel()
-			var err error
-			if created {
-				_, err = h.notifier.NotifyUserCreated(bg, to, username, password)
-			} else {
-				_, err = h.notifier.NotifyPasswordReset(bg, to, username, password)
-			}
-			if err != nil {
-				slog.Warn("credential email failed", "user", username, "created", created, "error", err)
-			}
-		}()
-	}
-	return &queued
-}
-
-// looksLikeEmail is a minimal sanity check (presence of "@" with text on both
-// sides). Full RFC validation lives in the binding layer; this guards the
-// handler path.
-func looksLikeEmail(s string) bool {
-	at := strings.IndexByte(s, '@')
-	return at > 0 && at < len(s)-1
+	presenter.Created(w, r, h.toUserResponse(r.Context(), u))
 }
 
 // AdminUpdateUser handles PATCH /admin/users/:userId — admin update of any user.
@@ -295,10 +263,16 @@ func (h *UserHandler) AdminUpdateUser(w http.ResponseWriter, r *http.Request) {
 	if !middleware.BindJSON(w, r, &req) {
 		return
 	}
+	email, err := normalizeEmail(req.Email)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
 
 	u, err := h.svc.AdminUpdate(r.Context(), id, domainuser.AdminUpdateInput{
 		FullName: req.FullName,
 		Role:     req.Role,
+		Email:    email,
 	})
 	if err != nil {
 		presenter.Error(w, r, err)
@@ -346,18 +320,6 @@ func (h *UserHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Best-effort: e-mail the new credentials if e-mail sending is enabled
-	// and the user has an address on file. Never fails the reset.
-	if h.notifier != nil {
-		if u, gErr := h.svc.GetByID(r.Context(), id); gErr == nil {
-			to := ""
-			if u.Email != nil {
-				to = *u.Email
-			}
-			h.queueCredentials(r.Context(), to, u.Username, req.NewPassword, false)
-		}
-	}
-
 	presenter.NoContent(w)
 }
 
@@ -401,6 +363,28 @@ func (h *UserHandler) ChangeMyPassword(w http.ResponseWriter, r *http.Request) {
 			presenter.Error(w, r, err)
 			return
 		}
+	}
+
+	presenter.NoContent(w)
+}
+
+// SetPassword handles POST /auth/password/set — the public, unauthenticated
+// endpoint a password-set-link email points to. It never requires knowing
+// the account's current/previous password, only a valid single-use token
+// (see domainuser.Service.IssuePasswordSetToken).
+func (h *UserHandler) SetPassword(w http.ResponseWriter, r *http.Request) {
+	var req dto.SetPasswordRequest
+	if !middleware.BindJSON(w, r, &req) {
+		return
+	}
+	if len(req.NewPassword) < 8 {
+		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "new_password must be at least 8 characters"))
+		return
+	}
+
+	if err := h.svc.SetPasswordWithToken(r.Context(), req.Token, req.NewPassword); err != nil {
+		presenter.Error(w, r, err)
+		return
 	}
 
 	presenter.NoContent(w)

@@ -131,10 +131,14 @@ func statusAndCodeFor(err error) (int, apierr.Code) {
 		return http.StatusNotFound, apierr.CodeUserNotFound
 	case errors.Is(err, userdom.ErrUsernameTaken):
 		return http.StatusConflict, apierr.CodeUsernameTaken
+	case errors.Is(err, userdom.ErrEmailTaken):
+		return http.StatusConflict, apierr.CodeEmailTaken
 	case errors.Is(err, userdom.ErrForbidden):
 		return http.StatusForbidden, apierr.CodeForbidden
 	case errors.Is(err, userdom.ErrInvalidCurrentPassword):
 		return http.StatusUnprocessableEntity, apierr.CodeInvalidCurrentPassword
+	case errors.Is(err, userdom.ErrPasswordSetTokenInvalid):
+		return http.StatusUnprocessableEntity, apierr.CodePasswordSetTokenInvalid
 	case errors.Is(err, globalroledom.ErrNotFound):
 		return http.StatusNotFound, apierr.CodeGlobalRoleNotFound
 	case errors.Is(err, globalroledom.ErrNameTaken):
@@ -254,6 +258,8 @@ func statusAndCodeFor(err error) (int, apierr.Code) {
 		return http.StatusBadRequest, apierr.CodeAttachmentInvalid
 	case errors.Is(err, attachmentdom.ErrAvatarOwnerMismatch):
 		return http.StatusNotFound, apierr.CodeFileNotFound
+	case errors.Is(err, attachmentdom.ErrAttachmentContentTooLarge):
+		return http.StatusRequestEntityTooLarge, apierr.CodeAttachmentTooLarge
 	case errors.Is(err, taskdom.ErrActivityNotFound):
 		return http.StatusNotFound, apierr.CodeActivityNotFound
 	case errors.Is(err, taskdom.ErrActivityForbidden):
@@ -418,6 +424,7 @@ func httpStatusForCode(code apierr.Code) int {
 	case apierr.CodeUserNotFound:
 		return http.StatusNotFound
 	case apierr.CodeUsernameTaken,
+		apierr.CodeEmailTaken,
 		apierr.CodeAgentConversationBusy:
 		return http.StatusConflict
 	case apierr.CodeForbidden:

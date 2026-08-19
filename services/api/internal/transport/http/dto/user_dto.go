@@ -15,9 +15,10 @@ type CreateUserRequest struct {
 	Username string `json:"username"  binding:"required"`
 	Password string `json:"password"  binding:"required,min=8"`
 	FullName string `json:"full_name" binding:"required"`
-	// Email is required (EVUP): every new account carries an e-mail address,
-	// used to deliver the credential e-mail when that feature is enabled.
-	Email string `json:"email" binding:"required,email"`
+	// Email is optional, used for notification delivery (e.g. a mail
+	// plugin's welcome/invite email) — not for login. When set, a
+	// user.created event carrying it is published for plugins to act on.
+	Email string `json:"email" binding:"omitempty"`
 	// Role is optional; defaults to "USER" when omitted.
 	// The provided role name is validated against the global_roles table.
 	Role string `json:"role" binding:"omitempty"`
@@ -26,6 +27,8 @@ type CreateUserRequest struct {
 // UpdateProfileRequest is the body for PATCH /users/me (self-service update).
 type UpdateProfileRequest struct {
 	FullName string `json:"full_name" binding:"required"`
+	// Email is left unchanged when omitted/empty.
+	Email string `json:"email" binding:"omitempty"`
 }
 
 // AdminUpdateUserRequest is the body for PATCH /admin/users/:userId.
@@ -33,6 +36,8 @@ type AdminUpdateUserRequest struct {
 	FullName string `json:"full_name" binding:"omitempty"`
 	// Role is optional; the provided name is validated against the global_roles table.
 	Role string `json:"role" binding:"omitempty"`
+	// Email is left unchanged when omitted/empty.
+	Email string `json:"email" binding:"omitempty"`
 }
 
 // ResetPasswordRequest is the body for PATCH /admin/users/:userId/password.
@@ -60,10 +65,6 @@ type UserResponse struct {
 	AvatarURL      *string   `json:"avatar_url,omitempty"`
 	AvatarThumbURL *string   `json:"avatar_thumb_url,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
-	// EmailSent is populated only on create/reset-password responses (EVUP):
-	// true if a credential e-mail was sent, false if sending was on but
-	// failed, nil/omitted when e-mail sending wasn't attempted.
-	EmailSent *bool `json:"email_sent,omitempty"`
 }
 
 // PagedUsersResponse wraps a list of users with pagination metadata.

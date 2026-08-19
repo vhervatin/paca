@@ -12,7 +12,11 @@
   <a href="https://github.com/Paca-AI/paca/stargazers"><img src="https://img.shields.io/github/stars/Paca-AI/paca?style=social" alt="Stars" /></a>
 </p>
 
+<p align="center"><sub>✨ Sponsored by</sub></p>
+
 <p align="center">
+  <a href="https://neon.com" title="Sponsored by Neon"><img src="docs/assets/neon-logo.svg" alt="Sponsored by Neon" width="120" /></a>
+  &nbsp;&nbsp;
   <a href="https://m.do.co/c/cce1c135acd1"><img src="https://opensource.nyc3.cdn.digitaloceanspaces.com/attribution/assets/PoweredByDO/DO_Powered_by_Badge_blue.svg" alt="Powered by DigitalOcean" width="201" /></a>
   &nbsp;&nbsp;
   <a href="https://app.virtuals.io/referral?code=rXZ9nf"><img src="https://os.virtuals.io/favicon.png" alt="Sponsored by Virtuals Protocol" width="40" /></a>
@@ -143,7 +147,7 @@ Plan  →  Act  →  Check  →  Adapt
 
 ## What's New in v0.10.0
 
-- **ACP agent support** — connect any [Agent Client Protocol](https://docs.openhands.dev/sdk/guides/agent-acp) coding CLI as a Paca AI agent: Claude Code, Codex, Gemini CLI, or a custom ACP server. A lightweight local bridge (`paca-acp-bridge`) runs from your project's source directory and streams the conversation back to Paca over an authenticated WebSocket — no code is cloned into a cloud sandbox, and the agent uses your own local auth, git/`gh` credentials, and whatever MCP servers or skills you've already set up for that CLI. See [apps/acp-bridge/README.md](apps/acp-bridge/README.md) for setup.
+- **ACP agent support** — connect any [Agent Client Protocol](https://agentclientprotocol.com) coding CLI as a Paca AI agent: Claude Code, Codex, Gemini CLI, or a custom ACP server. A lightweight local bridge (`paca-acp-bridge`) runs from your project's source directory and streams the conversation back to Paca over an authenticated WebSocket — no code is cloned into a cloud sandbox, and the agent uses your own local auth, git/`gh` credentials, and whatever MCP servers or skills you've already set up for that CLI. See [apps/acp-bridge/README.md](apps/acp-bridge/README.md) for setup.
 
 ---
 
@@ -283,14 +287,14 @@ docker compose --env-file .env up -d
 > **Customizing the stack:** scale down services you don't need.
 >
 > ```bash
-> # External PostgreSQL (supply DATABASE_URL in .env)
+> # External PostgreSQL (supply DATABASE_URL in .env — recommended: Neon https://neon.com)
 > docker compose --env-file .env up -d --scale postgres=0
 >
 > # AWS S3 instead of MinIO (set STORAGE_PROVIDER=s3 in .env)
 > docker compose --env-file .env up -d --scale minio=0
 >
-> # Without the AI agent (reduces resource usage)
-> docker compose --env-file .env up -d --scale ai-agent=0
+> # Without Agent Runner (reduces resource usage)
+> docker compose --env-file .env up -d --scale agent-runner=0
 > ```
 
 ---
@@ -454,12 +458,13 @@ For full setup options and command reference, see [docs/guides/install-skills.md
 ## Architecture
 
 ```
-apps/web          React + TanStack Start + shadcn/ui — user interface
-apps/mcp          @paca-ai/paca-mcp — MCP server for AI agent integration
-services/api      Go + Gin — core business logic and REST API
-services/realtime Node.js + Socket.IO — real-time event fan-out
-services/ai-agent Python + FastAPI + OpenHands SDK — AI agent orchestration
-apps/e2e          Playwright — end-to-end test suite
+apps/web              React + TanStack Start + shadcn/ui — user interface
+apps/mcp              @paca-ai/paca-mcp — MCP server for AI agent integration
+services/api          Go + Gin — core business logic and REST API
+services/realtime     Node.js + Socket.IO — real-time event fan-out
+services/agent-runner Go — AI agent execution (Goose over ACP)
+services/agent-server Docker image for the Goose sandbox agent-runner spawns per conversation
+apps/e2e              Playwright — end-to-end test suite
 
 PostgreSQL        Persistent store
 Valkey            Cache + async event streams between services

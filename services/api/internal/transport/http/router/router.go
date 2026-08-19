@@ -43,7 +43,6 @@ type Deps struct {
 	Conversation         *handler.ConversationHandler
 	Automation           *handler.AutomationHandler
 	Settings             *handler.SettingsHandler
-	EmailSettings        *handler.EmailSettingsHandler
 	Log                  *slog.Logger
 	// CORSAllowedOrigins is the CORS allow-list — see corsMiddleware. A nil
 	// or empty slice (the zero value, so every existing caller of this
@@ -85,6 +84,10 @@ func New(deps Deps) http.Handler {
 				r.Post("/login", deps.Auth.Login)
 				r.Post("/refresh", deps.Auth.Refresh)
 				r.With(httpmw.Authn(deps.TokenManager)).Post("/logout", deps.Auth.Logout)
+				// Public — the link a password-set-token email points to;
+				// the token itself (not a session) proves the caller's right
+				// to act on the account.
+				r.Post("/password/set", deps.User.SetPassword)
 			})
 
 			// Users
@@ -238,16 +241,6 @@ func New(deps Deps) http.Handler {
 					r.With(write).Post("/settings/favicon/avatar/initiate-upload", deps.Settings.InitiateFaviconUpload)
 					r.With(write).Post("/settings/favicon/avatar/complete-upload", deps.Settings.CompleteFaviconUpload)
 					r.With(write).Delete("/settings/favicon/avatar", deps.Settings.DeleteFavicon)
-				}
-
-				// SMTP e-mail settings (EVUP) — admin-only. Read and write
-				// both require the settings-write permission since SMTP
-				// config is sensitive (host/credentials).
-				if deps.EmailSettings != nil {
-					esWrite := httpmw.RequirePermissions(deps.Authorizer, httpmw.GlobalScope(), authz.PermissionSettingsWrite)
-					r.With(esWrite).Get("/settings/email", deps.EmailSettings.GetEmailSettings)
-					r.With(esWrite).Patch("/settings/email", deps.EmailSettings.UpdateEmailSettings)
-					r.With(esWrite).Post("/settings/email/test", deps.EmailSettings.SendTestEmail)
 				}
 			})
 
@@ -565,6 +558,10 @@ func New(deps Deps) http.Handler {
 							httpmw.PermissionGroup{Scope: httpmw.GlobalScope(), Permissions: []authz.Permission{authz.PermissionProjectsRead}},
 							httpmw.PermissionGroup{Scope: httpmw.ProjectScopeFromParam("projectId"), Permissions: []authz.Permission{authz.PermissionTasksRead}},
 						)).Get("/{attachmentId}/download-url", deps.Attachment.GetDownloadURL)
+						r.With(httpmw.RequirePublicProjectOrPermissions(deps.ProjectVisibilitySvc, deps.Authorizer,
+							httpmw.PermissionGroup{Scope: httpmw.GlobalScope(), Permissions: []authz.Permission{authz.PermissionProjectsRead}},
+							httpmw.PermissionGroup{Scope: httpmw.ProjectScopeFromParam("projectId"), Permissions: []authz.Permission{authz.PermissionTasksRead}},
+						)).Get("/{attachmentId}/content", deps.Attachment.GetAttachmentContent)
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionTasksWrite)).
 							Delete("/{attachmentId}", deps.Attachment.DeleteTaskAttachment)
 					})

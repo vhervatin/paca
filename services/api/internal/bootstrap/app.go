@@ -24,7 +24,6 @@ import (
 	"github.com/Paca-AI/api/internal/platform/cache"
 	"github.com/Paca-AI/api/internal/platform/database"
 	"github.com/Paca-AI/api/internal/platform/logger"
-	"github.com/Paca-AI/api/internal/platform/mail"
 	"github.com/Paca-AI/api/internal/platform/messaging"
 	pluginrt "github.com/Paca-AI/api/internal/platform/plugin"
 	"github.com/Paca-AI/api/internal/platform/secret"
@@ -38,7 +37,6 @@ import (
 	authsvc "github.com/Paca-AI/api/internal/service/auth"
 	automationsvc "github.com/Paca-AI/api/internal/service/automation"
 	docsvc "github.com/Paca-AI/api/internal/service/doc"
-	emailsvc "github.com/Paca-AI/api/internal/service/email"
 	globalrolesvc "github.com/Paca-AI/api/internal/service/globalrole"
 	notificationsvc "github.com/Paca-AI/api/internal/service/notification"
 	pluginsvc "github.com/Paca-AI/api/internal/service/plugin"
@@ -114,6 +112,7 @@ func New(cfg *config.Config) (*App, error) {
 	refreshStore := redisRepo.NewRefreshTokenStore(redisClient)
 	pluginRepo := pgRepo.NewPluginRepository(db)
 	settingsRepo := pgRepo.NewSettingsRepository(db)
+	passwordSetTokenRepo := pgRepo.NewPasswordSetTokenRepository(db)
 	rawAutomationRepo := pgRepo.NewAutomationRepository(db)
 	// Wraps rawAutomationRepo with a cache for graph reads, invalidated on
 	// writes — shared between automationService and automationConsumer
@@ -146,7 +145,9 @@ func New(cfg *config.Config) (*App, error) {
 
 	// --- Services -----------------------------------------------------------
 	authService := authsvc.New(userRepo, tokenManager, refreshStore, cfg.JWT.RefreshTTL, cfg.JWT.RefreshSessionTTL)
-	userService := usersvc.New(userRepo, permissionStore, globalRoleRepo)
+	userService := usersvc.New(userRepo, permissionStore, globalRoleRepo).
+		WithPasswordSetTokenRepo(passwordSetTokenRepo).
+		WithEventPublishing(publisher)
 	agentRepo := pgRepo.NewAgentRepository(db)
 	globalRoleService := globalrolesvc.NewCachedService(globalrolesvc.New(globalRoleRepo, agentRepo), cacheStore, cfg.Cache.ConfigTTL, log)
 	projectServiceBase := projectsvc.New(projectRepo, taskRepo, agentRepo)
@@ -154,10 +155,10 @@ func New(cfg *config.Config) (*App, error) {
 	taskService := tasksvc.NewCachedService(tasksvc.New(taskRepo).WithAutomationStatusChecker(rawAutomationRepo), cacheStore, cfg.Cache.ConfigTTL, log)
 	sprintService := sprintsvc.NewCachedSprintService(sprintsvc.New(sprintRepo, taskRepo, publisher), cacheStore, cfg.Cache.SprintTTL, log)
 	viewService := sprintsvc.NewCachedViewService(sprintsvc.NewViewService(viewRepo, publisher), cacheStore, cfg.Cache.SprintTTL, log)
-	notificationService := notificationsvc.New(notificationRepo, projectRepo, publisher)
+	notificationService := notificationsvc.New(notificationRepo, projectRepo, publisher).
+		WithEventPublishing(userRepo, cfg.Server.PublicURL)
 	agentService := agentsvc.New(agentRepo, projectService, publisher, pluginRepo)
 	settingsService := settingssvc.New(settingsRepo)
-	var appEncryptor *secret.Encryptor
 	if cfg.Security.EncryptionKey != "" {
 		keyBytes, hexErr := secret.DecodeHexKey(cfg.Security.EncryptionKey)
 		if hexErr != nil {
@@ -165,7 +166,6 @@ func New(cfg *config.Config) (*App, error) {
 		} else if enc, encErr := secret.NewEncryptor(keyBytes); encErr != nil {
 			log.Warn("agent LLM key encryption disabled: encryptor init failed", "error", encErr)
 		} else {
-			appEncryptor = enc
 			agentService = agentService.WithEncryptor(enc)
 			log.Info("agent LLM API key at-rest encryption enabled")
 		}
@@ -179,16 +179,6 @@ func New(cfg *config.Config) (*App, error) {
 		log.Warn("ENCRYPTION_KEY not set: agent LLM API keys and plugin secrets will be stored in plaintext, not encrypted")
 	}
 
-	// E-mail service (EVUP): SMTP settings + credential e-mails. Requires an
-	// encryptor to store the SMTP password at rest, so it's only wired when
-	// ENCRYPTION_KEY is configured.
-	var emailService *emailsvc.Service
-	if appEncryptor != nil {
-		emailService = emailsvc.NewService(settingsRepo, appEncryptor, mail.NewSMTPSender(), cfg.Server.PublicURL)
-		log.Info("email service enabled (SMTP settings + credential emails)")
-	} else {
-		log.Warn("email sending disabled: ENCRYPTION_KEY not set (SMTP password can't be stored encrypted)")
-	}
 	activityService := tasksvc.NewActivityService(activityRepo, projectRepo, publisher).
 		WithNotificationService(notificationService).
 		WithAgentTrigger(agentService)
@@ -269,13 +259,46 @@ func New(cfg *config.Config) (*App, error) {
 
 	pluginMigrationRunner := pluginrt.NewMigrationRunner(sqlDB, pluginStore, log)
 
+	// settingsReader resolves live branding for the paca.settings_get host
+	// function so plugin-rendered content reflects an admin's logo/color
+	// changes immediately, rather than a value baked in earlier — see
+	// pluginrt.SettingsReader's doc comment.
+	settingsReader := pluginrt.SettingsReaderFunc(func(ctx context.Context) (pluginrt.BrandingSnapshot, error) {
+		ws, err := settingsService.Get(ctx)
+		if err != nil {
+			return pluginrt.BrandingSnapshot{}, err
+		}
+		var snap pluginrt.BrandingSnapshot
+		if ws.BrandName != nil {
+			snap.BrandName = *ws.BrandName
+		}
+		if ws.PrimaryColorLight != nil {
+			snap.PrimaryColorLight = *ws.PrimaryColorLight
+		}
+		if ws.PrimaryColorDark != nil {
+			snap.PrimaryColorDark = *ws.PrimaryColorDark
+		}
+		if logoURL, _ := attachmentService.ResolveAvatarURL(ctx, ws.LogoKey); logoURL != nil {
+			snap.LogoURL = *logoURL
+		}
+		return snap, nil
+	})
+
+	// passwordSetTokenIssuer backs the paca.password_set_token_issue host
+	// function with userService's existing token issuance — a plugin calls
+	// this on demand, per user_id, rather than the raw token ever being
+	// embedded in the user.created event payload every subscriber receives.
+	passwordSetTokenIssuer := pluginrt.PasswordSetTokenIssuerFunc(userService.IssuePasswordSetToken)
+
 	pluginRuntime := pluginrt.NewRuntime(pluginStore, pluginrt.HostServices{
-		DB:         sqlDB,
-		Log:        log,
-		Publisher:  publisher,
-		HTTPClient: &http.Client{Timeout: 30 * time.Second},
-		Authorizer: authorizer,
-		Cache:      cacheStore,
+		DB:                     sqlDB,
+		Log:                    log,
+		Publisher:              publisher,
+		HTTPClient:             &http.Client{Timeout: 30 * time.Second},
+		Authorizer:             authorizer,
+		Cache:                  cacheStore,
+		SettingsReader:         settingsReader,
+		PasswordSetTokenIssuer: passwordSetTokenIssuer,
 		Config: map[string]string{
 			"ENCRYPTION_KEY": cfg.Security.EncryptionKey,
 			"PUBLIC_URL":     cfg.Server.PublicURL,
@@ -347,7 +370,7 @@ func New(cfg *config.Config) (*App, error) {
 		WithMemberRepo(projectRepo).
 		WithGlobalPermissionReader(permissionStore).
 		WithAvatarService(attachmentService)
-	convHandler := handler.NewConversationHandler(agentService)
+	convHandler := handler.NewConversationHandler(agentService).WithMemberRepo(projectRepo)
 	automationHandler := handler.NewAutomationHandler(automationService).WithPluginRuntime(pluginRuntime)
 
 	// --- Handlers -----------------------------------------------------------
@@ -359,11 +382,6 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	userHandler := handler.NewUserHandler(userService, authService).WithAvatarService(attachmentService)
-	var emailSettingsHandler *handler.EmailSettingsHandler
-	if emailService != nil {
-		userHandler = userHandler.WithNotifier(emailService)
-		emailSettingsHandler = handler.NewEmailSettingsHandler(emailService)
-	}
 
 	deps := router.Deps{
 		TokenManager:         tokenManager,
@@ -385,14 +403,17 @@ func New(cfg *config.Config) (*App, error) {
 		Task: handler.NewTaskHandler(taskService, viewService, activityService,
 			handler.WithTaskPublisher(publisher),
 			handler.WithTaskAssignedProjectService(projectService),
-			handler.WithTaskAvatarService(attachmentService)),
+			handler.WithTaskAvatarService(attachmentService),
+			handler.WithTaskNotificationService(notificationService)),
 		Sprint: handler.NewSprintHandler(sprintService, viewService,
 			handler.WithSprintDefaultTaskTypes(taskService),
 			handler.WithSprintDefaultTaskStatuses(taskService),
 		),
-		View:               handler.NewViewHandler(viewService),
-		Attachment:         handler.NewAttachmentHandler(attachmentService),
-		Document:           handler.NewDocumentHandler(docService, docActivityService).WithDocAvatarService(attachmentService),
+		View:       handler.NewViewHandler(viewService),
+		Attachment: handler.NewAttachmentHandler(attachmentService),
+		Document: handler.NewDocumentHandler(docService, docActivityService).
+			WithDocAvatarService(attachmentService).
+			WithDocNotificationService(notificationService),
 		DocFile:            handler.NewDocFileHandler(attachmentService),
 		Notification:       handler.NewNotificationHandler(notificationService, handler.WithNotificationAvatarService(attachmentService)),
 		APIKey:             handler.NewAPIKeyHandler(apiKeyService),
@@ -402,7 +423,6 @@ func New(cfg *config.Config) (*App, error) {
 		Conversation:       convHandler,
 		Automation:         automationHandler,
 		Settings:           handler.NewSettingsHandler(settingsService).WithAvatarService(attachmentService),
-		EmailSettings:      emailSettingsHandler,
 		Log:                log,
 		CORSAllowedOrigins: cfg.Server.CORSAllowedOrigins,
 	}

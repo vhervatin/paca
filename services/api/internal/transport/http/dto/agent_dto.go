@@ -43,6 +43,7 @@ type AgentResponse struct {
 	TimeoutMinutes    int                      `json:"timeout_minutes"`
 	GitCommitterName  string                   `json:"git_committer_name"`
 	GitCommitterEmail string                   `json:"git_committer_email"`
+	DockerEnabled     bool                     `json:"docker_enabled"`
 	CreatedBy         *uuid.UUID               `json:"created_by,omitempty"`
 	CreatedAt         time.Time                `json:"created_at"`
 	UpdatedAt         time.Time                `json:"updated_at"`
@@ -72,6 +73,7 @@ type CreateAgentRequest struct {
 	TimeoutMinutes    int       `json:"timeout_minutes"`
 	GitCommitterName  string    `json:"git_committer_name"`
 	GitCommitterEmail string    `json:"git_committer_email"`
+	DockerEnabled     bool      `json:"docker_enabled"`
 	ProjectRoleID     uuid.UUID `json:"project_role_id" binding:"required"`
 }
 
@@ -92,6 +94,7 @@ type UpdateAgentRequest struct {
 	TimeoutMinutes    *int       `json:"timeout_minutes"`
 	GitCommitterName  *string    `json:"git_committer_name"`
 	GitCommitterEmail *string    `json:"git_committer_email"`
+	DockerEnabled     *bool      `json:"docker_enabled"`
 	GlobalRoleID      *uuid.UUID `json:"global_role_id"`
 }
 
@@ -114,6 +117,7 @@ type CreateGlobalAgentRequest struct {
 	TimeoutMinutes    int        `json:"timeout_minutes"`
 	GitCommitterName  string     `json:"git_committer_name"`
 	GitCommitterEmail string     `json:"git_committer_email"`
+	DockerEnabled     bool       `json:"docker_enabled"`
 	GlobalRoleID      *uuid.UUID `json:"global_role_id"`
 }
 
@@ -164,6 +168,7 @@ func AgentFromEntity(a *agentdom.Agent) AgentResponse {
 		TimeoutMinutes:    a.TimeoutMinutes,
 		GitCommitterName:  a.GitCommitterName,
 		GitCommitterEmail: a.GitCommitterEmail,
+		DockerEnabled:     a.DockerEnabled,
 		CreatedBy:         a.CreatedBy,
 		CreatedAt:         a.CreatedAt,
 		UpdatedAt:         a.UpdatedAt,
@@ -390,6 +395,11 @@ type AgentConversationResponse struct {
 	ActorUserID         *uuid.UUID `json:"actor_user_id,omitempty"`
 	Status              string     `json:"status"`
 	IterationCount      int        `json:"iteration_count"`
+	InputTokens         int64      `json:"input_tokens"`
+	OutputTokens        int64      `json:"output_tokens"`
+	TotalTokens         int64      `json:"total_tokens"`
+	CostUSD             *float64   `json:"cost_usd,omitempty"`
+	ErrorMessage        *string    `json:"error_message,omitempty"`
 	BranchName          *string    `json:"branch_name,omitempty"`
 	PRUrl               *string    `json:"pr_url,omitempty"`
 	StartedAt           *time.Time `json:"started_at,omitempty"`
@@ -427,6 +437,11 @@ func ConversationFromEntity(c *agentdom.AgentConversation) AgentConversationResp
 		ActorUserID:         c.ActorUserID,
 		Status:              c.Status,
 		IterationCount:      c.IterationCount,
+		InputTokens:         c.InputTokens,
+		OutputTokens:        c.OutputTokens,
+		TotalTokens:         c.TotalTokens,
+		CostUSD:             c.CostUSD,
+		ErrorMessage:        c.ErrorMessage,
 		BranchName:          c.BranchName,
 		PRUrl:               c.PRUrl,
 		StartedAt:           c.StartedAt,

@@ -51,7 +51,7 @@ Emitted when an agent conversation is initiated (trigger received and container 
 
 ### `agent:conversation:event`
 
-Emitted for each event produced by the OpenHands SDK during the conversation. This is the stream of agent "thoughts" and actions for the monitoring panel.
+Emitted for each event produced during the conversation. This is the stream of agent "thoughts" and actions for the monitoring panel. `event_type`'s value space depends on the agent's `agent_type` — see the table below.
 
 **Room:** `project:<projectId>` and `conversation:<conversationId>`
 
@@ -71,20 +71,18 @@ Emitted for each event produced by the OpenHands SDK during the conversation. Th
 }
 ```
 
-**Common `event_type` values:**
+**`event_type` values for both `llm`-type agents** (via `services/agent-runner`, driving Goose over ACP — see [agent-runner-service.md](agent-runner-service.md)) **and `acp`-type agents** (via `apps/acp-bridge`'s local Go daemon — see that app's own README): both ultimately relay the same underlying [Agent Client Protocol](https://agentclientprotocol.com), just over different transports (an in-process Goose HTTP+SSE session vs. a WebSocket-relayed local subprocess), so they share one event vocabulary — `apps/acp-bridge` forwards raw ACP `session/update` notifications through essentially as-is, the same way `internal/handler` does for the Goose path:
 
 | Event Type | Source | Description |
 |---|---|---|
-| `MessageAction` | user / agent | Conversational message |
-| `CmdRunAction` | agent | Shell command execution |
-| `CmdOutputObservation` | system | Output of a shell command |
-| `FileReadAction` | agent | File read |
-| `FileWriteAction` | agent | File write |
-| `FileEditAction` | agent | In-place file edit |
-| `BrowseURLAction` | agent | Web page fetch |
-| `AgentThinkAction` | agent | Internal reasoning (not executed) |
-| `AgentFinishAction` | agent | Conversation complete |
-| `ErrorObservation` | system | Tool execution error |
+| `user_message` | user | The user's message that started this turn |
+| `agent_message_chunk` | agent | Streamed piece of the agent's reply text |
+| `agent_thought_chunk` | agent | Streamed piece of the agent's reasoning/thinking text |
+| `tool_call` | agent | A new tool call the agent has started |
+| `tool_call_update` | agent | Status change for an existing tool call |
+| `turn_end` | system | The turn finished — payload carries the stop reason |
+
+A conversation from before either migration (`services/ai-agent` → `services/agent-runner` for `llm`-type; `apps/acp-bridge`'s OpenHands SDK → Go rewrite for `acp`-type) can still have legacy OpenHands-shaped rows in its history — `MessageEvent`, `ActionEvent`, `ObservationEvent`, `ACPToolCallEvent`, `AgentErrorEvent`, `UserRejectObservation`. `apps/web`'s `conversation-to-thread-messages.ts` still renders those for backward compatibility, but no agent produces them anymore.
 
 ---
 
