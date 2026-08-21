@@ -1059,7 +1059,8 @@
 				"startDate": "Дата начала",
 				"dueDate": "Срок",
 				"epic": "Эпик",
-				"created": "Создана"
+				"created": "Создана",
+				"tags": "Теги"
 			},
 			"unassigned": "Не назначено",
 			"noEpic": "Без эпика"
@@ -1339,7 +1340,8 @@
 			"reporter": "Автор",
 			"startDate": "Дата начала",
 			"dueDate": "Срок",
-			"created": "Создана"
+			"created": "Создана",
+			"tags": "Теги"
 		}
 	},
 	"automation": {

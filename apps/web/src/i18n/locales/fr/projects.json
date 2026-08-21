@@ -1041,7 +1041,8 @@
 				"startDate": "Date de début",
 				"dueDate": "Date d'échéance",
 				"epic": "Epic",
-				"created": "Créée"
+				"created": "Créée",
+				"tags": "Étiquettes"
 			},
 			"unassigned": "Non attribué",
 			"noEpic": "Aucun epic"
@@ -1319,7 +1320,8 @@
 			"reporter": "Rapporteur",
 			"startDate": "Date de début",
 			"dueDate": "Date d'échéance",
-			"created": "Créée"
+			"created": "Créée",
+			"tags": "Étiquettes"
 		}
 	},
 	"automation": {

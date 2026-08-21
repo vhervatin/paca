@@ -1041,7 +1041,8 @@
 				"startDate": "Fecha de inicio",
 				"dueDate": "Fecha de vencimiento",
 				"epic": "Épica",
-				"created": "Creada"
+				"created": "Creada",
+				"tags": "Etiquetas"
 			},
 			"unassigned": "Sin asignar",
 			"noEpic": "Sin épica"
@@ -1319,7 +1320,8 @@
 			"reporter": "Reportero",
 			"startDate": "Fecha de inicio",
 			"dueDate": "Fecha de vencimiento",
-			"created": "Creada"
+			"created": "Creada",
+			"tags": "Etiquetas"
 		}
 	},
 	"automation": {

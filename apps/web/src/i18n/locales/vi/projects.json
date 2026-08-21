@@ -1041,7 +1041,8 @@
 				"startDate": "Ngày bắt đầu",
 				"dueDate": "Ngày đến hạn",
 				"epic": "Epic",
-				"created": "Đã tạo"
+				"created": "Đã tạo",
+				"tags": "Thẻ"
 			},
 			"unassigned": "Chưa giao",
 			"noEpic": "Không có Epic"
@@ -1319,7 +1320,8 @@
 			"reporter": "Người báo cáo",
 			"startDate": "Ngày bắt đầu",
 			"dueDate": "Ngày đến hạn",
-			"created": "Đã tạo"
+			"created": "Đã tạo",
+			"tags": "Thẻ"
 		}
 	},
 	"automation": {
