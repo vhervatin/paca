@@ -1120,6 +1120,7 @@
 	"layout": {
 		"shell": {
 			"newSprint": "Новый спринт",
+			"newTask": "Новая задача",
 			"renameView": "Переименовать представление",
 			"deleteView": "Удалить представление",
 			"searchTasksPlaceholder": "Поиск задач…",

@@ -1633,6 +1633,23 @@ export function InteractionLayout({
 		createSprintMutation.mutate(`Sprint ${nextNum}`);
 	};
 
+	// ── Quick-add task from the backlog header ──────────────────────────────
+	const [newTaskOpen, setNewTaskOpen] = useState(false);
+	const [newTaskTitle, setNewTaskTitle] = useState("");
+	const newTaskInputRef = useRef<HTMLInputElement>(null);
+
+	const handleCreateBacklogTask = async () => {
+		const title = newTaskTitle.trim();
+		if (!title) return;
+		const statusId =
+			statuses.find((s) => s.category !== "done")?.id ?? statuses[0]?.id ?? "";
+		// sprint_id: null keeps the task in the product backlog (no sprint).
+		await handleCreateTask(statusId, title, undefined, { sprint_id: null });
+		setNewTaskTitle("");
+		// Keep the field open for rapid successive entry.
+		newTaskInputRef.current?.focus();
+	};
+
 	const updateSprintMutation = useMutation({
 		mutationFn: ({
 			sprintId: sid,
@@ -1693,15 +1710,63 @@ export function InteractionLayout({
 					</h1>
 					{headerActions}
 					{context === "backlog" && canCreate && (
-						<button
-							type="button"
-							onClick={handleNewSprint}
-							disabled={createSprintMutation.isPending}
-							className="flex items-center gap-1.5 rounded-lg border border-dashed border-border/60 bg-muted/10 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all duration-150 disabled:opacity-50"
-						>
-							<Plus className="size-3.5 shrink-0" />
-							{t("layout.shell.newSprint")}
-						</button>
+						<>
+							{newTaskOpen ? (
+								<form
+									onSubmit={(e) => {
+										e.preventDefault();
+										void handleCreateBacklogTask();
+									}}
+									className="flex items-center gap-1.5"
+								>
+									<input
+										ref={newTaskInputRef}
+										// biome-ignore lint/a11y/noAutofocus: reveal-on-click quick-add
+										autoFocus
+										value={newTaskTitle}
+										onChange={(e) => setNewTaskTitle(e.target.value)}
+										onKeyDown={(e) => {
+											if (e.key === "Escape") {
+												setNewTaskTitle("");
+												setNewTaskOpen(false);
+											}
+										}}
+										onBlur={() => {
+											if (!newTaskTitle.trim()) setNewTaskOpen(false);
+										}}
+										placeholder={t("board.addTaskRow.placeholder")}
+										className="h-8 w-52 rounded-lg border border-border/60 bg-background px-2.5 text-xs focus:border-primary/50 focus:outline-none"
+									/>
+									<button
+										type="submit"
+										disabled={
+											!newTaskTitle.trim() || createTaskMutation.isPending
+										}
+										className="flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 transition-all duration-150 disabled:opacity-50"
+									>
+										{t("board.addTaskRow.create")}
+									</button>
+								</form>
+							) : (
+								<button
+									type="button"
+									onClick={() => setNewTaskOpen(true)}
+									className="flex items-center gap-1.5 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary hover:border-primary/60 hover:bg-primary/10 transition-all duration-150"
+								>
+									<Plus className="size-3.5 shrink-0" />
+									{t("layout.shell.newTask")}
+								</button>
+							)}
+							<button
+								type="button"
+								onClick={handleNewSprint}
+								disabled={createSprintMutation.isPending}
+								className="flex items-center gap-1.5 rounded-lg border border-dashed border-border/60 bg-muted/10 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all duration-150 disabled:opacity-50"
+							>
+								<Plus className="size-3.5 shrink-0" />
+								{t("layout.shell.newSprint")}
+							</button>
+						</>
 					)}
 				</div>
 				{description && (

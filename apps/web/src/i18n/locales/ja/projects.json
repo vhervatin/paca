@@ -1102,6 +1102,7 @@
 	"layout": {
 		"shell": {
 			"newSprint": "新規スプリント",
+			"newTask": "新規タスク",
 			"renameView": "ビュー名を変更",
 			"deleteView": "ビューを削除",
 			"searchTasksPlaceholder": "タスクを検索…",

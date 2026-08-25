@@ -1102,6 +1102,7 @@
 	"layout": {
 		"shell": {
 			"newSprint": "Sprint mới",
+			"newTask": "Task mới",
 			"renameView": "Đổi tên chế độ xem",
 			"deleteView": "Xóa chế độ xem",
 			"searchTasksPlaceholder": "Tìm kiếm nhiệm vụ…",

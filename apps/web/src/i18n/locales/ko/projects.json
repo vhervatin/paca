@@ -1102,6 +1102,7 @@
 	"layout": {
 		"shell": {
 			"newSprint": "새 스프린트",
+			"newTask": "새 태스크",
 			"renameView": "뷰 이름 변경",
 			"deleteView": "뷰 삭제",
 			"searchTasksPlaceholder": "작업 검색…",

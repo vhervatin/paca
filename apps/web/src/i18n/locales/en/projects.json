@@ -1102,6 +1102,7 @@
 	"layout": {
 		"shell": {
 			"newSprint": "New sprint",
+			"newTask": "New task",
 			"renameView": "Rename view",
 			"deleteView": "Delete view",
 			"searchTasksPlaceholder": "Search tasks…",

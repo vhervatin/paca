@@ -1102,6 +1102,7 @@
 	"layout": {
 		"shell": {
 			"newSprint": "新建冲刺",
+			"newTask": "新建任务",
 			"renameView": "重命名视图",
 			"deleteView": "删除视图",
 			"searchTasksPlaceholder": "搜索任务…",
