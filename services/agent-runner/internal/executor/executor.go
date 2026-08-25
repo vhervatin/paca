@@ -70,19 +70,24 @@ type Options struct {
 }
 
 // Executor runs conversations for one process — holds the shared sandbox
-// manager and secret decryptor, not any per-conversation state (mirrors
-// sandbox.Manager: safe to call Run concurrently for different
-// conversations, since each gets its own container and acp.Client).
+// backend and secret decryptor, not any per-conversation state (mirrors
+// every sandbox.Backend implementation's own contract: safe to call Run
+// concurrently for different conversations, since each gets its own
+// sandbox and acp.Client).
 type Executor struct {
-	sandboxMgr *sandbox.Manager
+	sandboxMgr sandbox.Backend
 	encryptor  *secret.Encryptor
 	opts       Options
 	log        *slog.Logger
 }
 
-// New builds an Executor sharing the given sandbox manager and decryptor
-// across every conversation it runs.
-func New(sandboxMgr *sandbox.Manager, encryptor *secret.Encryptor, opts Options, log *slog.Logger) *Executor {
+// New builds an Executor sharing the given sandbox backend and decryptor
+// across every conversation it runs. sandboxMgr is a sandbox.Backend, not a
+// concrete implementation, so the same Executor code drives either the
+// Docker backend (internal/sandbox/docker.Manager) or the Kubernetes-Job
+// backend (internal/sandbox/k8s.Manager) depending on which one main.go
+// wires up.
+func New(sandboxMgr sandbox.Backend, encryptor *secret.Encryptor, opts Options, log *slog.Logger) *Executor {
 	return &Executor{sandboxMgr: sandboxMgr, encryptor: encryptor, opts: opts, log: log}
 }
 
@@ -133,7 +138,7 @@ type Result struct {
 // AgentConversationEvent and publishing/persisting it, the same role
 // make_event_callback plays in executor.py. Not done inside this package so
 // Run stays testable without a live Valkey/Postgres connection.
-func (e *Executor) Run(ctx context.Context, cfg agent.Config, trigger agent.Trigger, resume *chatsandbox.State, onEvent func(acp.Event)) (Result, error) {
+func (e *Executor) Run(ctx context.Context, cfg agent.Config, trigger agent.Trigger, resume *chatsandbox.State, onEvent func(acp.Event), onReady func()) (Result, error) {
 	timeoutMinutes := cfg.TimeoutMinutes
 	if timeoutMinutes <= 0 {
 		timeoutMinutes = defaultTimeoutMinutes
@@ -165,6 +170,18 @@ func (e *Executor) Run(ctx context.Context, cfg agent.Config, trigger agent.Trig
 		message = buildInitialMessage(trigger)
 	}
 
+	// Fires once the sandbox/session is ready to receive session/prompt,
+	// whether it was just cold-started or resumed from a paused chat
+	// sandbox — the UI's cue to stop saying "setting up your environment"
+	// and start saying "thinking", since from here on any further wait is
+	// the LLM itself, not container/ACP-handshake setup. Called on every
+	// turn (not just cold starts) rather than relying on an earlier turn's
+	// marker still being loaded — a long conversation's event window is
+	// paginated, so an old turn's readiness event can page out.
+	if onReady != nil {
+		onReady()
+	}
+
 	maxToolCalls := cfg.MaxIterations
 	if maxToolCalls <= 0 {
 		maxToolCalls = defaultMaxToolCalls
@@ -179,7 +196,7 @@ func (e *Executor) Run(ctx context.Context, cfg agent.Config, trigger agent.Trig
 }
 
 // StopSandbox tears down a sandbox previously returned in a Result's Handle
-// — a thin pass-through to the sandbox.Manager this Executor was built
+// — a thin pass-through to the sandbox.Backend this Executor was built
 // with, so callers (handler.Handle) don't need their own reference to it
 // just to finish what Run used to do unconditionally.
 func (e *Executor) StopSandbox(ctx context.Context, h *sandbox.Handle) error {
