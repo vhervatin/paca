@@ -401,19 +401,21 @@ function StatCard({
 	iconClass: string;
 }) {
 	return (
-		<Card className="relative overflow-hidden border-border/60">
+		<Card size="sm" className="relative overflow-hidden border-border/60">
 			<div className="absolute inset-x-0 top-0 h-px bg-primary/40" />
-			<CardContent className="p-5">
-				<div
-					className={`flex size-9 items-center justify-center rounded-[10px] ${iconClass}`}
-				>
-					<Icon className="size-4" />
-				</div>
-				<div className="mt-4">
-					<p className="font-mono text-4xl font-semibold tracking-tight tabular-nums">
+			<CardContent className="p-3.5">
+				<div className="flex items-center gap-3">
+					<div
+						className={`flex size-8 shrink-0 items-center justify-center rounded-[10px] ${iconClass}`}
+					>
+						<Icon className="size-4" />
+					</div>
+					<p className="font-mono text-2xl font-semibold tracking-tight tabular-nums">
 						{value}
 					</p>
-					<p className="mt-1 text-sm font-medium text-foreground/80">{label}</p>
+				</div>
+				<div className="mt-2">
+					<p className="text-sm font-medium text-foreground/80">{label}</p>
 					<p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>
 				</div>
 			</CardContent>
@@ -572,21 +574,6 @@ function HomePage() {
 						iconClass="bg-muted text-muted-foreground"
 					/>
 				</div>
-
-				{/* My Tasks — assigned to the current user across every project */}
-				{projectCount > 0 ? (
-					<div>
-						<div className="mb-4">
-							<h2 className="font-[Syne] text-base font-bold tracking-tight">
-								{t("home.myTasks.title")}
-							</h2>
-							<p className="text-xs text-muted-foreground mt-0.5">
-								{t("home.myTasks.subtitle")}
-							</p>
-						</div>
-						<AssignedTasksList />
-					</div>
-				) : null}
 
 				{/* Projects section or empty state */}
 				{projectCount > 0 ? (
@@ -828,6 +815,21 @@ function HomePage() {
 						</div>
 					</div>
 				)}
+
+				{/* My Tasks — assigned to the current user across every project */}
+				{projectCount > 0 ? (
+					<div>
+						<div className="mb-4">
+							<h2 className="font-[Syne] text-base font-bold tracking-tight">
+								{t("home.myTasks.title")}
+							</h2>
+							<p className="text-xs text-muted-foreground mt-0.5">
+								{t("home.myTasks.subtitle")}
+							</p>
+						</div>
+						<AssignedTasksList />
+					</div>
+				) : null}
 			</div>
 
 			<CreateProjectDialog open={createOpen} onOpenChange={setCreateOpen} />
