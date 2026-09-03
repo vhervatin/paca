@@ -84,6 +84,8 @@ services:
       RELEASE_UPSTREAM_REPO: ${RELEASE_UPSTREAM_REPO:-Paca-AI/paca}
       RELEASE_FORK_REPO: ${RELEASE_FORK_REPO:-}
       AI_AGENT_INTERNAL_KEY: ${INTERNAL_API_KEY:-}
+      SSH_BASTION_HOST: ${SSH_BASTION_HOST:-}
+      PORT_FORWARD_HOST: ${PORT_FORWARD_HOST:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -168,33 +170,38 @@ configs:
       \ (Helm can only package files that live\n# inside the chart directory). Update both together.\n#\n# Single public entrypoint\
       \ for the Paca stack:\n#\n#   /api/*          \u2192  REST API service       (forwarded as-is, /api kept)\n#   /ws/*\
       \           \u2192  Realtime service        (Socket.IO, /ws stripped)\n#   /agent-bridge/ws \u2192 agent-runner's local\
-      \ ACP bridge WebSocket (forwarded as-is)\n#   /storage/*      \u2192  MinIO                   (/storage stripped)\n\
-      #   /plugins/*      \u2192  Plugin frontend assets  (static files)\n#   /plugins-mcp/*  \u2192  Plugin MCP bundles \
-      \     (static files)\n#   /plugins-skills/* \u2192 Plugin Agent Skills bundles (static files)\n#   /*              \u2192\
-      \  Web application         (SPA with client-side routing)\n#\n# This file is mounted at /etc/caddy/Caddyfile inside\
-      \ the gateway container.\n#\n# SITE_ADDRESS controls automatic HTTPS\n# ---------------------------------------\n# \
-      \  - A bare port (the default, \":80\") serves plain HTTP with no TLS at all.\n#     Caddy can't safely provision a\
-      \ certificate for an unbounded catch-all\n#     address, so use this only when something else terminates TLS in front\n\
-      #     of this gateway.\n#   - Any concrete address \u2014 a domain name, an IP address, \"localhost\", a\n#     \"*.localhost\"\
-      \ name, etc. \u2014 gets HTTPS automatically:\n#       \u2022 A real domain name with DNS already pointed here (e.g.\n\
-      #         \"paca.example.com\") gets a trusted Let's Encrypt certificate,\n#         renewed automatically. Ports 80\
-      \ and 443 must both be reachable\n#         from the internet for the ACME challenge to succeed.\n#       \u2022 Anything\
-      \ else (an IP address, \"localhost\", \"*.localhost\", ...)\n#         gets a certificate from Caddy's own local certificate\
-      \ authority\n#         instead. Traffic is still encrypted, but browsers will show a\n#         trust warning since\
-      \ that CA isn't publicly trusted.\n#     Either way, certificates persist in the caddy_data volume so they\n#     survive\
-      \ container restarts/recreations.\n#   install.sh enables HTTPS by default and prompts for this address.\n#\n# Upstream\
-      \ hostnames (*_UPSTREAM) default to Docker Compose's own service\n# names (\"api\", \"web\", \"realtime\", \"agent-runner\"\
-      , \"minio\") but can be\n# overridden by env var \u2014 deploy/helm/paca sets these to the real\n# Kubernetes Service\
-      \ names (which carry a release-name prefix Compose's\n# bare names don't need), so this one file routes correctly under\
-      \ either\n# deployment without templating its own content.\n# =============================================================================\n\
-      \n(mcp_skills_routes) {\n\t# -- MCP plugin bundles -------------------------------------------------------\n\t#\n\t\
-      # Self-contained ESM bundles loaded at runtime by the MCP server. Kept on a\n\t# separate path from frontend assets\
-      \ so WASM/CSS concerns from the\n\t# /plugins/* block don't bleed into MCP serving.\n\t#\n\t# Set remoteEntryUrl in\
-      \ each plugin's plugin.json mcp section to an\n\t# absolute URL, for example:\n\t#   ${PUBLIC_URL}/plugins-mcp/<plugin-id>/mcp.js\n\
-      \thandle_path /plugins-mcp/* {\n\t\troot * /var/www/plugins-mcp\n\t\theader Cache-Control \"public, max-age=900, immutable\"\
-      \n\t\tfile_server\n\t}\n\n\t# -- Plugin Agent Skills bundles ----------------------------------------------\n\t#\n\t\
-      # SKILL.md directories for plugin-contributed Agent Skills, served here\n\t# for plugins to reference via their manifest's\
-      \ skills.baseUrl. Not\n\t# currently loaded into any conversation by services/agent-runner (see\n\t# docs/plugins/skills-plugin-system.md's\
+      \ ACP bridge WebSocket (forwarded as-is)\n#   /environments/*/terminal/ws \u2192 agent-runner's static-environment browser\
+      \ terminal WebSocket\n#   /storage/*      \u2192  MinIO                   (/storage stripped)\n#   /plugins/*      \u2192\
+      \  Plugin frontend assets  (static files)\n#   /plugins-mcp/*  \u2192  Plugin MCP bundles      (static files)\n#   /plugins-skills/*\
+      \ \u2192 Plugin Agent Skills bundles (static files)\n#   /*              \u2192  Web application         (SPA with client-side\
+      \ routing)\n#\n# This file is mounted at /etc/caddy/Caddyfile inside the gateway container.\n#\n# SITE_ADDRESS controls\
+      \ automatic HTTPS\n# ---------------------------------------\n#   - A bare port (the default, \":80\") serves plain\
+      \ HTTP with no TLS at all.\n#     Caddy can't safely provision a certificate for an unbounded catch-all\n#     address,\
+      \ so use this only when something else terminates TLS in front\n#     of this gateway.\n#   - Any concrete address \u2014\
+      \ a domain name, an IP address, \"localhost\", a\n#     \"*.localhost\" name, etc. \u2014 gets HTTPS automatically:\n\
+      #       \u2022 A real domain name with DNS already pointed here (e.g.\n#         \"paca.example.com\") gets a trusted\
+      \ Let's Encrypt certificate,\n#         renewed automatically. Ports 80 and 443 must both be reachable\n#         from\
+      \ the internet for the ACME challenge to succeed.\n#       \u2022 Anything else (an IP address, \"localhost\", \"*.localhost\"\
+      , ...)\n#         gets a certificate from Caddy's own local certificate authority\n#         instead. Traffic is still\
+      \ encrypted, but browsers will show a\n#         trust warning since that CA isn't publicly trusted.\n#     Either way,\
+      \ certificates persist in the caddy_data volume so they\n#     survive container restarts/recreations.\n#   install.sh\
+      \ enables HTTPS by default and prompts for this address.\n#\n# Upstream hostnames (*_UPSTREAM) default to Docker Compose's\
+      \ own service\n# names (\"api\", \"web\", \"realtime\", \"agent-runner\", \"minio\") but can be\n# overridden by env\
+      \ var \u2014 deploy/helm/paca sets these to the real\n# Kubernetes Service names (which carry a release-name prefix\
+      \ Compose's\n# bare names don't need), so this one file routes correctly under either\n# deployment without templating\
+      \ its own content.\n#\n# A running static environment's own SSH/port-forward access does not\n# route through this gateway\
+      \ at all \u2014 each environment container\n# publishes its own port directly (a native Docker -p binding, or a\n# Kubernetes\
+      \ NodePort Service entry \u2014 see\n# docs/ai-agent/environment-management.md's \"Port Forwarding\" section),\n# so\
+      \ there is no Caddy Admin API or wildcard site block here to keep in\n# sync the way an earlier version of this feature\
+      \ had.\n# =============================================================================\n\n(mcp_skills_routes) {\n\t\
+      # -- MCP plugin bundles -------------------------------------------------------\n\t#\n\t# Self-contained ESM bundles\
+      \ loaded at runtime by the MCP server. Kept on a\n\t# separate path from frontend assets so WASM/CSS concerns from the\n\
+      \t# /plugins/* block don't bleed into MCP serving.\n\t#\n\t# Set remoteEntryUrl in each plugin's plugin.json mcp section\
+      \ to an\n\t# absolute URL, for example:\n\t#   ${PUBLIC_URL}/plugins-mcp/<plugin-id>/mcp.js\n\thandle_path /plugins-mcp/*\
+      \ {\n\t\troot * /var/www/plugins-mcp\n\t\theader Cache-Control \"public, max-age=900, immutable\"\n\t\tfile_server\n\
+      \t}\n\n\t# -- Plugin Agent Skills bundles ----------------------------------------------\n\t#\n\t# SKILL.md directories\
+      \ for plugin-contributed Agent Skills, served here\n\t# for plugins to reference via their manifest's skills.baseUrl.\
+      \ Not\n\t# currently loaded into any conversation by services/agent-runner (see\n\t# docs/plugins/skills-plugin-system.md's\
       \ gap notice). Kept on a separate\n\t# path from frontend/MCP assets for the same reason as the MCP block\n\t# above.\n\
       \t#\n\t# Set baseUrl in each plugin's plugin.json skills section to an absolute\n\t# URL, for example:\n\t#   ${PUBLIC_URL}/plugins-skills/<plugin-id>\n\
       \thandle_path /plugins-skills/* {\n\t\troot * /var/www/plugins-skills\n\t\theader Cache-Control \"public, max-age=900,\
@@ -230,6 +237,20 @@ configs:
       \ automatically, same as the realtime service above.\n\t#\n\t# Scoped to exactly /agent-bridge/ws \u2014 the sibling\
       \ /agent-bridge/status/*\n\t# and /agent-bridge/disconnect/* routes are internal-only (called by\n\t# services/api over\
       \ the docker-internal network) and must not be\n\t# reachable from here.\n\thandle /agent-bridge/ws {\n\t\treverse_proxy\
+      \ {$AGENT_RUNNER_UPSTREAM:agent-runner:8080}\n\t}\n\n\t# -- Static environment browser terminal ---------------------------------------\n\
+      \t#\n\t# The WebSocket a browser's xterm.js terminal component connects to for a\n\t# running static environment's shell\
+      \ \u2014 see\n\t# internal/acpbridge/terminal.go's handleTerminalWS (agent-runner's Go\n\t# replacement for the old\
+      \ services/ai-agent, sibling to the\n\t# /agent-bridge/ws block above). Reached directly by the browser, not\n\t# server-to-server,\
+      \ so unlike /agent-bridge/status/* and\n\t# /agent-bridge/disconnect/* it's intentionally public here \u2014 auth is\
+      \ a\n\t# short-lived HMAC-signed `ticket` query param instead of the internal\n\t# X-Internal-Token header, verified\
+      \ by agent-runner itself. WebSocket\n\t# upgrades are proxied automatically, same as /agent-bridge/ws above.\n\thandle\
+      \ /environments/*/terminal/ws {\n\t\treverse_proxy {$AGENT_RUNNER_UPSTREAM:agent-runner:8080}\n\t}\n\n\t# -- Static\
+      \ environment live usage stream --------------------------------------\n\t#\n\t# The WebSocket the environment detail\
+      \ page's Overview tab connects to\n\t# for live CPU/memory/disk usage \u2014 see internal/acpbridge/stats.go's\n\t#\
+      \ handleEnvironmentStatsWS, sibling to the terminal block just above and\n\t# authenticated the exact same way (a short-lived\
+      \ HMAC-signed `ticket`\n\t# query param, not X-Internal-Token \u2014 a browser tab can't hold that\n\t# secret). Server\
+      \ push on its own ticker, not polled by the browser \u2014\n\t# see stats.go's own doc comment for why this replaced\
+      \ a REST endpoint\n\t# entirely rather than sitting alongside one.\n\thandle /environments/*/stats/ws {\n\t\treverse_proxy\
       \ {$AGENT_RUNNER_UPSTREAM:agent-runner:8080}\n\t}\n\n\t# -- Web application (SPA) -----------------------------------------------------\n\
       \t#\n\t# WebSocket upgrades are detected and proxied automatically, so Vite HMR\n\t# and any future realtime traffic\
       \ through this path work unmodified.\n\thandle {\n\t\treverse_proxy {$WEB_UPSTREAM:web:3000}\n\t}\n}\n\n# -- Internal\
