@@ -33,6 +33,9 @@
 			"agentTypeLLMHint": "Paca llama directamente a la API de un modelo y ejecuta el agente en un contenedor aislado en el servidor donde está alojado Paca.",
 			"agentTypeACP": "ACP (CLI local)",
 			"agentTypeACPHint": "Delega en una CLI de código que tú mismo ejecutas — Claude Code, Codex, Gemini CLI o un servidor ACP personalizado.",
+			"agentTypeProviderCLI": "CLI de proveedor",
+			"agentTypeProviderCLIHint": "Ejecuta Claude Code, Codex, Cursor o Gemini CLI en un entorno estático alojado por Paca, controlado de la misma forma que un agente LLM.",
+			"agentTypeProviderCLIGlobalDisabledHint": "Solo disponible para agentes de proyecto. Créalo desde la página de Agentes de un proyecto.",
 			"modelSection": "Modelo",
 			"providerLabel": "Proveedor",
 			"modelLabel": "Modelo",
@@ -54,6 +57,22 @@
 			"acpCommandPlaceholder": "npx -y my-acp-server",
 			"acpCommandHint": "Comando separado por espacios usado para iniciar tu servidor ACP.",
 			"acpGuidance": "Las herramientas, servidores MCP y skills no se configuran aquí — provienen de la configuración local de tu cliente ACP, que se ejecuta con tus propias credenciales de git/gh (clonar, hacer push y abrir PRs funcionan de forma nativa). Después de crear este agente, te guiaremos para conectar el bridge local, instalar la skill de Paca y configurar el servidor MCP.",
+			"cliSection": "CLI de proveedor",
+			"cliProviderLabel": "Proveedor de CLI",
+			"cliProviderClaudeCode": "Claude Code",
+			"cliProviderCodex": "Codex",
+			"cliProviderGeminiCli": "Gemini CLI",
+			"cliProviderCursorAgent": "Cursor",
+			"cliModelLabel": "Modelo",
+			"cliModelPlaceholder": "p. ej. sonnet, gpt-5.2-codex",
+			"cliGuidance": "Los servidores MCP que configures a continuación se sincronizan con la configuración propia de esta CLI en cada conversación — Goose solo usa esta CLI para ejecutar el agente, no gestiona sus herramientas. La sincronización de skills por ahora solo funciona con Claude Code.",
+			"cliEnvironmentHint": "Obligatorio — el inicio de sesión de esta CLI debe persistir entre conversaciones, lo cual solo un entorno estático puede ofrecer.",
+			"environmentPlaceholder": "Selecciona un entorno",
+			"cliAuthModeLabel": "Autenticación",
+			"cliLoginModeHint": "Esta CLI necesita su propio inicio de sesión único dentro de la terminal del entorno del agente — la autenticación por clave API aún no está disponible para este tipo de agente.",
+			"cliLoginCommandLabel": "Comando de inicio de sesión",
+			"cliOpenTerminal": "Abrir terminal",
+			"cliVerifyLogin": "Verificar inicio de sesión",
 			"systemPromptLabel": "Prompt del sistema",
 			"optional": "(opcional)",
 			"charsCount": "{{count}} caracteres",
@@ -166,6 +185,9 @@
 				"committerEmailLabel": "Correo del autor",
 				"dockerEnabledLabel": "Acceso a Docker",
 				"dockerEnabledHint": "Otorga a este agente un daemon de Docker privado dentro de su sandbox. Desactivado de forma predeterminada: actívalo solo para agentes que realmente ejecutan comandos de Docker, ya que añade tiempo de inicio a cada conversación.",
+				"parallelismLimitLabel": "Límite de paralelismo",
+				"parallelismLimitHint": "Cuántas conversaciones de este agente pueden ejecutarse al mismo tiempo. El trabajo adicional espera en una cola hasta que se libera un espacio — el valor predeterminado es 1, para que los tickets se procesen de uno en uno en lugar de competir por el mismo directorio de trabajo.",
+				"parallelismLimitFixedHint": "Fijado en 1 para este agente — trabaja en un único directorio compartido (el checkout local de un agente ACP, o un entorno predeterminado estático), por lo que solo una conversación puede ejecutarse de forma segura a la vez.",
 				"environmentSection": "Entorno",
 				"defaultEnvironmentLabel": "Entorno predeterminado",
 				"defaultEnvironmentHint": "Vincula las conversaciones de este agente a un entorno estático en lugar de un sandbox desechable nuevo cada vez.",
@@ -186,7 +208,25 @@
 				"acpProviderCustom": "Personalizado…",
 				"acpCommandLabel": "Comando",
 				"acpCommandHint": "Comando separado por espacios usado para iniciar tu servidor ACP.",
-				"acpGuidanceBanner": "Las herramientas, servidores MCP y skills de este agente se configuran en tu cliente ACP local, que se ejecuta con tus propias credenciales de git/gh — no en Paca."
+				"acpGuidanceBanner": "Las herramientas, servidores MCP y skills de este agente se configuran en tu cliente ACP local, que se ejecuta con tus propias credenciales de git/gh — no en Paca.",
+				"cliConfiguration": "Configuración de CLI de proveedor",
+				"cliProviderLabel": "Proveedor de CLI",
+				"cliProviderClaudeCode": "Claude Code",
+				"cliProviderCodex": "Codex",
+				"cliProviderGeminiCli": "Gemini CLI",
+				"cliProviderCursorAgent": "Cursor",
+				"cliModelLabel": "Modelo",
+				"cliModelPlaceholder": "p. ej. sonnet, gpt-5.2-codex",
+				"cliGuidanceBanner": "Los servidores MCP configurados abajo se sincronizan con la configuración propia de esta CLI en cada conversación — Goose solo ejecuta la CLI, no gestiona sus herramientas. La sincronización de skills por ahora solo funciona con Claude Code.",
+				"cliLoginPanelTitle": "Inicio de sesión de CLI",
+				"cliLoginPanelDescription": "Verifica si la CLI de este agente ha iniciado sesión, o abre la terminal de su entorno para iniciar sesión.",
+				"cliLoginOpenTerminal": "Abrir terminal",
+				"cliLoginVerify": "Verificar inicio de sesión",
+				"cliLoginVerifiedNow": "Autenticado.",
+				"cliLoginNotAuthenticated": "Aún no autenticado — inicia sesión desde la terminal y vuelve a verificar.",
+				"cliLoginVerifyFailed": "No se pudo comprobar el estado de inicio de sesión. Inténtalo de nuevo.",
+				"cliLoginLastVerified": "Última verificación: {{date}}.",
+				"cliLoginNoEnvironment": "Este agente no tiene un entorno configurado — elige uno arriba primero."
 			},
 			"mcp": {
 				"serverCount_one": "{{count}} servidor configurado",
@@ -290,6 +330,15 @@
 			"newBelow_one": "{{count}} mensaje nuevo",
 			"newBelow_other": "{{count}} mensajes nuevos"
 		},
+		"busyDialog": {
+			"title": "El agente está ocupado",
+			"description": "Este agente ya está ejecutando {{running}}/{{limit}} conversación(es). Añade este mensaje a la cola para que se inicie automáticamente en cuanto se libere un espacio, o envíalo ahora de todos modos.",
+			"folderDescription": "Otra conversación ya está trabajando en esta carpeta de entorno. Añade este mensaje a la cola para que se inicie automáticamente en cuanto esa conversación termine, o envíalo ahora de todos modos.",
+			"cancel": "Cancelar",
+			"queue": "Añadir a la cola",
+			"force": "Enviar ahora",
+			"cancelledError": "Mensaje no enviado."
+		},
 		"thread": {
 			"composerPlaceholder": "Enviar mensaje al agente…",
 			"welcomeHeading": "¿En qué puedo ayudarte hoy?",
@@ -348,6 +397,7 @@
 				"contextTypeDoc": "Documento",
 				"contextTypeConversation": "Conversación",
 				"contextTypeAutomation": "Automatización",
+				"contextTypeAnnotation": "Comentario",
 				"noContextResults": "No se encontraron resultados",
 				"contextSearchMinChars": "Escribe al menos 2 caracteres para buscar"
 			}
@@ -479,6 +529,7 @@
 				"deleteFailed": "No se pudo eliminar el reenvío de puerto. Inténtalo de nuevo.",
 				"containerPort": "Puerto del contenedor {{port}}",
 				"unassigned": "Aún no asignado",
+				"open": "Abrir",
 				"restart": "Reiniciar",
 				"pendingRestartRunning": "Se añadió o eliminó un reenvío de puerto. Reinicia el entorno para aplicarlo.",
 				"pendingRestartStopped": "Se añadió o eliminó un reenvío de puerto. Se aplicará la próxima vez que se inicie este entorno.",
@@ -683,6 +734,14 @@
 				"label": "Gestionar agentes",
 				"description": "Crear, configurar y eliminar agentes de IA"
 			},
+			"conversationsRead": {
+				"label": "Ver conversaciones",
+				"description": "Explorar conversaciones de agentes y verlas, sin poder iniciar ni responder"
+			},
+			"conversationsWrite": {
+				"label": "Gestionar conversaciones",
+				"description": "Iniciar conversaciones con un agente, responder y detenerlas o pausarlas"
+			},
 			"environmentsRead": {
 				"label": "Ver entornos",
 				"description": "Explorar entornos y ver su configuración"
@@ -712,6 +771,7 @@
 			"sprints": "Sprints",
 			"documents": "Documentos",
 			"aiAgents": "Agentes de IA",
+			"conversations": "Conversaciones",
 			"environments": "Entornos",
 			"workflows": "Automatización",
 			"plugins": "Plugins"
@@ -844,6 +904,8 @@
 			"optionsLabel": "Opciones",
 			"addOptionPlaceholder": "Añadir opción…",
 			"addOption": "Añadir",
+			"optionColorLabel": "Color de la opción",
+			"noColor": "Sin color",
 			"requiredLabel": "Obligatorio",
 			"requiredHint": "Los usuarios deben completar este campo al crear o editar una tarea.",
 			"fieldTypes": {
@@ -1057,6 +1119,7 @@
 			"reporter": "Reportado por",
 			"sprint": "Sprint",
 			"productBacklog": "Backlog del producto",
+			"sprintNotStarted": "(no iniciado)",
 			"epic": "Épica",
 			"viewEpic": "Ver épica",
 			"removeEpic": "Eliminar épica",
@@ -1226,6 +1289,77 @@
 			"watchSession": "Ver sesión",
 			"madeChange": "hizo un cambio",
 			"descriptionChangeDiff": "Diferencias del cambio de descripción"
+		}
+	},
+	"portForwardDetail": {
+		"notFound": {
+			"title": "Reenvío de puerto no encontrado",
+			"description": "Este reenvío de puerto pudo haber sido eliminado o el enlace no es válido.",
+			"ariaLabel": "Detalle del reenvío de puerto",
+			"backToEnvironment": "Volver al entorno"
+		},
+		"tabs": {
+			"overview": "Resumen",
+			"comments": "Comentarios"
+		},
+		"overview": {
+			"containerPort": "Puerto del contenedor {{port}}",
+			"hostPort": "Puerto de host",
+			"unassigned": "Aún no asignado",
+			"createdAt": "Creado el {{date}}",
+			"open": "Abrir",
+			"delete": "Eliminar",
+			"deleteDialog": {
+				"title": "¿Eliminar el reenvío de puerto?",
+				"description_one": "Esto también elimina {{count}} comentario realizado a través de este reenvío de puerto. Esta acción no se puede deshacer.",
+				"description_other": "Esto también elimina {{count}} comentarios realizados a través de este reenvío de puerto. Esta acción no se puede deshacer.",
+				"cancel": "Cancelar",
+				"confirm": "Eliminar"
+			}
+		},
+		"comments": {
+			"empty": "Aún no hay comentarios. Instala la extensión de navegador de Paca para comentar directamente sobre elementos de la vista previa de este reenvío de puerto.",
+			"status": {
+				"open": "Abierto",
+				"resolved": "Resuelto"
+			},
+			"replyCount_one": "{{count}} respuesta",
+			"replyCount_other": "{{count}} respuestas",
+			"resolve": "Resolver",
+			"reopen": "Reabrir",
+			"createTask": "Crear tarea",
+			"taskCreated": "Tarea creada"
+		}
+	},
+	"commentDetail": {
+		"notFound": {
+			"title": "Comentario no encontrado",
+			"description": "Este comentario pudo haber sido eliminado o el enlace no es válido.",
+			"ariaLabel": "Detalle del comentario",
+			"backToPortForward": "Volver al reenvío de puerto"
+		},
+		"header": {
+			"createdAt": "Comentado el {{date}}"
+		},
+		"context": {
+			"title": "Contexto",
+			"pagePath": "Página",
+			"elementSelector": "Selector de elemento",
+			"accessibleName": "Nombre accesible",
+			"consoleErrors": "Errores de consola",
+			"noConsoleErrors": "No se capturaron errores de consola",
+			"failedRequests": "Solicitudes fallidas",
+			"noFailedRequests": "No se capturaron solicitudes fallidas"
+		},
+		"thread": {
+			"replyPlaceholder": "Escribe una respuesta…",
+			"reply": "Responder"
+		},
+		"actions": {
+			"create": "Crear",
+			"createConversation": "Crear conversación",
+			"copyLink": "Copiar enlace",
+			"linkCopied": "¡Copiado!"
 		}
 	},
 	"epicPicker": {
@@ -1453,12 +1587,14 @@
 		},
 		"startSprintModal": {
 			"title": "Iniciar sprint",
+			"alreadyActiveWarning": "\"{{name}}\" ya está activo en este proyecto. Iniciar este sprint no lo detendrá.",
 			"nameLabel": "Nombre",
 			"goalLabel": "Objetivo",
 			"optional": "(opcional)",
 			"goalPlaceholder": "¿Qué debería lograr este sprint?",
 			"startDateLabel": "Fecha de inicio",
 			"endDateLabel": "Fecha de fin",
+			"error": "No se pudo iniciar el sprint. Inténtalo de nuevo.",
 			"cancel": "Cancelar",
 			"starting": "Iniciando…",
 			"startSprint": "Iniciar sprint"
@@ -1470,11 +1606,12 @@
 		"sprintDetail": {
 			"notFound": "Sprint no encontrado o acceso denegado.",
 			"statusActive": "Activo",
-			"statusPlanned": "Planificado",
+			"statusPlanned": "Borrador",
 			"statusCompleted": "Completado",
 			"description": "Sprint {{status}}",
 			"descriptionWithStartDate": "Sprint {{status}} · iniciado el {{date}}",
 			"editSprint": "Editar sprint",
+			"startSprint": "Iniciar sprint",
 			"editSprintModal": {
 				"title": "Editar sprint",
 				"nameLabel": "Nombre",
@@ -1764,7 +1901,7 @@
 				"sprintGoalLabel": "Objetivo",
 				"sprintStatusLabel": "Estado",
 				"sprintStatusUnchanged": "Dejar sin cambios",
-				"sprintStatusPlanned": "Planificado",
+				"sprintStatusPlanned": "Borrador",
 				"sprintStatusActive": "Activo",
 				"sprintStatusCompleted": "Completado",
 				"completeSprintHint": "Marca el sprint como completado y mueve sus tareas sin terminar.",

@@ -9,6 +9,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Thread } from "@/components/assistant-ui/thread";
+import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import {
 	conversationQueryOptions,
 	globalConversationQueryOptions,
@@ -16,6 +17,7 @@ import {
 	startGlobalChatSession,
 } from "@/lib/agent-api";
 import { useContextInjectionStore } from "@/lib/context-injection-store";
+import { useAgentBusyPrompt } from "./agent-busy-dialog";
 import {
 	AgentPickerContext,
 	AgentPickerInline,
@@ -71,6 +73,19 @@ export function NewConversationThread({
 
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
+	// Global chat (no projectId) is deliberately open to any authenticated
+	// user (see router.go's global chat-session routes); only gate starting a
+	// project-scoped conversation, which the backend now requires
+	// conversations.write for — a PROJECT_VIEWER (conversations.read only)
+	// can land on this route directly (e.g. via the sidebar nav item) even
+	// with the "New conversation" button itself hidden elsewhere, so the
+	// composer needs its own guard too.
+	const { hasProjectPermission } = useProjectPermissions(projectId ?? "");
+	const canStartConversation =
+		!projectId || hasProjectPermission("conversations.write");
+	const { dialog: agentBusyDialog, send: sendWithBusyPrompt } =
+		useAgentBusyPrompt();
+
 	const onNew = async (message: AppendMessage) => {
 		if (!agentId) throw new Error(t("aiChat.selectAgentFirst"));
 		const text = extractTextOnlyContent(message);
@@ -86,12 +101,15 @@ export function NewConversationThread({
 		setIsSubmitting(true);
 		try {
 			if (projectId) {
-				const result = await startChatSession(projectId, agentId, {
-					message: text,
-					...(environmentId ? { environment_id: environmentId } : {}),
-					...(folderId ? { folder_id: folderId } : {}),
-					contextItems,
-				});
+				const result = await sendWithBusyPrompt((onBusy) =>
+					startChatSession(projectId, agentId, {
+						message: text,
+						...(environmentId ? { environment_id: environmentId } : {}),
+						...(folderId ? { folder_id: folderId } : {}),
+						contextItems,
+						on_busy: onBusy,
+					}),
+				);
 				useContextInjectionStore.getState().clear();
 				qc.setQueryData(
 					conversationQueryOptions(projectId, result.conversation.id).queryKey,
@@ -105,10 +123,13 @@ export function NewConversationThread({
 					params: { projectId, conversationId: result.conversation.id },
 				});
 			} else {
-				const result = await startGlobalChatSession(agentId, {
-					message: text,
-					contextItems,
-				});
+				const result = await sendWithBusyPrompt((onBusy) =>
+					startGlobalChatSession(agentId, {
+						message: text,
+						contextItems,
+						on_busy: onBusy,
+					}),
+				);
 				useContextInjectionStore.getState().clear();
 				qc.setQueryData(
 					globalConversationQueryOptions(result.conversation.id).queryKey,
@@ -134,7 +155,8 @@ export function NewConversationThread({
 		isRunning: false,
 		convertMessage: (m) => m,
 		onNew,
-		isSendDisabled: !agentId || isSubmitting,
+		isDisabled: !canStartConversation,
+		isSendDisabled: !canStartConversation || !agentId || isSubmitting,
 	});
 
 	return (
@@ -144,6 +166,7 @@ export function NewConversationThread({
 					<Thread components={{ ComposerStart: ComposerStartRow }} />
 				</AssistantRuntimeProvider>
 			</EnvironmentPickerContext.Provider>
+			{agentBusyDialog}
 		</AgentPickerContext.Provider>
 	);
 }

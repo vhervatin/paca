@@ -33,6 +33,9 @@
 			"agentTypeLLMHint": "Pacaがモデル API を直接呼び出し、Paca をホストしているサーバー上のサンドボックス化されたコンテナでエージェントを実行します。",
 			"agentTypeACP": "ACP（ローカルCLI）",
 			"agentTypeACPHint": "自分で実行するコーディングCLI（Claude Code、Codex、Gemini CLI、またはカスタムACPサーバー）に処理を委任します。",
+			"agentTypeProviderCLI": "プロバイダーCLI",
+			"agentTypeProviderCLIHint": "Pacaがホストする静的環境内でClaude Code、Codex、Cursor、またはGemini CLIを実行し、LLMエージェントと同じ方法で制御します。",
+			"agentTypeProviderCLIGlobalDisabledHint": "プロジェクトエージェントでのみ利用可能です。プロジェクトの「エージェント」ページから作成してください。",
 			"modelSection": "モデル",
 			"providerLabel": "プロバイダー",
 			"modelLabel": "モデル",
@@ -54,6 +57,22 @@
 			"acpCommandPlaceholder": "npx -y my-acp-server",
 			"acpCommandHint": "ACPサーバーの起動に使用する、スペース区切りのコマンドです。",
 			"acpGuidance": "ツール、MCPサーバー、スキルはここでは設定しません — これらはACPクライアント自身のローカル設定から取得され、あなた自身のgit/gh認証情報で実行されます（クローン、push、PRの作成もすべてネイティブに動作します）。このエージェントを作成すると、ローカルブリッジの接続、Pacaスキルのインストール、MCPサーバーの設定を順を追ってご案内します。",
+			"cliSection": "プロバイダーCLI",
+			"cliProviderLabel": "CLIプロバイダー",
+			"cliProviderClaudeCode": "Claude Code",
+			"cliProviderCodex": "Codex",
+			"cliProviderGeminiCli": "Gemini CLI",
+			"cliProviderCursorAgent": "Cursor",
+			"cliModelLabel": "モデル",
+			"cliModelPlaceholder": "例: sonnet、gpt-5.2-codex",
+			"cliGuidance": "以下で設定したMCPサーバーは、会話のたびにこのCLI自身の設定に同期されます — Gooseはこのエージェントを実行するためだけにこのCLIを使用し、ツールの管理は行いません。スキルの同期は現在Claude Codeでのみ機能します。",
+			"cliEnvironmentHint": "必須 — このCLIのログイン状態は会話をまたいで保持される必要があり、これは静的環境でのみ実現できます。",
+			"environmentPlaceholder": "環境を選択",
+			"cliAuthModeLabel": "認証",
+			"cliLoginModeHint": "このCLIは、エージェントの環境ターミナル内で一度だけ独自のログインを行う必要があります — このエージェントタイプではAPIキー認証はまだ利用できません。",
+			"cliLoginCommandLabel": "ログインコマンド",
+			"cliOpenTerminal": "ターミナルを開く",
+			"cliVerifyLogin": "ログインを確認",
 			"systemPromptLabel": "システムプロンプト",
 			"optional": "（任意）",
 			"charsCount": "{{count}}文字",
@@ -166,6 +185,9 @@
 				"committerEmailLabel": "コミッターのメールアドレス",
 				"dockerEnabledLabel": "Dockerアクセス",
 				"dockerEnabledHint": "このエージェントのサンドボックス内に専用のDockerデーモンを提供します。デフォルトでは無効です。すべての会話の起動時間が増えるため、実際にDockerコマンドを実行するエージェントにのみ有効にしてください。",
+				"parallelismLimitLabel": "並列実行数の上限",
+				"parallelismLimitHint": "このエージェントが同時に実行できる会話数です。上限を超えた分は空きが出るまでキューで待機します。デフォルトは1で、同じ作業ディレクトリで競合しないようチケットを1件ずつ処理します。",
+				"parallelismLimitFixedHint": "このエージェントでは1に固定されています。単一の共有ディレクトリ(ACPエージェントのローカルチェックアウト、または静的なデフォルト環境)で作業するため、安全に実行できる会話は一度に1つだけです。",
 				"environmentSection": "環境",
 				"defaultEnvironmentLabel": "デフォルト環境",
 				"defaultEnvironmentHint": "このエージェントの会話を、毎回使い捨てのサンドボックスを作成する代わりに静的環境に接続します。",
@@ -186,7 +208,25 @@
 				"acpProviderCustom": "カスタム…",
 				"acpCommandLabel": "コマンド",
 				"acpCommandHint": "ACPサーバーの起動に使用する、スペース区切りのコマンドです。",
-				"acpGuidanceBanner": "このエージェントのツール、MCPサーバー、スキルはPacaではなく、あなた自身のgit/gh認証情報で動作するローカルACPクライアントで設定されます。"
+				"acpGuidanceBanner": "このエージェントのツール、MCPサーバー、スキルはPacaではなく、あなた自身のgit/gh認証情報で動作するローカルACPクライアントで設定されます。",
+				"cliConfiguration": "プロバイダーCLI設定",
+				"cliProviderLabel": "CLIプロバイダー",
+				"cliProviderClaudeCode": "Claude Code",
+				"cliProviderCodex": "Codex",
+				"cliProviderGeminiCli": "Gemini CLI",
+				"cliProviderCursorAgent": "Cursor",
+				"cliModelLabel": "モデル",
+				"cliModelPlaceholder": "例: sonnet、gpt-5.2-codex",
+				"cliGuidanceBanner": "以下で設定したMCPサーバーは、会話のたびにこのCLI自身の設定に同期されます — GooseはこのCLIを実行するだけで、ツールの管理は行いません。スキルの同期は現在Claude Codeでのみ機能します。",
+				"cliLoginPanelTitle": "CLIログイン",
+				"cliLoginPanelDescription": "このエージェントのCLIが現在ログインしているかを確認するか、その環境のターミナルを開いてログインします。",
+				"cliLoginOpenTerminal": "ターミナルを開く",
+				"cliLoginVerify": "ログインを確認",
+				"cliLoginVerifiedNow": "認証されました。",
+				"cliLoginNotAuthenticated": "まだ認証されていません — ターミナルからログインし、再度確認してください。",
+				"cliLoginVerifyFailed": "ログイン状態を確認できませんでした。もう一度お試しください。",
+				"cliLoginLastVerified": "最終確認日時: {{date}}。",
+				"cliLoginNoEnvironment": "このエージェントには環境が設定されていません — まず上で環境を選択してください。"
 			},
 			"mcp": {
 				"serverCount_one": "{{count}}件のサーバーを設定済み",
@@ -290,6 +330,15 @@
 			"newBelow_one": "新着メッセージ{{count}}件",
 			"newBelow_other": "新着メッセージ{{count}}件"
 		},
+		"busyDialog": {
+			"title": "エージェントは対応中です",
+			"description": "このエージェントは現在 {{running}}/{{limit}} 件の会話を実行中です。このメッセージをキューに追加すると空きが出次第自動的に開始されます。今すぐ送信することもできます。",
+			"folderDescription": "別の会話がすでにこの環境フォルダーで作業中です。このメッセージをキューに追加すると、その会話が終わり次第自動的に開始されます。今すぐ送信することもできます。",
+			"cancel": "キャンセル",
+			"queue": "キューに追加",
+			"force": "今すぐ送信",
+			"cancelledError": "メッセージは送信されませんでした。"
+		},
 		"thread": {
 			"composerPlaceholder": "エージェントにメッセージ…",
 			"welcomeHeading": "今日は何をお手伝いしましょうか？",
@@ -348,6 +397,7 @@
 				"contextTypeDoc": "ドキュメント",
 				"contextTypeConversation": "会話",
 				"contextTypeAutomation": "自動化",
+				"contextTypeAnnotation": "コメント",
 				"noContextResults": "結果が見つかりません",
 				"contextSearchMinChars": "検索するには2文字以上入力してください"
 			}
@@ -479,6 +529,7 @@
 				"deleteFailed": "ポートフォワードの削除に失敗しました。もう一度お試しください。",
 				"containerPort": "コンテナポート {{port}}",
 				"unassigned": "まだ割り当てられていません",
+				"open": "開く",
 				"restart": "再起動",
 				"pendingRestartRunning": "ポートフォワードが追加または削除されました。適用するには環境を再起動してください。",
 				"pendingRestartStopped": "ポートフォワードが追加または削除されました。次回この環境が起動するときに適用されます。",
@@ -683,6 +734,14 @@
 				"label": "エージェントの管理",
 				"description": "AIエージェントの作成・設定・削除を行います"
 			},
+			"conversationsRead": {
+				"label": "会話を表示",
+				"description": "エージェントの会話を閲覧・確認できますが、開始や返信はできません"
+			},
+			"conversationsWrite": {
+				"label": "会話を管理",
+				"description": "エージェントとの会話を開始し、返信し、停止または一時停止できます"
+			},
 			"environmentsRead": {
 				"label": "環境の閲覧",
 				"description": "環境とその設定を閲覧します"
@@ -712,6 +771,7 @@
 			"sprints": "スプリント",
 			"documents": "ドキュメント",
 			"aiAgents": "AIエージェント",
+			"conversations": "会話",
 			"environments": "環境",
 			"workflows": "自動化",
 			"plugins": "プラグイン"
@@ -844,6 +904,8 @@
 			"optionsLabel": "選択肢",
 			"addOptionPlaceholder": "選択肢を追加…",
 			"addOption": "追加",
+			"optionColorLabel": "オプションの色",
+			"noColor": "色なし",
 			"requiredLabel": "必須",
 			"requiredHint": "タスクの作成・編集時にユーザーはこのフィールドを入力する必要があります。",
 			"fieldTypes": {
@@ -1057,6 +1119,7 @@
 			"reporter": "報告者",
 			"sprint": "スプリント",
 			"productBacklog": "プロダクトバックログ",
+			"sprintNotStarted": "(未開始)",
 			"epic": "エピック",
 			"viewEpic": "エピックを表示",
 			"removeEpic": "エピックを削除",
@@ -1226,6 +1289,77 @@
 			"watchSession": "セッションを見る",
 			"madeChange": "変更を加えました",
 			"descriptionChangeDiff": "説明の変更差分"
+		}
+	},
+	"portForwardDetail": {
+		"notFound": {
+			"title": "ポートフォワードが見つかりません",
+			"description": "このポートフォワードは削除されたか、リンクが無効です。",
+			"ariaLabel": "ポートフォワードの詳細",
+			"backToEnvironment": "環境に戻る"
+		},
+		"tabs": {
+			"overview": "概要",
+			"comments": "コメント"
+		},
+		"overview": {
+			"containerPort": "コンテナポート {{port}}",
+			"hostPort": "ホストポート",
+			"unassigned": "まだ割り当てられていません",
+			"createdAt": "{{date}} に作成",
+			"open": "開く",
+			"delete": "削除",
+			"deleteDialog": {
+				"title": "ポートフォワードを削除しますか？",
+				"description_one": "これにより、このポートフォワード経由で行われた{{count}}件のコメントも削除されます。この操作は元に戻せません。",
+				"description_other": "これにより、このポートフォワード経由で行われた{{count}}件のコメントも削除されます。この操作は元に戻せません。",
+				"cancel": "キャンセル",
+				"confirm": "削除"
+			}
+		},
+		"comments": {
+			"empty": "コメントはまだありません。Paca ブラウザ拡張機能をインストールすると、このポートフォワードのプレビューの要素に直接コメントできます。",
+			"status": {
+				"open": "未解決",
+				"resolved": "解決済み"
+			},
+			"replyCount_one": "{{count}} 件の返信",
+			"replyCount_other": "{{count}} 件の返信",
+			"resolve": "解決",
+			"reopen": "再オープン",
+			"createTask": "タスクを作成",
+			"taskCreated": "タスクを作成しました"
+		}
+	},
+	"commentDetail": {
+		"notFound": {
+			"title": "コメントが見つかりません",
+			"description": "このコメントは削除されたか、リンクが無効です。",
+			"ariaLabel": "コメントの詳細",
+			"backToPortForward": "ポートフォワードに戻る"
+		},
+		"header": {
+			"createdAt": "{{date}} にコメント"
+		},
+		"context": {
+			"title": "コンテキスト",
+			"pagePath": "ページ",
+			"elementSelector": "要素セレクター",
+			"accessibleName": "アクセシブルネーム",
+			"consoleErrors": "コンソールエラー",
+			"noConsoleErrors": "コンソールエラーはキャプチャされていません",
+			"failedRequests": "失敗したリクエスト",
+			"noFailedRequests": "失敗したリクエストはキャプチャされていません"
+		},
+		"thread": {
+			"replyPlaceholder": "返信を入力…",
+			"reply": "返信"
+		},
+		"actions": {
+			"create": "作成",
+			"createConversation": "会話を作成",
+			"copyLink": "リンクをコピー",
+			"linkCopied": "コピーしました！"
 		}
 	},
 	"epicPicker": {
@@ -1453,12 +1587,14 @@
 		},
 		"startSprintModal": {
 			"title": "スプリントを開始",
+			"alreadyActiveWarning": "「{{name}}」はこのプロジェクトで既に進行中です。このスプリントを開始しても停止しません。",
 			"nameLabel": "名前",
 			"goalLabel": "目標",
 			"optional": "（任意）",
 			"goalPlaceholder": "このスプリントで達成したいことは？",
 			"startDateLabel": "開始日",
 			"endDateLabel": "終了日",
+			"error": "スプリントの開始に失敗しました。もう一度お試しください。",
 			"cancel": "キャンセル",
 			"starting": "開始中…",
 			"startSprint": "スプリントを開始"
@@ -1470,11 +1606,12 @@
 		"sprintDetail": {
 			"notFound": "スプリントが見つからないか、アクセスが拒否されました。",
 			"statusActive": "進行中",
-			"statusPlanned": "計画中",
+			"statusPlanned": "下書き",
 			"statusCompleted": "完了",
 			"description": "{{status}}のスプリント",
 			"descriptionWithStartDate": "{{status}}のスプリント・{{date}}に開始",
 			"editSprint": "スプリントを編集",
+			"startSprint": "スプリントを開始",
 			"editSprintModal": {
 				"title": "スプリントを編集",
 				"nameLabel": "名前",
@@ -1764,7 +1901,7 @@
 				"sprintGoalLabel": "目標",
 				"sprintStatusLabel": "ステータス",
 				"sprintStatusUnchanged": "変更しない",
-				"sprintStatusPlanned": "計画中",
+				"sprintStatusPlanned": "下書き",
 				"sprintStatusActive": "進行中",
 				"sprintStatusCompleted": "完了",
 				"completeSprintHint": "スプリントを完了とし、未完了のタスクを移動します。",

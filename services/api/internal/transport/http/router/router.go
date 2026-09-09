@@ -3,7 +3,9 @@ package router
 
 import (
 	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -41,6 +43,7 @@ type Deps struct {
 	Skills               *handler.SkillsHandler
 	Agent                *handler.AgentHandler
 	Environment          *handler.EnvironmentHandler
+	Annotation           *handler.AnnotationHandler
 	Conversation         *handler.ConversationHandler
 	Automation           *handler.AutomationHandler
 	Settings             *handler.SettingsHandler
@@ -94,6 +97,7 @@ func New(deps Deps) http.Handler {
 			r.Route("/auth", func(r chi.Router) {
 				r.Post("/login", deps.Auth.Login)
 				r.Post("/refresh", deps.Auth.Refresh)
+				r.Post("/annotation-refresh", deps.Auth.AnnotationRefresh)
 				r.With(httpmw.Authn(deps.TokenManager)).Post("/logout", deps.Auth.Logout)
 				// Public — the link a password-set-token email points to;
 				// the token itself (not a session) proves the caller's right
@@ -270,6 +274,20 @@ func New(deps Deps) http.Handler {
 					Post("/projects", deps.Project.CreateProject)
 			})
 
+			// Port forward resolution — how the Paca browser extension
+			// turns "I'm on host:<port>" into "this is environment X in
+			// project Y" before it knows which project-scoped endpoint to
+			// call next. Not project-scoped in the URL (the caller doesn't
+			// know the project yet); scoped instead to the caller's own
+			// accessible projects inside the handler itself (see
+			// AnnotationRepository.ResolvePortForward).
+			if deps.Annotation != nil {
+				r.Group(func(r chi.Router) {
+					r.Use(httpmw.Authn(deps.TokenManager, deps.APIKeyAuth))
+					r.Get("/port-forwards/resolve", deps.Annotation.ResolvePortForward)
+				})
+			}
+
 			// LLM models, global agents, and global chat — accessible to any
 			// authenticated user (human or agent-API-key). Static children
 			// ("llm-models", "skill-templates", "me", "chat-sessions",
@@ -317,9 +335,10 @@ func New(deps Deps) http.Handler {
 					// page / admin pages, no project context. Any authenticated
 					// human may chat with any global agent, same as any project
 					// member may chat with a project agent — deliberately not
-					// gated behind PermissionAgentsRead (a regular USER-role
-					// human has no global agents.* permission by default, and
-					// this chat is meant to be available to every user).
+					// gated behind PermissionConversationsRead (a regular
+					// USER-role human has no global conversations.* permission
+					// by default, and this chat is meant to be available to
+					// every user).
 					r.Get("/{agentId}/chat-sessions", deps.Agent.ListGlobalChatSessions)
 					r.Post("/{agentId}/chat-sessions", deps.Agent.StartGlobalChatSession)
 					r.Post("/chat-sessions/{sessionId}/messages", deps.Agent.SendGlobalChatMessage)
@@ -712,6 +731,11 @@ func New(deps Deps) http.Handler {
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsWrite)).
 							Post("/{agentId}/mcp-agent-key", deps.Agent.GenerateAgentMCPKey)
 
+						// Provider CLI — Write, not Read: it runs a live probe inside the
+						// agent's environment and persists cli_login_verified_at.
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsWrite)).
+							Post("/{agentId}/verify-cli-login", deps.Agent.VerifyCLILogin)
+
 						// Avatar
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsWrite)).
 							Post("/{agentId}/avatar/initiate-upload", deps.Agent.InitiateAvatarUpload)
@@ -754,13 +778,34 @@ func New(deps Deps) http.Handler {
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsWrite)).
 							Delete("/{agentId}/env-vars/{envVarId}", deps.Agent.DeleteEnvVar)
 
-						// Chat sessions
-						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsRead)).
+						// Chat sessions. A session's messages ARE a conversation, so
+						// these are gated on conversations.read/write, not agents.*
+						// (which governs the agent entity's own configuration —
+						// MCP servers, skills, env vars, etc). Starting a session
+						// and sending into one both create/drive a conversation (a
+						// real agent turn, possibly inside a live sandbox) — Write,
+						// the same tier as every conversation-mutating route below.
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionConversationsRead)).
 							Get("/{agentId}/chat-sessions", deps.Agent.ListChatSessions)
-						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsRead)).
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionConversationsWrite)).
 							Post("/{agentId}/chat-sessions", deps.Agent.StartChatSession)
-						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsRead)).
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionConversationsWrite)).
 							Post("/{agentId}/chat-sessions/{sessionId}/messages", deps.Agent.SendChatMessage)
+					})
+				}
+
+				// Project-wide annotation search — unlike the annotation
+				// routes nested under one specific port forward (below,
+				// inside Environments), this searches across every port
+				// forward in the project. Backs BlockNote mention search,
+				// the agent conversation's attach-context picker, and the
+				// MCP list_annotations/get_annotation tools.
+				if deps.Annotation != nil {
+					r.Route("/annotations", func(r chi.Router) {
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAnnotationsRead)).
+							Get("/", deps.Annotation.SearchInProject)
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAnnotationsRead)).
+							Get("/{annotationId}", deps.Annotation.GetInProject)
 					})
 				}
 
@@ -793,6 +838,14 @@ func New(deps Deps) http.Handler {
 							Post("/{environmentId}/restart", deps.Environment.RestartEnvironment)
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionEnvironmentsRead)).
 							Post("/{environmentId}/heartbeat", deps.Environment.Heartbeat)
+						// Read-gated like Browse/ListFolders above — a live
+						// probe, not a mutating action, and the create-agent
+						// dialog's own "Verify login" button needs this before
+						// the agent (and its own agents.write-gated verify
+						// endpoint) exists yet — see EnvironmentHandler.
+						// VerifyCLILogin's own doc comment.
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionEnvironmentsRead)).
+							Post("/{environmentId}/verify-cli-login", deps.Environment.VerifyCLILogin)
 						// Mints a ticket for agent-runner's live-usage
 						// WebSocket (internal/acpbridge/stats.go) — read-only
 						// in spirit (viewing usage numbers, not a mutating
@@ -824,6 +877,8 @@ func New(deps Deps) http.Handler {
 							Get("/{environmentId}/port-forwards", deps.Environment.ListPortForwards)
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionEnvironmentsWrite)).
 							Post("/{environmentId}/port-forwards", deps.Environment.AddPortForward)
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionEnvironmentsRead)).
+							Get("/{environmentId}/port-forwards/{portForwardId}", deps.Environment.GetPortForward)
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionEnvironmentsWrite)).
 							Delete("/{environmentId}/port-forwards/{portForwardId}", deps.Environment.DeletePortForward)
 
@@ -835,25 +890,94 @@ func New(deps Deps) http.Handler {
 						// being able to open a shell inside it.
 						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionEnvironmentsConnect)).
 							Post("/{environmentId}/terminal-ticket", deps.Environment.TerminalTicket)
+
+						// Page annotations — on-page comments pinned via the
+						// Paca browser extension (apps/extension), created
+						// directly against this API from a content script
+						// running on the environment's own forwarded preview
+						// page (see corsMiddleware's same-hostname branch
+						// below for how that's authenticated). Nested under
+						// the specific port forward, not the environment
+						// directly: a comment belongs to one port forward's
+						// running app, and an environment can have several.
+						// Resolve is a separate tier from Write, same
+						// reasoning as Connect above: triaging/dismissing a
+						// comment shouldn't require the ability to author or
+						// delete one.
+						if deps.Annotation != nil {
+							r.Route("/{environmentId}/port-forwards/{portForwardId}/annotations", func(r chi.Router) {
+								r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAnnotationsRead)).
+									Get("/", deps.Annotation.List)
+								// The four POST routes below all decode their
+								// body with plain encoding/json, which parses
+								// JSON regardless of the declared Content-Type
+								// — so httpmw.RequireJSONContentType is what
+								// actually makes that header meaningful. These
+								// routes are reachable via the SameSite=None
+								// domainauth.ScopeAnnotation cookie (see
+								// AuthHandler.setAnnotationTokenCookies and
+								// httpmw.AnnotationExtensionPathPattern);
+								// without this, a cross-site request using a
+								// CORS-safelisted Content-Type (e.g.
+								// text/plain) would count as a "simple
+								// request" under the Fetch spec, skip CORS
+								// preflight entirely, and still be parsed —
+								// cookie attached — regardless of
+								// corsMiddleware's same-hostname check, which
+								// only ever gates a *preflighted* request.
+								r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAnnotationsWrite), httpmw.RequireJSONContentType()).
+									Post("/", deps.Annotation.Create)
+								r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAnnotationsWrite), httpmw.RequireJSONContentType()).
+									Post("/upload-url", deps.Annotation.InitiateScreenshotUpload)
+								r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAnnotationsRead)).
+									Get("/{annotationId}", deps.Annotation.Get)
+								r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAnnotationsWrite), httpmw.RequireJSONContentType()).
+									Post("/{annotationId}/complete-upload", deps.Annotation.CompleteScreenshotUpload)
+								r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAnnotationsRead)).
+									Get("/{annotationId}/screenshot-url", deps.Annotation.GetScreenshotURL)
+								r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAnnotationsResolve)).
+									Patch("/{annotationId}/resolve", deps.Annotation.Resolve)
+								r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAnnotationsResolve)).
+									Patch("/{annotationId}/reopen", deps.Annotation.Reopen)
+								r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAnnotationsWrite), httpmw.RequireJSONContentType()).
+									Post("/{annotationId}/comments", deps.Annotation.AddComment)
+								r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAnnotationsWrite, authz.PermissionTasksWrite), httpmw.RequireJSONContentType()).
+									Post("/{annotationId}/create-task", deps.Annotation.CreateTask)
+							})
+						}
 					})
 				}
 
-				// Conversations
+				// Conversations. Gated on their own conversations.read/write
+				// permissions (not agents.*, which governs the agent entity's
+				// configuration — see the chat-sessions block above for the
+				// same split).
 				if deps.Conversation != nil {
 					r.Route("/conversations", func(r chi.Router) {
-						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsRead)).
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionConversationsRead)).
 							Get("/", deps.Conversation.ListConversations)
-						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsRead)).
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionConversationsRead)).
 							Get("/{conversationId}", deps.Conversation.GetConversation)
-						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsRead)).
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionConversationsRead)).
 							Get("/{conversationId}/events", deps.Conversation.ListConversationEvents)
-						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsWrite)).
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionConversationsWrite)).
 							Post("/{conversationId}/stop", deps.Conversation.StopConversation)
-						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsWrite)).
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionConversationsWrite)).
 							Post("/{conversationId}/pause", deps.Conversation.PauseConversation)
-						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsRead)).
+						// Heartbeat deliberately stays Read: it's a passive
+						// "I'm still watching this" keep-alive (see
+						// Service.Heartbeat's doc comment) fired by any open tab,
+						// not a control action — a viewer legitimately watching a
+						// running conversation shouldn't cause it to idle-timeout
+						// out from under them.
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionConversationsRead)).
 							Post("/{conversationId}/heartbeat", deps.Conversation.Heartbeat)
-						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionAgentsRead)).
+						// Write, not Read: sending a message resumes/drives the
+						// conversation (dispatches a real agent turn), the same
+						// capability tier as stop/pause above — a viewer (read
+						// only) must not be able to steer a conversation just
+						// because they can see it.
+						r.With(httpmw.RequirePermissions(deps.Authorizer, httpmw.ProjectScopeFromParam("projectId"), authz.PermissionConversationsWrite)).
 							Post("/{conversationId}/messages", deps.Conversation.SendConversationMessage)
 					})
 				}
@@ -969,6 +1093,39 @@ func loggerMiddleware(log *slog.Logger) func(http.Handler) http.Handler {
 // by setting CORS_ORIGINS). Otherwise only an exact-match Origin gets
 // Access-Control-Allow-Origin echoed back; everything else gets no CORS
 // headers at all, so the browser blocks the response.
+//
+// One narrow exception, checked before either of those: a request whose
+// Origin has the same hostname as this server's own Host header (port
+// ignored) *and* whose path matches httpmw.AnnotationExtensionPathPattern
+// gets its exact Origin echoed back with Access-Control-Allow-Credentials:
+// true, regardless of CORS_ORIGINS. This is what lets the Paca browser
+// extension's content script — running directly on a forwarded environment
+// port, e.g. paca.example.com:31842 — call this API with `credentials:
+// "include"` and actually have a token attached: cookies are scoped by
+// hostname, not by port, so the browser already holds one there. Which
+// token depends on scheme, though: SameSite ignores port but NOT scheme
+// (modern browsers' "Schemeful Same-Site"), so access_token/refresh_token
+// (SameSite=Lax/Strict) only ride along when the forwarded port happens to
+// share the Paca app's own scheme; the domainauth.ScopeAnnotation pair
+// (SameSite=None — see AuthHandler.setAnnotationTokenCookies) is what
+// covers the far more common case where it doesn't. Either way, without
+// this branch the *response* would still be blocked from the extension's
+// own JS by CORS, cookies notwithstanding.
+//
+// The path check matters as much as the hostname check: the forwarded port
+// serves the *user's own dev app*, not code Paca controls, so any script
+// running there — not just the extension's content script — can make this
+// exact same credentialed request. Scoping the exception to
+// httpmw.AnnotationExtensionPathPattern means that page can, at most, act
+// on page annotations (and read its own port-forward's identity) on the
+// caller's behalf; without this scoping it would get free, ambient,
+// full-API access to every account the caller happens to be signed in as
+// (projects, tasks, docs, admin routes, ...) just because they had that
+// page open — and for a ScopeAnnotation token specifically,
+// middleware.applyAuthn enforces the exact same path restriction
+// independently of CORS, so it's held even if this Origin check were ever
+// loosened. Also can't be widened by CORS_ORIGINS — the pattern is fixed at
+// compile time, not configuration.
 func corsMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 	allowAll := len(allowedOrigins) == 0
 	allowed := make(map[string]bool, len(allowedOrigins))
@@ -984,6 +1141,11 @@ func corsMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
 			switch {
+			case origin != "" && sameHostnameOrigin(origin, r.Host) &&
+				httpmw.AnnotationExtensionPathPattern.MatchString(r.URL.Path):
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				w.Header().Set("Vary", "Origin")
 			case allowAll:
 				w.Header().Set("Access-Control-Allow-Origin", "*")
 			case origin != "" && allowed[origin]:
@@ -1000,4 +1162,23 @@ func corsMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// sameHostnameOrigin reports whether origin (a request's Origin header,
+// e.g. "https://paca.example.com:31842") has the same hostname as host (a
+// request's Host header, e.g. "paca.example.com" or "paca.example.com:443")
+// — ignoring port on both sides, and ignoring scheme entirely (a cookie's
+// Secure flag, not this check, is what actually gates whether it's ever
+// sent over plain HTTP in the first place). An unparseable origin never
+// matches.
+func sameHostnameOrigin(origin, host string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || u.Hostname() == "" {
+		return false
+	}
+	reqHost := host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		reqHost = h
+	}
+	return u.Hostname() == reqHost
 }

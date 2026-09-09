@@ -1012,6 +1012,33 @@ func (s *Service) Browse(ctx context.Context, projectID, environmentID uuid.UUID
 	return resp.Path, entries, nil
 }
 
+// VerifyCLIAuth probes whether cliProvider's coding CLI is currently
+// authenticated inside environmentID — each CLI's own real, non-interactive
+// status subcommand where one is confirmed to exist (claude/codex/
+// cursor-agent), a guessed file-existence check only for the one provider
+// without a confirmed status subcommand (gemini-cli) — never an interactive
+// CLI invocation (see agent-runner's internal/executor/providercli package
+// for why: avoids burning API usage or hanging on an interactive prompt).
+// Requires the environment to be StatusRunning, same as Browse.
+func (s *Service) VerifyCLIAuth(ctx context.Context, projectID, environmentID uuid.UUID, cliProvider string) (bool, error) {
+	env, err := s.repo.FindVisibleEnvironmentInProject(ctx, projectID, environmentID)
+	if err != nil {
+		return false, err
+	}
+	if env.BackendRef == nil || env.Status != environmentdom.StatusRunning {
+		return false, environmentdom.ErrEnvironmentNotRunning
+	}
+
+	q := url.Values{}
+	q.Set("backend_ref", *env.BackendRef)
+	q.Set("cli_provider", cliProvider)
+	var resp internalCLIAuthVerifyResponse
+	if err := s.callInternal(ctx, s.httpClient, http.MethodGet, "/internal/environments/"+env.ID.String()+"/cli-auth/verify?"+q.Encode(), nil, &resp); err != nil {
+		return false, fmt.Errorf("agent-runner: verify cli auth: %w", err)
+	}
+	return resp.Authenticated, nil
+}
+
 // DeleteFolder unregisters a folder — a folder row is only ever a pointer
 // to a working directory inside the environment's filesystem, not
 // something Paca owns the contents of, so deleting it never touches the
@@ -1139,6 +1166,25 @@ func (s *Service) ListPortForwards(ctx context.Context, projectID, environmentID
 		return nil, err
 	}
 	return s.repo.ListPortForwards(ctx, env.ID)
+}
+
+// GetPortForward returns a single port forward, verifying it belongs to
+// environmentID which belongs to projectID — the same ownership check
+// DeletePortForward already does, just returning the row instead of
+// removing it.
+func (s *Service) GetPortForward(ctx context.Context, projectID, environmentID, portForwardID uuid.UUID) (*environmentdom.EnvironmentPortForward, error) {
+	env, err := s.repo.FindVisibleEnvironmentInProject(ctx, projectID, environmentID)
+	if err != nil {
+		return nil, err
+	}
+	pf, err := s.repo.FindPortForwardByID(ctx, portForwardID)
+	if err != nil {
+		return nil, err
+	}
+	if pf.EnvironmentID != env.ID {
+		return nil, environmentdom.ErrPortForwardNotFound
+	}
+	return pf, nil
 }
 
 // AddPortForward creates the port-forward row and, if the environment is
@@ -1389,6 +1435,13 @@ type internalBrowseResponse struct {
 		Name  string `json:"name"`
 		IsDir bool   `json:"is_dir"`
 	} `json:"entries"`
+}
+
+// internalCLIAuthVerifyResponse mirrors agent-runner's
+// handleVerifyCLIAuth JSON response — see
+// internal/acpbridge/environment_handlers.go on that side.
+type internalCLIAuthVerifyResponse struct {
+	Authenticated bool `json:"authenticated"`
 }
 
 // environmentCommandReply is the JSON envelope agent-runner's own

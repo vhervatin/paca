@@ -257,8 +257,17 @@ func (h *AgentHandler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 			presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "acp_provider is required"))
 			return
 		}
+	case agentdom.AgentTypeProviderCLI:
+		switch {
+		case req.CLIProvider == "":
+			presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "cli_provider is required"))
+			return
+		case req.DefaultEnvironmentID == nil || *req.DefaultEnvironmentID == uuid.Nil:
+			presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "default_environment_id is required for provider_cli agents"))
+			return
+		}
 	default:
-		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "agent_type must be one of: llm, acp"))
+		presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "agent_type must be one of: llm, acp, provider_cli"))
 		return
 	}
 	claims := middleware.ClaimsFrom(r)
@@ -274,9 +283,14 @@ func (h *AgentHandler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		LLMBaseURL:           req.LLMBaseURL,
 		ACPProvider:          req.ACPProvider,
 		ACPCommand:           req.ACPCommand,
+		CLIProvider:          req.CLIProvider,
+		CLIModel:             req.CLIModel,
+		CLIAuthMode:          req.CLIAuthMode,
+		CLIAPIKey:            req.CLIAPIKey,
 		SystemPrompt:         req.SystemPrompt,
 		MaxIterations:        req.MaxIterations,
 		TimeoutMinutes:       req.TimeoutMinutes,
+		ParallelismLimit:     req.ParallelismLimit,
 		GitCommitterName:     req.GitCommitterName,
 		GitCommitterEmail:    req.GitCommitterEmail,
 		DockerEnabled:        req.DockerEnabled,
@@ -318,9 +332,14 @@ func (h *AgentHandler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 		LLMBaseURL:           req.LLMBaseURL,
 		ACPProvider:          req.ACPProvider,
 		ACPCommand:           req.ACPCommand,
+		CLIProvider:          req.CLIProvider,
+		CLIModel:             req.CLIModel,
+		CLIAuthMode:          req.CLIAuthMode,
+		CLIAPIKey:            req.CLIAPIKey,
 		SystemPrompt:         req.SystemPrompt,
 		MaxIterations:        req.MaxIterations,
 		TimeoutMinutes:       req.TimeoutMinutes,
+		ParallelismLimit:     req.ParallelismLimit,
 		GitCommitterName:     req.GitCommitterName,
 		GitCommitterEmail:    req.GitCommitterEmail,
 		DockerEnabled:        req.DockerEnabled,
@@ -441,6 +460,7 @@ func (h *AgentHandler) CreateGlobalAgent(w http.ResponseWriter, r *http.Request)
 		SystemPrompt:      req.SystemPrompt,
 		MaxIterations:     req.MaxIterations,
 		TimeoutMinutes:    req.TimeoutMinutes,
+		ParallelismLimit:  req.ParallelismLimit,
 		GitCommitterName:  req.GitCommitterName,
 		GitCommitterEmail: req.GitCommitterEmail,
 		DockerEnabled:     req.DockerEnabled,
@@ -478,6 +498,7 @@ func (h *AgentHandler) UpdateGlobalAgent(w http.ResponseWriter, r *http.Request)
 		SystemPrompt:      req.SystemPrompt,
 		MaxIterations:     req.MaxIterations,
 		TimeoutMinutes:    req.TimeoutMinutes,
+		ParallelismLimit:  req.ParallelismLimit,
 		GitCommitterName:  req.GitCommitterName,
 		GitCommitterEmail: req.GitCommitterEmail,
 		DockerEnabled:     req.DockerEnabled,
@@ -1276,7 +1297,7 @@ func (h *AgentHandler) StartChatSession(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	session, conv, err := h.svc.StartChatSession(r.Context(), projectID, agentID, memberID, req.Message, req.EnvironmentID, req.FolderID, req.ContextItems)
+	session, conv, err := h.svc.StartChatSession(r.Context(), projectID, agentID, memberID, req.Message, req.EnvironmentID, req.FolderID, req.ContextItems, req.OnBusy)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -1318,7 +1339,7 @@ func (h *AgentHandler) SendChatMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conv, err := h.svc.SendChatMessage(r.Context(), projectID, sessionID, memberID, req.Message, req.ContextItems)
+	conv, err := h.svc.SendChatMessage(r.Context(), projectID, sessionID, memberID, req.Message, req.ContextItems, req.OnBusy)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -1382,7 +1403,7 @@ func (h *AgentHandler) StartGlobalChatSession(w http.ResponseWriter, r *http.Req
 		presenter.Error(w, r, err)
 		return
 	}
-	session, conv, err := h.svc.StartGlobalChatSession(r.Context(), agentID, userID, req.Message, req.ContextItems)
+	session, conv, err := h.svc.StartGlobalChatSession(r.Context(), agentID, userID, req.Message, req.ContextItems, req.OnBusy)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -1418,7 +1439,7 @@ func (h *AgentHandler) SendGlobalChatMessage(w http.ResponseWriter, r *http.Requ
 		presenter.Error(w, r, err)
 		return
 	}
-	conv, err := h.svc.SendGlobalChatMessage(r.Context(), sessionID, userID, req.Message, req.ContextItems)
+	conv, err := h.svc.SendGlobalChatMessage(r.Context(), sessionID, userID, req.Message, req.ContextItems, req.OnBusy)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -1598,6 +1619,35 @@ func (h *AgentHandler) GenerateACPBridgeToken(w http.ResponseWriter, r *http.Req
 		Token:      token,
 		RunCommand: runCommand,
 	})
+}
+
+// --- Provider CLI ------------------------------------------------------------
+
+// VerifyCLILogin handles POST
+// /projects/:projectId/agents/:agentId/verify-cli-login. It probes (never
+// an interactive CLI invocation — see agentsvc.Service.VerifyCLILogin's own
+// doc comment) whether a provider_cli agent's underlying CLI is currently
+// authenticated inside its default environment, and, on success, persists
+// the verification timestamp. See EnvironmentHandler.VerifyCLILogin for the
+// environment-scoped sibling used before an agent exists yet (the
+// create-agent dialog's own "Verify login" button).
+func (h *AgentHandler) VerifyCLILogin(w http.ResponseWriter, r *http.Request) {
+	projectID, err := parseProjectID(r)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	agentID, err := parseParamUUID(r, "agentId")
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	authenticated, err := h.svc.VerifyCLILogin(r.Context(), projectID, agentID)
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+	presenter.OK(w, r, dto.VerifyCLILoginResponse{Authenticated: authenticated})
 }
 
 // GenerateGlobalACPBridgeToken handles POST

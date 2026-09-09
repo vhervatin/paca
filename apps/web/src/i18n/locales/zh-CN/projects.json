@@ -33,6 +33,9 @@
 			"agentTypeLLMHint": "Paca 直接调用模型 API，并在托管 Paca 的服务器上的沙箱容器中运行智能体。",
 			"agentTypeACP": "ACP（本地 CLI）",
 			"agentTypeACPHint": "委托给您自己运行的编码 CLI — Claude Code、Codex、Gemini CLI 或自定义 ACP 服务器。",
+			"agentTypeProviderCLI": "供应商 CLI",
+			"agentTypeProviderCLIHint": "在 Paca 托管的静态环境中运行 Claude Code、Codex、Cursor 或 Gemini CLI，控制方式与 LLM 智能体相同。",
+			"agentTypeProviderCLIGlobalDisabledHint": "仅适用于项目智能体。请从项目的智能体页面创建此智能体。",
 			"modelSection": "模型",
 			"providerLabel": "提供方",
 			"modelLabel": "模型",
@@ -54,6 +57,22 @@
 			"acpCommandPlaceholder": "npx -y my-acp-server",
 			"acpCommandHint": "用于启动您的 ACP 服务器的、以空格分隔的命令。",
 			"acpGuidance": "工具、MCP 服务器和技能不在此处配置 — 它们来自您自己的 ACP 客户端本地设置，使用您自己的 git/gh 凭据运行（克隆、push 和创建 PR 都能原生工作）。创建此智能体后，我们将指导您连接本地桥接、安装 Paca 技能并配置 MCP 服务器。",
+			"cliSection": "供应商 CLI",
+			"cliProviderLabel": "CLI 供应商",
+			"cliProviderClaudeCode": "Claude Code",
+			"cliProviderCodex": "Codex",
+			"cliProviderGeminiCli": "Gemini CLI",
+			"cliProviderCursorAgent": "Cursor",
+			"cliModelLabel": "模型",
+			"cliModelPlaceholder": "例如 sonnet、gpt-5.2-codex",
+			"cliGuidance": "您在下方配置的 MCP 服务器会在每次对话中同步到该 CLI 自己的配置中 — Goose 只是用这个 CLI 来运行智能体，并不管理它的工具。技能同步目前仅适用于 Claude Code。",
+			"cliEnvironmentHint": "必填 — 该 CLI 的登录状态需要在多次对话间保持，而这只有静态环境才能提供。",
+			"environmentPlaceholder": "选择一个环境",
+			"cliAuthModeLabel": "身份验证",
+			"cliLoginModeHint": "该 CLI 需要在智能体环境的终端中进行一次性的自身登录 — 此智能体类型目前尚不支持 API 密钥认证。",
+			"cliLoginCommandLabel": "登录命令",
+			"cliOpenTerminal": "打开终端",
+			"cliVerifyLogin": "验证登录",
 			"systemPromptLabel": "系统提示词",
 			"optional": "（可选）",
 			"charsCount": "{{count}} 个字符",
@@ -166,6 +185,9 @@
 				"committerEmailLabel": "提交者邮箱",
 				"dockerEnabledLabel": "Docker 访问权限",
 				"dockerEnabledHint": "为该代理在其沙盒内提供一个私有的 Docker 守护进程。默认关闭——仅为实际需要运行 Docker 命令的代理启用此选项,因为它会增加每次对话的启动时间。",
+				"parallelismLimitLabel": "并行数量上限",
+				"parallelismLimitHint": "该代理最多可以同时运行多少个对话。超出的任务会在队列中等待,直到有空位释放——默认值为 1,这样各个工单会依次处理,而不会在同一个工作目录中相互冲突。",
+				"parallelismLimitFixedHint": "该代理固定为 1——它在单一共享目录中工作(ACP 代理的本地检出目录,或静态默认环境),因此一次只能安全运行一个对话。",
 				"environmentSection": "环境",
 				"defaultEnvironmentLabel": "默认环境",
 				"defaultEnvironmentHint": "将此智能体的对话连接到静态环境，而不是每次都创建一个一次性沙盒。",
@@ -186,7 +208,25 @@
 				"acpProviderCustom": "自定义…",
 				"acpCommandLabel": "命令",
 				"acpCommandHint": "用于启动您的 ACP 服务器的、以空格分隔的命令。",
-				"acpGuidanceBanner": "该智能体的工具、MCP 服务器和技能是在您本地的 ACP 客户端中配置的，使用您自己的 git/gh 凭据运行 — 而非在 Paca 中配置。"
+				"acpGuidanceBanner": "该智能体的工具、MCP 服务器和技能是在您本地的 ACP 客户端中配置的，使用您自己的 git/gh 凭据运行 — 而非在 Paca 中配置。",
+				"cliConfiguration": "供应商 CLI 配置",
+				"cliProviderLabel": "CLI 供应商",
+				"cliProviderClaudeCode": "Claude Code",
+				"cliProviderCodex": "Codex",
+				"cliProviderGeminiCli": "Gemini CLI",
+				"cliProviderCursorAgent": "Cursor",
+				"cliModelLabel": "模型",
+				"cliModelPlaceholder": "例如 sonnet、gpt-5.2-codex",
+				"cliGuidanceBanner": "下方配置的 MCP 服务器会在每次对话中同步到该 CLI 自己的配置中 — Goose 只是运行这个 CLI，并不管理它的工具。技能同步目前仅适用于 Claude Code。",
+				"cliLoginPanelTitle": "CLI 登录",
+				"cliLoginPanelDescription": "验证该智能体的 CLI 当前是否已登录，或打开其环境的终端进行登录。",
+				"cliLoginOpenTerminal": "打开终端",
+				"cliLoginVerify": "验证登录",
+				"cliLoginVerifiedNow": "已通过身份验证。",
+				"cliLoginNotAuthenticated": "尚未通过身份验证 — 请通过终端登录，然后重新验证。",
+				"cliLoginVerifyFailed": "无法检查登录状态，请重试。",
+				"cliLoginLastVerified": "上次验证时间：{{date}}。",
+				"cliLoginNoEnvironment": "该智能体尚未设置环境 — 请先在上方选择一个环境。"
 			},
 			"mcp": {
 				"serverCount_one": "已配置 {{count}} 个服务器",
@@ -290,6 +330,15 @@
 			"newBelow_one": "{{count}} 条新消息",
 			"newBelow_other": "{{count}} 条新消息"
 		},
+		"busyDialog": {
+			"title": "代理正忙",
+			"description": "该代理当前已在运行 {{running}}/{{limit}} 个对话。将此消息加入队列,一旦有空位就会自动开始;也可以选择立即发送。",
+			"folderDescription": "另一个对话已经在这个环境文件夹中工作。将此消息加入队列,一旦该对话结束就会自动开始;也可以选择立即发送。",
+			"cancel": "取消",
+			"queue": "加入队列",
+			"force": "立即发送",
+			"cancelledError": "消息未发送。"
+		},
 		"thread": {
 			"composerPlaceholder": "给代理发消息…",
 			"welcomeHeading": "今天我能帮你做些什么？",
@@ -348,6 +397,7 @@
 				"contextTypeDoc": "文档",
 				"contextTypeConversation": "对话",
 				"contextTypeAutomation": "自动化",
+				"contextTypeAnnotation": "评论",
 				"noContextResults": "未找到结果",
 				"contextSearchMinChars": "请输入至少2个字符进行搜索"
 			}
@@ -479,6 +529,7 @@
 				"deleteFailed": "删除端口转发失败，请重试。",
 				"containerPort": "容器端口 {{port}}",
 				"unassigned": "尚未分配",
+				"open": "打开",
 				"restart": "重启",
 				"pendingRestartRunning": "已添加或删除了端口转发。请重启环境以应用更改。",
 				"pendingRestartStopped": "已添加或删除了端口转发。更改将在该环境下次启动时应用。",
@@ -683,6 +734,14 @@
 				"label": "管理智能体",
 				"description": "创建、配置和删除 AI 智能体"
 			},
+			"conversationsRead": {
+				"label": "查看对话",
+				"description": "浏览并查看智能体对话，但无法发起或回复"
+			},
+			"conversationsWrite": {
+				"label": "管理对话",
+				"description": "与智能体发起对话、回复消息，并停止或暂停对话"
+			},
 			"environmentsRead": {
 				"label": "查看环境",
 				"description": "浏览环境并查看其配置"
@@ -712,6 +771,7 @@
 			"sprints": "冲刺",
 			"documents": "文档",
 			"aiAgents": "AI 智能体",
+			"conversations": "对话",
 			"environments": "环境",
 			"workflows": "自动化",
 			"plugins": "插件"
@@ -844,6 +904,8 @@
 			"optionsLabel": "选项",
 			"addOptionPlaceholder": "添加选项…",
 			"addOption": "添加",
+			"optionColorLabel": "选项颜色",
+			"noColor": "无颜色",
 			"requiredLabel": "必填",
 			"requiredHint": "用户在创建或编辑任务时必须填写此字段。",
 			"fieldTypes": {
@@ -1057,6 +1119,7 @@
 			"reporter": "报告人",
 			"sprint": "冲刺",
 			"productBacklog": "产品待办列表",
+			"sprintNotStarted": "(未开始)",
 			"epic": "史诗",
 			"viewEpic": "查看史诗",
 			"removeEpic": "移除史诗",
@@ -1226,6 +1289,77 @@
 			"watchSession": "查看会话",
 			"madeChange": "进行了更改",
 			"descriptionChangeDiff": "描述更改差异"
+		}
+	},
+	"portForwardDetail": {
+		"notFound": {
+			"title": "未找到端口转发",
+			"description": "此端口转发可能已被删除，或链接无效。",
+			"ariaLabel": "端口转发详情",
+			"backToEnvironment": "返回环境"
+		},
+		"tabs": {
+			"overview": "概览",
+			"comments": "评论"
+		},
+		"overview": {
+			"containerPort": "容器端口 {{port}}",
+			"hostPort": "主机端口",
+			"unassigned": "尚未分配",
+			"createdAt": "创建于 {{date}}",
+			"open": "打开",
+			"delete": "删除",
+			"deleteDialog": {
+				"title": "删除端口转发？",
+				"description_one": "这也将删除通过此端口转发发表的 {{count}} 条评论。此操作无法撤销。",
+				"description_other": "这也将删除通过此端口转发发表的 {{count}} 条评论。此操作无法撤销。",
+				"cancel": "取消",
+				"confirm": "删除"
+			}
+		},
+		"comments": {
+			"empty": "还没有评论。安装 Paca 浏览器扩展程序即可直接在此端口转发预览的元素上添加评论。",
+			"status": {
+				"open": "待处理",
+				"resolved": "已解决"
+			},
+			"replyCount_one": "{{count}} 条回复",
+			"replyCount_other": "{{count}} 条回复",
+			"resolve": "标记为已解决",
+			"reopen": "重新打开",
+			"createTask": "创建任务",
+			"taskCreated": "任务已创建"
+		}
+	},
+	"commentDetail": {
+		"notFound": {
+			"title": "未找到评论",
+			"description": "此评论可能已被删除，或链接无效。",
+			"ariaLabel": "评论详情",
+			"backToPortForward": "返回端口转发"
+		},
+		"header": {
+			"createdAt": "评论于 {{date}}"
+		},
+		"context": {
+			"title": "上下文",
+			"pagePath": "页面",
+			"elementSelector": "元素选择器",
+			"accessibleName": "无障碍名称",
+			"consoleErrors": "控制台错误",
+			"noConsoleErrors": "未捕获到控制台错误",
+			"failedRequests": "失败的请求",
+			"noFailedRequests": "未捕获到失败的请求"
+		},
+		"thread": {
+			"replyPlaceholder": "写下回复…",
+			"reply": "回复"
+		},
+		"actions": {
+			"create": "创建",
+			"createConversation": "创建对话",
+			"copyLink": "复制链接",
+			"linkCopied": "已复制！"
 		}
 	},
 	"epicPicker": {
@@ -1453,12 +1587,14 @@
 		},
 		"startSprintModal": {
 			"title": "开始冲刺",
+			"alreadyActiveWarning": "\"{{name}}\" 在此项目中已处于活动状态。开始此冲刺不会停止它。",
 			"nameLabel": "名称",
 			"goalLabel": "目标",
 			"optional": "（可选）",
 			"goalPlaceholder": "此次冲刺应达成什么目标？",
 			"startDateLabel": "开始日期",
 			"endDateLabel": "结束日期",
+			"error": "开始冲刺失败，请重试。",
 			"cancel": "取消",
 			"starting": "正在启动…",
 			"startSprint": "开始冲刺"
@@ -1470,11 +1606,12 @@
 		"sprintDetail": {
 			"notFound": "未找到冲刺或访问被拒绝。",
 			"statusActive": "进行中",
-			"statusPlanned": "已计划",
+			"statusPlanned": "草稿",
 			"statusCompleted": "已完成",
 			"description": "{{status}}的冲刺",
 			"descriptionWithStartDate": "{{status}}的冲刺 · 开始于 {{date}}",
 			"editSprint": "编辑冲刺",
+			"startSprint": "开始冲刺",
 			"editSprintModal": {
 				"title": "编辑冲刺",
 				"nameLabel": "名称",
@@ -1764,7 +1901,7 @@
 				"sprintGoalLabel": "目标",
 				"sprintStatusLabel": "状态",
 				"sprintStatusUnchanged": "保持不变",
-				"sprintStatusPlanned": "已计划",
+				"sprintStatusPlanned": "草稿",
 				"sprintStatusActive": "进行中",
 				"sprintStatusCompleted": "已完成",
 				"completeSprintHint": "将冲刺标记为已完成，并移动其未完成的任务。",

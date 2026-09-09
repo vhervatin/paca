@@ -54,6 +54,7 @@ export function AgentCard({
 	const navigate = useNavigate();
 	const [confirmDelete, setConfirmDelete] = useState(false);
 	const isAcp = agent.agent_type === "acp";
+	const isProviderCli = agent.agent_type === "provider_cli";
 
 	const deleteMutation = useMutation({
 		mutationFn: () =>
@@ -131,7 +132,11 @@ export function AgentCard({
 
 					<div className="flex items-center gap-1.5 shrink-0">
 						<Badge variant="secondary" className="text-xs font-medium">
-							{isAcp ? (agent.acp_provider ?? "acp") : agent.llm_provider}
+							{isAcp
+								? (agent.acp_provider ?? "acp")
+								: isProviderCli
+									? (agent.cli_provider ?? "provider_cli")
+									: agent.llm_provider}
 						</Badge>
 						{canWrite && (
 							<DropdownMenu>

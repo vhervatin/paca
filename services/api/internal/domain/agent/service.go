@@ -41,6 +41,13 @@ type AgentService interface {
 	// connect command so tool calls are attributed to the agent itself
 	// instead of to whichever human generated the command.
 	GenerateAgentMCPKey(ctx context.Context, projectID, agentID uuid.UUID) (plaintext string, err error)
+	// VerifyCLILogin probes whether a provider_cli agent's CLI is currently
+	// authenticated inside its default environment (a file-existence check
+	// — see docs/ai-agent/overview.md's provider_cli section), and records
+	// the result's timestamp on success via the repository's
+	// SetCLILoginVerifiedAt. Returns ErrAgentNotProviderCLI for any other
+	// agent_type.
+	VerifyCLILogin(ctx context.Context, projectID, agentID uuid.UUID) (authenticated bool, err error)
 
 	// InitiateAvatarUpload starts an avatar upload for a project-scoped agent.
 	InitiateAvatarUpload(ctx context.Context, projectID, agentID uuid.UUID, fileName, contentType string, fileSize int64, uploadedBy uuid.UUID) (*attachmentdom.UploadSession, error)
@@ -168,7 +175,13 @@ type ConversationService interface {
 	// Heartbeat refreshes a chat conversation's idle timer; called
 	// periodically by the frontend while a conversation is loaded in a tab.
 	Heartbeat(ctx context.Context, projectID, conversationID, memberID uuid.UUID) error
-	SendConversationMessage(ctx context.Context, projectID, conversationID uuid.UUID, message string, memberID uuid.UUID, contextItems []ContextItemRef) error
+	// SendConversationMessage replies to conversationID. onBusy ("" |
+	// OnBusyQueue | OnBusyForce — see OnBusyQueue's doc comment) only
+	// matters when this resumes an ACP or environment-attached conversation
+	// in place (see the implementation's doc comment): every other
+	// conversation must already be "running" to accept a reply at all, so
+	// there's no capacity decision to make there.
+	SendConversationMessage(ctx context.Context, projectID, conversationID uuid.UUID, message string, memberID uuid.UUID, contextItems []ContextItemRef, onBusy string) error
 
 	// -- Global chat conversations (ProjectID == uuid.Nil). Thin siblings of
 	// the methods above with the ownership check inverted (ProjectID must be
@@ -191,7 +204,9 @@ type ConversationService interface {
 	StopGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) error
 	PauseGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) error
 	GlobalHeartbeat(ctx context.Context, conversationID, actorUserID uuid.UUID) error
-	SendGlobalConversationMessage(ctx context.Context, conversationID uuid.UUID, message string, actorUserID uuid.UUID, contextItems []ContextItemRef) error
+	// SendGlobalConversationMessage is SendConversationMessage's global-chat
+	// sibling — see its doc comment for onBusy.
+	SendGlobalConversationMessage(ctx context.Context, conversationID uuid.UUID, message string, actorUserID uuid.UUID, contextItems []ContextItemRef, onBusy string) error
 }
 
 // ChatSessionService defines chat session use cases.
@@ -202,8 +217,11 @@ type ChatSessionService interface {
 	// environmentID falls back to the agent's own DefaultEnvironmentID;
 	// folderID auto-selects if the resolved environment has exactly one
 	// folder). See environmentdom.EnvironmentService.ResolveConversationWorkdir.
-	StartChatSession(ctx context.Context, projectID, agentID, memberID uuid.UUID, message string, environmentID, folderID *uuid.UUID, contextItems []ContextItemRef) (*AgentChatSession, *AgentConversation, error)
-	SendChatMessage(ctx context.Context, projectID, sessionID, memberID uuid.UUID, message string, contextItems []ContextItemRef) (*AgentConversation, error)
+	// onBusy is one of "" (ask, the default) | OnBusyQueue | OnBusyForce —
+	// see OnBusyQueue's doc comment for what each does when agentID is
+	// already at ParallelismLimit running conversations.
+	StartChatSession(ctx context.Context, projectID, agentID, memberID uuid.UUID, message string, environmentID, folderID *uuid.UUID, contextItems []ContextItemRef, onBusy string) (*AgentChatSession, *AgentConversation, error)
+	SendChatMessage(ctx context.Context, projectID, sessionID, memberID uuid.UUID, message string, contextItems []ContextItemRef, onBusy string) (*AgentConversation, error)
 	ListChatMessages(ctx context.Context, sessionID, memberID uuid.UUID, offset, limit int) ([]*AgentConversationEvent, int64, error)
 
 	// -- Global chat sessions (chatting with a global agent from the home
@@ -211,8 +229,8 @@ type ChatSessionService interface {
 	// comment.
 
 	ListGlobalChatSessions(ctx context.Context, agentID, actorUserID uuid.UUID) ([]*AgentChatSession, error)
-	StartGlobalChatSession(ctx context.Context, agentID, actorUserID uuid.UUID, message string, contextItems []ContextItemRef) (*AgentChatSession, *AgentConversation, error)
-	SendGlobalChatMessage(ctx context.Context, sessionID, actorUserID uuid.UUID, message string, contextItems []ContextItemRef) (*AgentConversation, error)
+	StartGlobalChatSession(ctx context.Context, agentID, actorUserID uuid.UUID, message string, contextItems []ContextItemRef, onBusy string) (*AgentChatSession, *AgentConversation, error)
+	SendGlobalChatMessage(ctx context.Context, sessionID, actorUserID uuid.UUID, message string, contextItems []ContextItemRef, onBusy string) (*AgentConversation, error)
 }
 
 // ActivityFeedService defines the agent activity feed use case.
@@ -229,13 +247,23 @@ type CreateAgentInput struct {
 	// AgentType is "llm" (default) or "acp". LLM fields below are required
 	// (and ACP fields ignored) for "llm"; ACP fields are required (and LLM
 	// fields ignored) for "acp".
-	AgentType         string
-	LLMProvider       string
-	LLMModel          string
-	LLMAPIKey         string // plain text key; stored encrypted by service
-	LLMBaseURL        string
-	ACPProvider       string
-	ACPCommand        []string
+	AgentType   string
+	LLMProvider string
+	LLMModel    string
+	LLMAPIKey   string // plain text key; stored encrypted by service
+	LLMBaseURL  string
+	ACPProvider string
+	ACPCommand  []string
+	// CLIProvider is one of claude-code | codex | cursor-agent | gemini-cli
+	// — required (and the fields below meaningful) only when AgentType is
+	// "provider_cli". See Agent.CLIProvider's doc comment.
+	CLIProvider string
+	CLIModel    string
+	// CLIAuthMode is "api_key" or "login"; defaults to "login" if empty.
+	CLIAuthMode string
+	// CLIAPIKey is a plaintext key; stored encrypted by the service. Only
+	// meaningful when CLIAuthMode is "api_key".
+	CLIAPIKey         string
 	SystemPrompt      string
 	MaxIterations     int
 	TimeoutMinutes    int
@@ -254,8 +282,12 @@ type CreateAgentInput struct {
 	// Like DefaultEnvironmentID, CreateGlobalAgentInput has no equivalent
 	// field.
 	DefaultFolderID *uuid.UUID
-	ProjectRoleID   uuid.UUID
-	CreatedBy       *uuid.UUID
+	// ParallelismLimit is clamped the same way MaxIterations is (<= 0 ->
+	// default of 1, above the cap -> the cap) — see Agent.ParallelismLimit's
+	// doc comment.
+	ParallelismLimit int
+	ProjectRoleID    uuid.UUID
+	CreatedBy        *uuid.UUID
 }
 
 // CreateGlobalAgentInput carries fields required to create a global agent.
@@ -278,26 +310,38 @@ type CreateGlobalAgentInput struct {
 	GitCommitterName  string
 	GitCommitterEmail string
 	DockerEnabled     bool
+	ParallelismLimit  int
 	GlobalRoleID      *uuid.UUID
 	CreatedBy         *uuid.UUID
 }
 
 // UpdateAgentInput carries mutable agent fields.
 type UpdateAgentInput struct {
-	Name              *string
-	Handle            *string
-	LLMProvider       *string
-	LLMModel          *string
-	LLMAPIKey         *string
-	LLMBaseURL        *string
-	ACPProvider       *string
-	ACPCommand        []string
+	Name        *string
+	Handle      *string
+	LLMProvider *string
+	LLMModel    *string
+	LLMAPIKey   *string
+	LLMBaseURL  *string
+	ACPProvider *string
+	ACPCommand  []string
+	// CLIProvider/CLIModel/CLIAuthMode/CLIAPIKey mirror CreateAgentInput's
+	// fields — nil means "unchanged" (same convention as every other
+	// pointer field here); only meaningful for an existing provider_cli
+	// agent (see UpdateAgent's per-type field guard).
+	CLIProvider       *string
+	CLIModel          *string
+	CLIAuthMode       *string
+	CLIAPIKey         *string
 	SystemPrompt      *string
 	MaxIterations     *int
 	TimeoutMinutes    *int
 	GitCommitterName  *string
 	GitCommitterEmail *string
 	DockerEnabled     *bool
+	// ParallelismLimit: nil means unchanged, same convention as every other
+	// pointer field here. See Agent.ParallelismLimit's doc comment.
+	ParallelismLimit *int
 	// GlobalRoleID is only meaningful for AgentScopeGlobal agents (see
 	// UpdateGlobalAgent); ignored by UpdateAgent for project-scoped agents.
 	GlobalRoleID *uuid.UUID

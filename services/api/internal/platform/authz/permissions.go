@@ -47,6 +47,20 @@ const (
 	PermissionAgentsWrite Permission = "agents.write"
 	PermissionAgentsAll   Permission = "agents.*"
 
+	// PermissionConversationsRead/Write gate a conversation itself (viewing
+	// its transcript, or creating/driving one — starting a chat session,
+	// sending a message, stopping/pausing a run) — split from Agents, which
+	// gates the agent *entity's configuration* (its MCP servers, skills, env
+	// vars, avatar, etc). A role can therefore let someone chat with an
+	// already-configured agent without also letting them reconfigure it, or
+	// the reverse. Covers both the human-facing routes
+	// (/conversations/*, /agents/{id}/chat-sessions*) and the agent-
+	// authenticated read_conversation MCP tool (see
+	// Service.authorizeConversationsReadForConversation).
+	PermissionConversationsRead  Permission = "conversations.read"
+	PermissionConversationsWrite Permission = "conversations.write"
+	PermissionConversationsAll   Permission = "conversations.*"
+
 	// PermissionEnvironmentsConnect gates gaining a live, interactive
 	// session inside an already-running environment — today that's
 	// minting a terminal ticket (EnvironmentHandler.TerminalTicket), which
@@ -62,6 +76,17 @@ const (
 	PermissionWorkflowsRead  Permission = "workflows.read"
 	PermissionWorkflowsWrite Permission = "workflows.write"
 	PermissionWorkflowsAll   Permission = "workflows.*"
+
+	// PermissionAnnotationsResolve gates resolving/reopening a page
+	// annotation (a comment pinned via the Paca browser extension) without
+	// granting the ability to create or delete one — split from Write the
+	// same way PermissionEnvironmentsConnect is split from
+	// PermissionEnvironmentsWrite, so a role can triage/dismiss comments
+	// without being able to author or remove them.
+	PermissionAnnotationsRead    Permission = "annotations.read"
+	PermissionAnnotationsWrite   Permission = "annotations.write"
+	PermissionAnnotationsResolve Permission = "annotations.resolve"
+	PermissionAnnotationsAll     Permission = "annotations.*"
 
 	// PermissionSettingsWrite gates changes to instance-wide workspace
 	// branding (logo/favicon/primary color). There is no paired

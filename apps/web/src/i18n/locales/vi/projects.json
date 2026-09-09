@@ -33,6 +33,9 @@
 			"agentTypeLLMHint": "Paca gọi trực tiếp API của mô hình và chạy agent trong một container sandbox trên máy chủ lưu trữ Paca.",
 			"agentTypeACP": "ACP (CLI cục bộ)",
 			"agentTypeACPHint": "Ủy quyền cho một CLI lập trình mà bạn tự chạy — Claude Code, Codex, Gemini CLI hoặc máy chủ ACP tùy chỉnh.",
+			"agentTypeProviderCLI": "CLI nhà cung cấp",
+			"agentTypeProviderCLIHint": "Chạy Claude Code, Codex, Cursor hoặc Gemini CLI trong một môi trường tĩnh do Paca lưu trữ, được điều khiển theo cách giống như một agent LLM.",
+			"agentTypeProviderCLIGlobalDisabledHint": "Chỉ khả dụng cho agent thuộc dự án. Hãy tạo agent này từ trang Agents của một dự án.",
 			"modelSection": "Mô hình",
 			"providerLabel": "Nhà cung cấp",
 			"modelLabel": "Mô hình",
@@ -54,6 +57,22 @@
 			"acpCommandPlaceholder": "npx -y my-acp-server",
 			"acpCommandHint": "Lệnh cách nhau bằng dấu cách, dùng để khởi chạy máy chủ ACP của bạn.",
 			"acpGuidance": "Công cụ, máy chủ MCP và skill không được cấu hình ở đây — chúng đến từ cấu hình cục bộ của chính client ACP của bạn, chạy với thông tin đăng nhập git/gh của riêng bạn (clone, push và mở PR đều hoạt động gốc). Sau khi tạo agent này, chúng tôi sẽ hướng dẫn bạn kết nối bridge cục bộ, cài đặt skill Paca và thiết lập máy chủ MCP.",
+			"cliSection": "CLI nhà cung cấp",
+			"cliProviderLabel": "Nhà cung cấp CLI",
+			"cliProviderClaudeCode": "Claude Code",
+			"cliProviderCodex": "Codex",
+			"cliProviderGeminiCli": "Gemini CLI",
+			"cliProviderCursorAgent": "Cursor",
+			"cliModelLabel": "Mô hình",
+			"cliModelPlaceholder": "vd. sonnet, gpt-5.2-codex",
+			"cliGuidance": "Các máy chủ MCP bạn cấu hình bên dưới sẽ được đồng bộ vào cấu hình riêng của CLI này trong mỗi cuộc trò chuyện — Goose chỉ dùng CLI này để chạy agent, không quản lý công cụ của nó. Đồng bộ skill hiện chỉ hoạt động với Claude Code.",
+			"cliEnvironmentHint": "Bắt buộc — trạng thái đăng nhập của CLI này phải được giữ nguyên qua các cuộc trò chuyện, điều mà chỉ môi trường tĩnh mới cung cấp được.",
+			"environmentPlaceholder": "Chọn một môi trường",
+			"cliAuthModeLabel": "Xác thực",
+			"cliLoginModeHint": "CLI này cần tự đăng nhập một lần bên trong terminal môi trường của agent — xác thực bằng API key chưa khả dụng cho loại agent này.",
+			"cliLoginCommandLabel": "Lệnh đăng nhập",
+			"cliOpenTerminal": "Mở terminal",
+			"cliVerifyLogin": "Xác minh đăng nhập",
 			"systemPromptLabel": "System Prompt",
 			"optional": "(tùy chọn)",
 			"charsCount": "{{count}} ký tự",
@@ -166,6 +185,9 @@
 				"committerEmailLabel": "Email committer",
 				"dockerEnabledLabel": "Quyền truy cập Docker",
 				"dockerEnabledHint": "Cấp cho agent này một daemon Docker riêng bên trong sandbox của nó. Mặc định tắt — chỉ bật cho các agent thực sự chạy lệnh Docker, vì việc này làm tăng thời gian khởi động cho mỗi cuộc hội thoại.",
+				"parallelismLimitLabel": "Giới hạn chạy song song",
+				"parallelismLimitHint": "Số cuộc hội thoại của agent này có thể chạy cùng lúc. Công việc dư ra sẽ chờ trong hàng đợi cho đến khi có chỗ trống — mặc định là 1, để các ticket được xử lý lần lượt thay vì tranh chấp cùng một thư mục làm việc.",
+				"parallelismLimitFixedHint": "Cố định ở mức 1 cho agent này — nó làm việc trong một thư mục dùng chung duy nhất (bản checkout cục bộ của agent ACP, hoặc một môi trường mặc định tĩnh), nên chỉ một cuộc hội thoại có thể chạy an toàn tại một thời điểm.",
 				"environmentSection": "Môi trường",
 				"defaultEnvironmentLabel": "Môi trường mặc định",
 				"defaultEnvironmentHint": "Gắn các cuộc hội thoại của agent này vào một môi trường tĩnh thay vì tạo sandbox dùng một lần mỗi lần.",
@@ -186,7 +208,25 @@
 				"acpProviderCustom": "Tùy chỉnh…",
 				"acpCommandLabel": "Lệnh",
 				"acpCommandHint": "Lệnh cách nhau bằng dấu cách, dùng để khởi chạy máy chủ ACP của bạn.",
-				"acpGuidanceBanner": "Công cụ, máy chủ MCP và skill của agent này được cấu hình trong client ACP cục bộ của bạn, chạy với thông tin đăng nhập git/gh của riêng bạn — không phải trong Paca."
+				"acpGuidanceBanner": "Công cụ, máy chủ MCP và skill của agent này được cấu hình trong client ACP cục bộ của bạn, chạy với thông tin đăng nhập git/gh của riêng bạn — không phải trong Paca.",
+				"cliConfiguration": "Cấu hình CLI nhà cung cấp",
+				"cliProviderLabel": "Nhà cung cấp CLI",
+				"cliProviderClaudeCode": "Claude Code",
+				"cliProviderCodex": "Codex",
+				"cliProviderGeminiCli": "Gemini CLI",
+				"cliProviderCursorAgent": "Cursor",
+				"cliModelLabel": "Mô hình",
+				"cliModelPlaceholder": "vd. sonnet, gpt-5.2-codex",
+				"cliGuidanceBanner": "Các máy chủ MCP cấu hình bên dưới được đồng bộ vào cấu hình riêng của CLI này trong mỗi cuộc trò chuyện — Goose chỉ chạy CLI này, không quản lý công cụ của nó. Đồng bộ skill hiện chỉ hoạt động với Claude Code.",
+				"cliLoginPanelTitle": "Đăng nhập CLI",
+				"cliLoginPanelDescription": "Xác minh xem CLI của agent này hiện đã đăng nhập hay chưa, hoặc mở terminal của môi trường agent để đăng nhập.",
+				"cliLoginOpenTerminal": "Mở terminal",
+				"cliLoginVerify": "Xác minh đăng nhập",
+				"cliLoginVerifiedNow": "Đã xác thực.",
+				"cliLoginNotAuthenticated": "Chưa được xác thực — hãy đăng nhập qua terminal rồi xác minh lại.",
+				"cliLoginVerifyFailed": "Không thể kiểm tra trạng thái đăng nhập. Vui lòng thử lại.",
+				"cliLoginLastVerified": "Xác minh lần cuối lúc {{date}}.",
+				"cliLoginNoEnvironment": "Agent này chưa có môi trường nào được đặt — hãy chọn một môi trường ở trên trước."
 			},
 			"mcp": {
 				"serverCount_one": "{{count}} máy chủ đã cấu hình",
@@ -290,6 +330,15 @@
 			"newBelow_one": "{{count}} tin nhắn mới",
 			"newBelow_other": "{{count}} tin nhắn mới"
 		},
+		"busyDialog": {
+			"title": "Agent đang bận",
+			"description": "Agent này hiện đang chạy {{running}}/{{limit}} cuộc hội thoại. Thêm tin nhắn này vào hàng đợi để nó tự động bắt đầu khi có chỗ trống, hoặc gửi ngay bây giờ.",
+			"folderDescription": "Một cuộc hội thoại khác đang làm việc trong thư mục môi trường này. Thêm tin nhắn này vào hàng đợi để nó tự động bắt đầu khi cuộc hội thoại đó kết thúc, hoặc gửi ngay bây giờ.",
+			"cancel": "Hủy",
+			"queue": "Thêm vào hàng đợi",
+			"force": "Gửi ngay",
+			"cancelledError": "Tin nhắn chưa được gửi."
+		},
 		"thread": {
 			"composerPlaceholder": "Nhắn tin cho agent…",
 			"welcomeHeading": "Tôi có thể giúp gì cho bạn hôm nay?",
@@ -348,6 +397,7 @@
 				"contextTypeDoc": "Tài liệu",
 				"contextTypeConversation": "Cuộc trò chuyện",
 				"contextTypeAutomation": "Tự động hóa",
+				"contextTypeAnnotation": "Bình luận",
 				"noContextResults": "Không tìm thấy kết quả",
 				"contextSearchMinChars": "Nhập ít nhất 2 ký tự để tìm kiếm"
 			}
@@ -479,6 +529,7 @@
 				"deleteFailed": "Không thể xóa cổng chuyển tiếp. Vui lòng thử lại.",
 				"containerPort": "Cổng container {{port}}",
 				"unassigned": "Chưa được gán",
+				"open": "Mở",
 				"restart": "Khởi động lại",
 				"pendingRestartRunning": "Một cổng chuyển tiếp đã được thêm hoặc xóa. Khởi động lại môi trường để áp dụng.",
 				"pendingRestartStopped": "Một cổng chuyển tiếp đã được thêm hoặc xóa. Thay đổi sẽ được áp dụng vào lần khởi động tiếp theo của môi trường này.",
@@ -683,6 +734,14 @@
 				"label": "Quản lý agent",
 				"description": "Tạo, cấu hình và xóa AI agent"
 			},
+			"conversationsRead": {
+				"label": "Xem cuộc trò chuyện",
+				"description": "Xem các cuộc trò chuyện của agent, chỉ xem mà không thể bắt đầu hoặc trả lời"
+			},
+			"conversationsWrite": {
+				"label": "Quản lý cuộc trò chuyện",
+				"description": "Bắt đầu cuộc trò chuyện với agent, trả lời, và dừng hoặc tạm dừng"
+			},
 			"environmentsRead": {
 				"label": "Xem môi trường",
 				"description": "Duyệt các môi trường và xem cấu hình của chúng"
@@ -712,6 +771,7 @@
 			"sprints": "Sprint",
 			"documents": "Tài liệu",
 			"aiAgents": "AI Agent",
+			"conversations": "Cuộc trò chuyện",
 			"environments": "Môi trường",
 			"workflows": "Tự động hóa",
 			"plugins": "Plugin"
@@ -844,6 +904,8 @@
 			"optionsLabel": "Tùy chọn",
 			"addOptionPlaceholder": "Thêm tùy chọn…",
 			"addOption": "Thêm",
+			"optionColorLabel": "Màu tùy chọn",
+			"noColor": "Không màu",
 			"requiredLabel": "Bắt buộc",
 			"requiredHint": "Người dùng phải điền trường này khi tạo hoặc chỉnh sửa nhiệm vụ.",
 			"fieldTypes": {
@@ -1057,6 +1119,7 @@
 			"reporter": "Người báo cáo",
 			"sprint": "Sprint",
 			"productBacklog": "Product Backlog",
+			"sprintNotStarted": "(chưa bắt đầu)",
 			"epic": "Epic",
 			"viewEpic": "Xem epic",
 			"removeEpic": "Gỡ epic",
@@ -1226,6 +1289,77 @@
 			"watchSession": "Theo dõi phiên",
 			"madeChange": "đã thực hiện một thay đổi",
 			"descriptionChangeDiff": "Thay đổi mô tả"
+		}
+	},
+	"portForwardDetail": {
+		"notFound": {
+			"title": "Không tìm thấy chuyển tiếp cổng",
+			"description": "Chuyển tiếp cổng này có thể đã bị xóa hoặc liên kết không hợp lệ.",
+			"ariaLabel": "Chi tiết chuyển tiếp cổng",
+			"backToEnvironment": "Quay lại môi trường"
+		},
+		"tabs": {
+			"overview": "Tổng quan",
+			"comments": "Bình luận"
+		},
+		"overview": {
+			"containerPort": "Cổng container {{port}}",
+			"hostPort": "Cổng máy chủ",
+			"unassigned": "Chưa được gán",
+			"createdAt": "Đã tạo {{date}}",
+			"open": "Mở",
+			"delete": "Xóa",
+			"deleteDialog": {
+				"title": "Xóa chuyển tiếp cổng?",
+				"description_one": "Thao tác này cũng sẽ xóa {{count}} bình luận được thực hiện qua chuyển tiếp cổng này. Không thể hoàn tác hành động này.",
+				"description_other": "Thao tác này cũng sẽ xóa {{count}} bình luận được thực hiện qua chuyển tiếp cổng này. Không thể hoàn tác hành động này.",
+				"cancel": "Hủy",
+				"confirm": "Xóa"
+			}
+		},
+		"comments": {
+			"empty": "Chưa có bình luận nào. Cài đặt tiện ích mở rộng trình duyệt Paca để bình luận trực tiếp trên các phần tử của bản xem trước chuyển tiếp cổng này.",
+			"status": {
+				"open": "Đang mở",
+				"resolved": "Đã giải quyết"
+			},
+			"replyCount_one": "{{count}} phản hồi",
+			"replyCount_other": "{{count}} phản hồi",
+			"resolve": "Giải quyết",
+			"reopen": "Mở lại",
+			"createTask": "Tạo tác vụ",
+			"taskCreated": "Đã tạo tác vụ"
+		}
+	},
+	"commentDetail": {
+		"notFound": {
+			"title": "Không tìm thấy bình luận",
+			"description": "Bình luận này có thể đã bị xóa hoặc liên kết không hợp lệ.",
+			"ariaLabel": "Chi tiết bình luận",
+			"backToPortForward": "Quay lại chuyển tiếp cổng"
+		},
+		"header": {
+			"createdAt": "Đã bình luận {{date}}"
+		},
+		"context": {
+			"title": "Bối cảnh",
+			"pagePath": "Trang",
+			"elementSelector": "Bộ chọn phần tử",
+			"accessibleName": "Tên truy cập",
+			"consoleErrors": "Lỗi bảng điều khiển",
+			"noConsoleErrors": "Không ghi nhận lỗi bảng điều khiển nào",
+			"failedRequests": "Yêu cầu thất bại",
+			"noFailedRequests": "Không ghi nhận yêu cầu thất bại nào"
+		},
+		"thread": {
+			"replyPlaceholder": "Viết phản hồi…",
+			"reply": "Trả lời"
+		},
+		"actions": {
+			"create": "Tạo",
+			"createConversation": "Tạo cuộc trò chuyện",
+			"copyLink": "Sao chép liên kết",
+			"linkCopied": "Đã sao chép!"
 		}
 	},
 	"epicPicker": {
@@ -1453,12 +1587,14 @@
 		},
 		"startSprintModal": {
 			"title": "Bắt đầu sprint",
+			"alreadyActiveWarning": "\"{{name}}\" đã đang hoạt động trong dự án này. Bắt đầu sprint này sẽ không dừng nó lại.",
 			"nameLabel": "Tên",
 			"goalLabel": "Mục tiêu",
 			"optional": "(tùy chọn)",
 			"goalPlaceholder": "Sprint này nên đạt được điều gì?",
 			"startDateLabel": "Ngày bắt đầu",
 			"endDateLabel": "Ngày kết thúc",
+			"error": "Không thể bắt đầu sprint. Vui lòng thử lại.",
 			"cancel": "Hủy",
 			"starting": "Đang bắt đầu…",
 			"startSprint": "Bắt đầu sprint"
@@ -1470,11 +1606,12 @@
 		"sprintDetail": {
 			"notFound": "Không tìm thấy sprint hoặc bạn không có quyền truy cập.",
 			"statusActive": "Đang hoạt động",
-			"statusPlanned": "Đã lên kế hoạch",
+			"statusPlanned": "Bản nháp",
 			"statusCompleted": "Đã hoàn thành",
 			"description": "Sprint {{status}}",
 			"descriptionWithStartDate": "Sprint {{status}} · bắt đầu {{date}}",
 			"editSprint": "Chỉnh sửa sprint",
+			"startSprint": "Bắt đầu sprint",
 			"editSprintModal": {
 				"title": "Chỉnh sửa sprint",
 				"nameLabel": "Tên",
@@ -1764,7 +1901,7 @@
 				"sprintGoalLabel": "Mục tiêu",
 				"sprintStatusLabel": "Trạng thái",
 				"sprintStatusUnchanged": "Giữ nguyên",
-				"sprintStatusPlanned": "Đã lên kế hoạch",
+				"sprintStatusPlanned": "Bản nháp",
 				"sprintStatusActive": "Đang hoạt động",
 				"sprintStatusCompleted": "Đã hoàn thành",
 				"completeSprintHint": "Đánh dấu sprint hoàn thành và di chuyển các tác vụ chưa xong.",
