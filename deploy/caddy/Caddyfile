@@ -126,8 +126,8 @@
 	# STORAGE_PUBLIC_URL (e.g. "http://localhost/storage") before returning
 	# them to clients, so browsers always receive routable URLs.
 	handle_path /storage/* {
-		reverse_proxy {$STORAGE_UPSTREAM:rustfs:9000} {
-			header_up Host {$STORAGE_UPSTREAM:rustfs:9000}
+		reverse_proxy {$STORAGE_UPSTREAM:minio:9000} {
+			header_up Host {$STORAGE_UPSTREAM:minio:9000}
 		}
 	}
 
