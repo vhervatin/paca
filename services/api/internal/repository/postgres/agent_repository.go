@@ -27,6 +27,7 @@ type agentRecord struct {
 	GlobalRoleID       *string `db:"global_role_id"`
 	Name               string  `db:"name"`
 	Handle             string  `db:"handle"`
+	Description        string  `db:"description"`
 	AvatarKey          *string `db:"avatar_key"`
 	AvatarThumbKey     *string `db:"avatar_thumb_key"`
 	AgentType          string  `db:"agent_type"`
@@ -61,11 +62,20 @@ type agentRecord struct {
 	// DefaultEnvironmentID is also set (enforced by the service layer, not
 	// a DB constraint).
 	DefaultFolderID *string    `db:"default_folder_id"`
+	AccessMode      string     `db:"access_mode"`
 	CreatedBy       *string    `db:"created_by"`
 	CreatedAt       time.Time  `db:"created_at"`
 	UpdatedAt       time.Time  `db:"updated_at"`
 	DeletedAt       *time.Time `db:"deleted_at"`
 	MemberID        *string    `db:"member_id"` // populated when joining with project_members
+}
+
+type agentAccessGrantRecord struct {
+	ID        string    `db:"id"`
+	AgentID   string    `db:"agent_id"`
+	MemberID  string    `db:"member_id"`
+	GrantedBy *string   `db:"granted_by"`
+	CreatedAt time.Time `db:"created_at"`
 }
 
 type agentMCPServerRecord struct {
@@ -130,6 +140,9 @@ type agentConversationRecord struct {
 	ErrorMessage        *string    `db:"error_message"`
 	RepoPluginID        *string    `db:"repo_plugin_id"`
 	PRUrl               *string    `db:"pr_url"`
+	Title               *string    `db:"title"`
+	TitleSetByUser      bool       `db:"title_set_by_user"`
+	DeletedAt           *time.Time `db:"deleted_at"`
 	StartedAt           *time.Time `db:"started_at"`
 	FinishedAt          *time.Time `db:"finished_at"`
 	CreatedAt           time.Time  `db:"created_at"`
@@ -175,8 +188,8 @@ func NewAgentRepository(db *sqlx.DB) *AgentRepository {
 const agentSelectColsBase = `a.id, a.project_id, a.agent_scope, a.global_role_id, a.name, a.handle, a.avatar_key, a.avatar_thumb_key, a.agent_type, a.llm_provider, a.llm_model,
 	a.llm_api_key_secret, a.llm_base_url, a.acp_provider, a.acp_command, a.acp_bridge_token_hash, a.mcp_api_key_hash, a.system_prompt,
 	a.max_iterations, a.timeout_minutes, a.parallelism_limit,
-	a.git_committer_name, a.git_committer_email, a.docker_enabled, a.default_environment_id, a.default_folder_id, a.created_by, a.created_at, a.updated_at, a.deleted_at,
-	a.cli_provider, a.cli_model, a.cli_auth_mode, a.cli_api_key_secret, a.cli_login_verified_at`
+	a.git_committer_name, a.git_committer_email, a.docker_enabled, a.default_environment_id, a.default_folder_id, a.access_mode, a.created_by, a.created_at, a.updated_at, a.deleted_at,
+	a.cli_provider, a.cli_model, a.cli_auth_mode, a.cli_api_key_secret, a.cli_login_verified_at, COALESCE(a.description, '') AS description`
 
 // agentSelectCols is used with a JOIN/LEFT JOIN against project_members
 // aliased pm, populating member_id from that join.
@@ -405,15 +418,15 @@ func (r *AgentRepository) CreateAgent(ctx context.Context, a *agentdom.Agent) er
 		  llm_api_key_secret, llm_base_url, acp_provider, acp_command, system_prompt,
 		  max_iterations, timeout_minutes, parallelism_limit,
 		  git_committer_name, git_committer_email, docker_enabled, default_environment_id, default_folder_id, created_by, created_at, updated_at,
-		  cli_provider, cli_model, cli_auth_mode, cli_api_key_secret, cli_login_verified_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`,
+		  cli_provider, cli_model, cli_auth_mode, cli_api_key_secret, cli_login_verified_at, description)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
 		rec.ID, rec.ProjectID, rec.Name, rec.Handle, rec.AvatarKey, rec.AvatarThumbKey, rec.AgentType,
 		rec.LLMProvider, rec.LLMModel, rec.LLMAPIKeySecret, rec.LLMBaseURL,
 		rec.ACPProvider, rec.ACPCommand,
 		rec.SystemPrompt,
 		rec.MaxIterations, rec.TimeoutMinutes, rec.ParallelismLimit,
 		rec.GitCommitterName, rec.GitCommitterEmail, rec.DockerEnabled, rec.DefaultEnvironmentID, rec.DefaultFolderID, rec.CreatedBy, rec.CreatedAt, rec.UpdatedAt,
-		rec.CLIProvider, rec.CLIModel, rec.CLIAuthMode, rec.CLIAPIKeySecret, rec.CLILoginVerifiedAt,
+		rec.CLIProvider, rec.CLIModel, rec.CLIAuthMode, rec.CLIAPIKeySecret, rec.CLILoginVerifiedAt, rec.Description,
 	)
 	return err
 }
@@ -435,15 +448,15 @@ func (r *AgentRepository) UpdateAgent(ctx context.Context, a *agentdom.Agent) er
 			  max_iterations=$11, timeout_minutes=$12,
 			  git_committer_name=$13, git_committer_email=$14, docker_enabled=$15, global_role_id=$16,
 			  default_environment_id=$17, default_folder_id=$18, updated_at=$19,
-			  cli_provider=$20, cli_model=$21, cli_auth_mode=$22, parallelism_limit=$23
-			WHERE id=$24`,
+			  cli_provider=$20, cli_model=$21, cli_auth_mode=$22, parallelism_limit=$23, access_mode=$24, description=$25
+			WHERE id=$26`,
 			a.Name, a.Handle, a.AvatarKey, a.AvatarThumbKey, a.LLMProvider, a.LLMModel, a.LLMBaseURL,
 			rec.ACPProvider, rec.ACPCommand,
 			a.SystemPrompt,
 			a.MaxIterations, a.TimeoutMinutes,
 			a.GitCommitterName, a.GitCommitterEmail, a.DockerEnabled, rec.GlobalRoleID,
 			rec.DefaultEnvironmentID, rec.DefaultFolderID, time.Now(),
-			rec.CLIProvider, rec.CLIModel, rec.CLIAuthMode, a.ParallelismLimit, a.ID.String(),
+			rec.CLIProvider, rec.CLIModel, rec.CLIAuthMode, a.ParallelismLimit, rec.AccessMode, a.Description, a.ID.String(),
 		)
 		if err != nil {
 			return err
@@ -541,15 +554,15 @@ func (r *AgentRepository) CreateAgentWithMembership(ctx context.Context, a *agen
 			  llm_api_key_secret, llm_base_url, acp_provider, acp_command, system_prompt,
 			  max_iterations, timeout_minutes, parallelism_limit,
 			  git_committer_name, git_committer_email, docker_enabled, default_environment_id, default_folder_id, created_by, created_at, updated_at,
-			  cli_provider, cli_model, cli_auth_mode, cli_api_key_secret, cli_login_verified_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`,
+			  cli_provider, cli_model, cli_auth_mode, cli_api_key_secret, cli_login_verified_at, description)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
 			rec.ID, rec.ProjectID, rec.Name, rec.Handle, rec.AvatarKey, rec.AvatarThumbKey, rec.AgentType,
 			rec.LLMProvider, rec.LLMModel, rec.LLMAPIKeySecret, rec.LLMBaseURL,
 			rec.ACPProvider, rec.ACPCommand,
 			rec.SystemPrompt,
 			rec.MaxIterations, rec.TimeoutMinutes, rec.ParallelismLimit,
 			rec.GitCommitterName, rec.GitCommitterEmail, rec.DockerEnabled, rec.DefaultEnvironmentID, rec.DefaultFolderID, rec.CreatedBy, rec.CreatedAt, rec.UpdatedAt,
-			rec.CLIProvider, rec.CLIModel, rec.CLIAuthMode, rec.CLIAPIKeySecret, rec.CLILoginVerifiedAt,
+			rec.CLIProvider, rec.CLIModel, rec.CLIAuthMode, rec.CLIAPIKeySecret, rec.CLILoginVerifiedAt, rec.Description,
 		)
 		if err != nil {
 			return err
@@ -611,15 +624,15 @@ func (r *AgentRepository) CreateGlobalAgent(ctx context.Context, a *agentdom.Age
 		  llm_api_key_secret, llm_base_url, acp_provider, acp_command, system_prompt,
 		  max_iterations, timeout_minutes, parallelism_limit,
 		  git_committer_name, git_committer_email, docker_enabled, created_by, created_at, updated_at,
-		  cli_auth_mode)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
+		  cli_auth_mode, description)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`,
 		rec.ID, rec.ProjectID, rec.AgentScope, rec.GlobalRoleID, rec.Name, rec.Handle, rec.AvatarKey, rec.AvatarThumbKey, rec.AgentType,
 		rec.LLMProvider, rec.LLMModel, rec.LLMAPIKeySecret, rec.LLMBaseURL,
 		rec.ACPProvider, rec.ACPCommand,
 		rec.SystemPrompt,
 		rec.MaxIterations, rec.TimeoutMinutes, rec.ParallelismLimit,
 		rec.GitCommitterName, rec.GitCommitterEmail, rec.DockerEnabled, rec.CreatedBy, rec.CreatedAt, rec.UpdatedAt,
-		rec.CLIAuthMode,
+		rec.CLIAuthMode, rec.Description,
 	)
 	return err
 }
@@ -742,6 +755,95 @@ func (r *AgentRepository) UpdateMCPServer(ctx context.Context, s *agentdom.Agent
 func (r *AgentRepository) DeleteMCPServer(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM agent_mcp_servers WHERE id = $1`, id.String())
 	return err
+}
+
+// -------------------------------------------------------------------------
+// Access grants
+// -------------------------------------------------------------------------
+
+const agentAccessGrantCols = `id, agent_id, member_id, granted_by, created_at`
+
+// ListAgentAccessGrants returns every member explicitly granted access to
+// this agent, regardless of its current access_mode (so the grant list
+// survives toggling back and forth between open/restricted).
+func (r *AgentRepository) ListAgentAccessGrants(ctx context.Context, agentID uuid.UUID) ([]*agentdom.AgentAccessGrant, error) {
+	var recs []agentAccessGrantRecord
+	if err := r.db.SelectContext(ctx, &recs, `SELECT `+agentAccessGrantCols+` FROM agent_access_grants WHERE agent_id = $1 ORDER BY created_at`, agentID.String()); err != nil {
+		return nil, err
+	}
+	result := make([]*agentdom.AgentAccessGrant, 0, len(recs))
+	for _, rec := range recs {
+		result = append(result, agentAccessGrantFromRecord(rec))
+	}
+	return result, nil
+}
+
+// AddAgentAccessGrant inserts a new grant. Returns
+// agentdom.ErrAgentAccessGrantExists if memberID already has one (backed by
+// uq_agent_access_grants_agent_member).
+func (r *AgentRepository) AddAgentAccessGrant(ctx context.Context, g *agentdom.AgentAccessGrant) error {
+	var grantedBy *string
+	if g.GrantedBy != nil {
+		s := g.GrantedBy.String()
+		grantedBy = &s
+	}
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO agent_access_grants (id, agent_id, member_id, granted_by, created_at)
+		VALUES ($1,$2,$3,$4,$5)`,
+		g.ID.String(), g.AgentID.String(), g.MemberID.String(), grantedBy, g.CreatedAt,
+	)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return agentdom.ErrAgentAccessGrantExists
+		}
+		return err
+	}
+	return nil
+}
+
+// RemoveAgentAccessGrant deletes a grant. A no-op (nil error) if none
+// existed — mirrors DeleteMCPServer's plain-DELETE idempotency.
+func (r *AgentRepository) RemoveAgentAccessGrant(ctx context.Context, agentID, memberID uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM agent_access_grants WHERE agent_id = $1 AND member_id = $2`, agentID.String(), memberID.String())
+	return err
+}
+
+// HasAgentAccessGrant reports whether memberID currently has an explicit
+// grant for agentID — the check Service.HasAgentUsageAccess falls back to
+// once it's confirmed the agent is actually restricted.
+func (r *AgentRepository) HasAgentAccessGrant(ctx context.Context, agentID, memberID uuid.UUID) (bool, error) {
+	var exists bool
+	err := r.db.GetContext(ctx, &exists, `SELECT EXISTS(SELECT 1 FROM agent_access_grants WHERE agent_id = $1 AND member_id = $2)`, agentID.String(), memberID.String())
+	return exists, err
+}
+
+// ListGrantedAgentIDsForMember returns every agent ID memberID currently
+// holds a grant for — used to decorate ListAgents/ListGlobalAgents with each
+// row's AccessGranted state in one query instead of an N+1 check per agent.
+func (r *AgentRepository) ListGrantedAgentIDsForMember(ctx context.Context, memberID uuid.UUID) ([]uuid.UUID, error) {
+	var ids []string
+	if err := r.db.SelectContext(ctx, &ids, `SELECT agent_id FROM agent_access_grants WHERE member_id = $1`, memberID.String()); err != nil {
+		return nil, err
+	}
+	result := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		result = append(result, mustParseUUID(id))
+	}
+	return result, nil
+}
+
+func agentAccessGrantFromRecord(rec agentAccessGrantRecord) *agentdom.AgentAccessGrant {
+	g := &agentdom.AgentAccessGrant{
+		ID:        mustParseUUID(rec.ID),
+		AgentID:   mustParseUUID(rec.AgentID),
+		MemberID:  mustParseUUID(rec.MemberID),
+		CreatedAt: rec.CreatedAt,
+	}
+	if rec.GrantedBy != nil {
+		id := mustParseUUID(*rec.GrantedBy)
+		g.GrantedBy = &id
+	}
+	return g
 }
 
 // -------------------------------------------------------------------------
@@ -941,6 +1043,7 @@ const conversationCols = `id, agent_id, project_id, trigger_type, task_id, comme
 	 ORDER BY e.event_index DESC LIMIT 1) AS cost_usd,
 	error_message,
 	repo_plugin_id, pr_url,
+	title, title_set_by_user, deleted_at,
 	started_at, finished_at, created_at, updated_at`
 
 // ListConversations returns a keyset-paginated page of conversations matching
@@ -975,6 +1078,17 @@ func (r *AgentRepository) ListConversations(ctx context.Context, in agentdom.Lis
 		b.whereClauses = append(b.whereClauses, fmt.Sprintf(
 			"(audience = '%s' OR EXISTS (SELECT 1 FROM agent_chat_sessions cs WHERE cs.id = agent_conversations.chat_session_id AND cs.member_id = %s))",
 			agentdom.AudienceProjectShared, p))
+		// Restricted agents: this project-wide listing must not leak a
+		// restricted agent's conversations to a member who isn't granted
+		// access to it — otherwise Service.authorizeConversationAccess's
+		// per-conversation gate (enforced on GetConversation and everything
+		// that funnels through it) could be bypassed just by browsing the
+		// list instead of opening one conversation at a time. Reuses the
+		// same ViewerMemberID placeholder p bound just above.
+		b.whereClauses = append(b.whereClauses, fmt.Sprintf(
+			"NOT EXISTS (SELECT 1 FROM agents ag WHERE ag.id = agent_conversations.agent_id AND ag.access_mode = 'restricted' "+
+				"AND NOT EXISTS (SELECT 1 FROM agent_access_grants g WHERE g.agent_id = ag.id AND g.member_id = %s))",
+			p))
 	}
 	if in.TaskID != nil {
 		p := b.placeholder()
@@ -1024,7 +1138,12 @@ func (r *AgentRepository) ListConversations(ctx context.Context, in agentdom.Lis
 	limitP := b.placeholder()
 	b.args = append(b.args, limit+1)
 
-	whereSQL := "1=1"
+	// deleted_at IS NULL unconditionally — this is the user-facing list, and
+	// a soft-deleted conversation should never appear in it (see
+	// SoftDeleteConversation's doc comment). FindConversationByID below is
+	// deliberately NOT filtered the same way — internal callers
+	// (worker.AgentQueueConsumer) must still resolve a just-deleted row.
+	whereSQL := "deleted_at IS NULL"
 	if len(b.whereClauses) > 0 {
 		whereSQL += " AND " + strings.Join(b.whereClauses, " AND ")
 	}
@@ -1065,9 +1184,18 @@ func (r *AgentRepository) FindConversationByID(ctx context.Context, id uuid.UUID
 // conversation for a chat session, or (nil, nil) if none exists yet.
 func (r *AgentRepository) FindLatestConversationByChatSession(ctx context.Context, chatSessionID uuid.UUID) (*agentdom.AgentConversation, error) {
 	var rec agentConversationRecord
+	// deleted_at IS NULL: every caller (SendChatMessage/SendGlobalChatMessage
+	// resuming a session's conversation, ListChatMessages reading its
+	// events) wants the latest *active* conversation, never one the user
+	// deleted — without this a deleted conversation could be claimed back
+	// to running/queued and its transcript kept reading as if delete had no
+	// effect. A session whose latest conversation was deleted falls back to
+	// nil here, same as a session with no conversation yet — the caller's
+	// existing conv == nil branch already handles that by starting a fresh
+	// one.
 	err := r.db.GetContext(ctx, &rec,
 		`SELECT `+conversationCols+` FROM agent_conversations
-		 WHERE chat_session_id = $1 ORDER BY created_at DESC LIMIT 1`,
+		 WHERE chat_session_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1`,
 		chatSessionID.String(),
 	)
 	if err != nil {
@@ -1102,11 +1230,36 @@ func (r *AgentRepository) UpdateConversationStatus(ctx context.Context, id uuid.
 	return err
 }
 
+// UpdateConversationTitle sets a user-chosen title — see this method's doc
+// comment on agentdom.ConversationRepository for why it's a narrow,
+// single-column UPDATE rather than routed through the full-record
+// UpdateConversation below.
+func (r *AgentRepository) UpdateConversationTitle(ctx context.Context, id uuid.UUID, title string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE agent_conversations SET title=$1, title_set_by_user=true, updated_at=$2 WHERE id=$3`,
+		title, time.Now(), id.String())
+	return err
+}
+
+// SoftDeleteConversation marks a conversation deleted — see this method's
+// doc comment on agentdom.ConversationRepository for why this is a soft
+// delete, not a hard DELETE.
+func (r *AgentRepository) SoftDeleteConversation(ctx context.Context, id uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE agent_conversations SET deleted_at=$1, updated_at=$1 WHERE id=$2`,
+		time.Now(), id.String())
+	return err
+}
+
 // ClaimConversationStatus atomically moves a conversation from fromStatus to
 // toStatus. Only one caller racing on the same conversation observes true.
 func (r *AgentRepository) ClaimConversationStatus(ctx context.Context, id uuid.UUID, fromStatus, toStatus string) (bool, error) {
+	// deleted_at IS NULL: defense in depth alongside
+	// FindLatestConversationByChatSession's own filter — a deleted
+	// conversation must never be claimed back out of a terminal status by
+	// any caller, present or future.
 	res, err := r.db.ExecContext(ctx,
-		`UPDATE agent_conversations SET status=$1, updated_at=$2 WHERE id=$3 AND status=$4`,
+		`UPDATE agent_conversations SET status=$1, updated_at=$2 WHERE id=$3 AND status=$4 AND deleted_at IS NULL`,
 		toStatus, time.Now(), id.String(), fromStatus,
 	)
 	if err != nil {
@@ -1627,6 +1780,7 @@ func agentFromReadRow(row agentRecord) (*agentdom.Agent, error) {
 		AgentScope:         scope,
 		Name:               row.Name,
 		Handle:             row.Handle,
+		Description:        row.Description,
 		AvatarKey:          row.AvatarKey,
 		AvatarThumbKey:     row.AvatarThumbKey,
 		AgentType:          row.AgentType,
@@ -1649,6 +1803,7 @@ func agentFromReadRow(row agentRecord) (*agentdom.Agent, error) {
 		GitCommitterName:   row.GitCommitterName,
 		GitCommitterEmail:  row.GitCommitterEmail,
 		DockerEnabled:      row.DockerEnabled,
+		AccessMode:         row.AccessMode,
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
 		DeletedAt:          row.DeletedAt,
@@ -1723,6 +1878,7 @@ func agentToRecord(a *agentdom.Agent) (agentRecord, error) {
 		AgentScope:         scope,
 		Name:               a.Name,
 		Handle:             a.Handle,
+		Description:        a.Description,
 		AvatarKey:          a.AvatarKey,
 		AvatarThumbKey:     a.AvatarThumbKey,
 		AgentType:          agentType,
@@ -1744,6 +1900,7 @@ func agentToRecord(a *agentdom.Agent) (agentRecord, error) {
 		GitCommitterName:   a.GitCommitterName,
 		GitCommitterEmail:  a.GitCommitterEmail,
 		DockerEnabled:      a.DockerEnabled,
+		AccessMode:         a.AccessMode,
 		CreatedAt:          a.CreatedAt,
 		UpdatedAt:          a.UpdatedAt,
 	}
@@ -1878,6 +2035,9 @@ func conversationFromRecord(rec agentConversationRecord) *agentdom.AgentConversa
 		CostUSD:        rec.CostUSD,
 		ErrorMessage:   rec.ErrorMessage,
 		PRUrl:          rec.PRUrl,
+		Title:          rec.Title,
+		TitleSetByUser: rec.TitleSetByUser,
+		DeletedAt:      rec.DeletedAt,
 		StartedAt:      rec.StartedAt,
 		FinishedAt:     rec.FinishedAt,
 		CreatedAt:      rec.CreatedAt,
@@ -2038,133 +2198,3 @@ func chatSessionToRecord(s *agentdom.AgentChatSession) agentChatSessionRecord {
 // -------------------------------------------------------------------------
 // Activity Feed
 // -------------------------------------------------------------------------
-
-type agentActivityFeedRecord struct {
-	ID            string          `db:"id"`
-	SourceType    string          `db:"source_type"`
-	SourceID      string          `db:"source_id"`
-	SourceTitle   string          `db:"source_title"`
-	SourceDeleted bool            `db:"source_deleted"`
-	ActivityType  string          `db:"activity_type"`
-	Content       json.RawMessage `db:"content"`
-	CreatedAt     time.Time       `db:"created_at"`
-	UpdatedAt     time.Time       `db:"updated_at"`
-}
-
-// ListAgentActivities returns a keyset-paginated page of an agent's unified
-// task+doc activity feed, ordered newest-first. task_activities and
-// doc_activities are combined via UNION ALL into a common column shape
-// (agentActivityFeedRecord) up front, filtered by actor_id — both branches
-// reference the same $1 placeholder since it's one value used twice, not
-// two separate args. The dynamic filters (source type, date range, search,
-// cursor) are then applied to the combined result exactly like
-// ListConversations applies its filters to agent_conversations, fetching
-// one row beyond limit to detect whether more pages remain.
-func (r *AgentRepository) ListAgentActivities(ctx context.Context, in agentdom.ListAgentActivitiesFilter, limit int) ([]*agentdom.ActivityFeedItem, bool, error) {
-	b := newQueryBuilder()
-	b.idx = 2 // $1 is reserved for the actor member id, shared by both UNION branches
-
-	if len(in.SourceTypes) > 0 {
-		types := make([]string, len(in.SourceTypes))
-		for i, t := range in.SourceTypes {
-			types[i] = string(t)
-		}
-		b.addInClause("source_type", types)
-	}
-	if in.CreatedAfter != nil {
-		p := b.placeholder()
-		b.args = append(b.args, *in.CreatedAfter)
-		b.whereClauses = append(b.whereClauses, "created_at >= "+p)
-	}
-	if in.CreatedBefore != nil {
-		p := b.placeholder()
-		b.args = append(b.args, *in.CreatedBefore)
-		b.whereClauses = append(b.whereClauses, "created_at < "+p)
-	}
-	if in.Search != nil {
-		if q := strings.TrimSpace(*in.Search); q != "" {
-			p := b.placeholder()
-			b.args = append(b.args, "%"+q+"%")
-			// Matches either the linked task/document title or the raw
-			// activity content (field diffs, comment text, etc.) — a plain
-			// case-insensitive substring match, not full-text search, since
-			// activity content is small compared to conversation event
-			// payloads (which do warrant the tsvector/GIN approach used by
-			// listConversations' search).
-			b.whereClauses = append(b.whereClauses,
-				fmt.Sprintf("(source_title ILIKE %s OR content::text ILIKE %s)", p, p))
-		}
-	}
-	if in.CursorAfter != nil {
-		cur, err := agentdom.DecodeActivityFeedCursor(*in.CursorAfter)
-		if err != nil {
-			return nil, false, fmt.Errorf("%w: %s", agentdom.ErrActivityFeedInvalidCursor, err)
-		}
-		p1 := b.placeholder()
-		p2 := b.placeholder()
-		b.args = append(b.args, cur.CreatedAt, cur.ID)
-		b.whereClauses = append(b.whereClauses, fmt.Sprintf("(created_at, id) < (%s, %s)", p1, p2))
-	}
-
-	limitP := b.placeholder()
-	b.args = append(b.args, limit+1)
-
-	whereSQL := "1=1"
-	if len(b.whereClauses) > 0 {
-		whereSQL += " AND " + strings.Join(b.whereClauses, " AND ")
-	}
-
-	query := `WITH agent_activities AS (
-		SELECT ta.id, 'task' AS source_type, ta.task_id AS source_id, t.title AS source_title,
-		       (t.deleted_at IS NOT NULL) AS source_deleted,
-		       ta.activity_type, ta.content, ta.created_at, ta.updated_at
-		FROM task_activities ta
-		JOIN tasks t ON t.id = ta.task_id
-		WHERE ta.actor_id = $1 AND ta.deleted_at IS NULL
-		UNION ALL
-		SELECT da.id, 'doc' AS source_type, da.document_id AS source_id, d.title AS source_title,
-		       (d.deleted_at IS NOT NULL) AS source_deleted,
-		       da.activity_type, da.content, da.created_at, da.updated_at
-		FROM doc_activities da
-		JOIN documents d ON d.id = da.document_id
-		WHERE da.actor_id = $1 AND da.deleted_at IS NULL
-	)
-	SELECT id, source_type, source_id, source_title, source_deleted, activity_type, content, created_at, updated_at
-	FROM agent_activities WHERE ` + whereSQL + fmt.Sprintf(` ORDER BY created_at DESC, id DESC LIMIT %s`, limitP)
-
-	args := append([]interface{}{in.ActorMemberID.String()}, b.args...)
-
-	var recs []agentActivityFeedRecord
-	if err := r.db.SelectContext(ctx, &recs, query, args...); err != nil {
-		return nil, false, err
-	}
-
-	hasMore := len(recs) > limit
-	if hasMore {
-		recs = recs[:limit]
-	}
-
-	result := make([]*agentdom.ActivityFeedItem, 0, len(recs))
-	for _, rec := range recs {
-		result = append(result, activityFeedItemFromRecord(rec))
-	}
-	return result, hasMore, nil
-}
-
-func activityFeedItemFromRecord(rec agentActivityFeedRecord) *agentdom.ActivityFeedItem {
-	content := rec.Content
-	if len(content) == 0 {
-		content = json.RawMessage("{}")
-	}
-	return &agentdom.ActivityFeedItem{
-		ID:            mustParseUUID(rec.ID),
-		SourceType:    agentdom.ActivitySourceType(rec.SourceType),
-		SourceID:      mustParseUUID(rec.SourceID),
-		SourceTitle:   rec.SourceTitle,
-		SourceDeleted: rec.SourceDeleted,
-		ActivityType:  rec.ActivityType,
-		Content:       content,
-		CreatedAt:     rec.CreatedAt,
-		UpdatedAt:     rec.UpdatedAt,
-	}
-}

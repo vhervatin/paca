@@ -16,7 +16,32 @@ type Service interface {
 	EnvVarService
 	ConversationService
 	ChatSessionService
-	ActivityFeedService
+	AgentAccessGrantService
+}
+
+// AgentAccessGrantService manages per-member access grants on a restricted
+// agent — see Agent.AccessMode's doc comment. Deliberately separate from
+// AgentService: these gate *usage* (chatting with the agent), never the
+// agent entity's own configuration, which stays governed purely by
+// agents.write regardless of access_mode.
+type AgentAccessGrantService interface {
+	// HasAgentUsageAccess reports whether memberID may use (chat with)
+	// agentID — always true when the agent is AccessModeOpen; when
+	// AccessModeRestricted, true only if memberID holds an explicit
+	// AgentAccessGrant. Verifies agentID is visible in projectID first (same
+	// as GetAgent), so a caller can't probe an agent outside their project.
+	HasAgentUsageAccess(ctx context.Context, projectID, agentID, memberID uuid.UUID) (bool, error)
+	ListAgentAccessGrants(ctx context.Context, projectID, agentID uuid.UUID) ([]*AgentAccessGrant, error)
+	// AddAgentAccessGrant returns ErrAgentAccessGrantExists if memberID
+	// already has a grant. grantedBy is the acting user, recorded for audit
+	// purposes only.
+	AddAgentAccessGrant(ctx context.Context, projectID, agentID, memberID uuid.UUID, grantedBy *uuid.UUID) (*AgentAccessGrant, error)
+	RemoveAgentAccessGrant(ctx context.Context, projectID, agentID, memberID uuid.UUID) error
+	// ListGrantedAgentIDsForMember returns every restricted agent memberID
+	// currently holds a grant for — used to decorate ListAgents/
+	// ListGlobalAgents with each row's "am I granted" state in one call
+	// instead of an N+1 HasAgentUsageAccess check per agent.
+	ListGrantedAgentIDsForMember(ctx context.Context, memberID uuid.UUID) ([]uuid.UUID, error)
 }
 
 // AgentService defines agent CRUD use cases.
@@ -65,6 +90,12 @@ type AgentService interface {
 	GetGlobalAgent(ctx context.Context, agentID uuid.UUID) (*Agent, error)
 	CreateGlobalAgent(ctx context.Context, in CreateGlobalAgentInput) (*Agent, error)
 	UpdateGlobalAgent(ctx context.Context, agentID uuid.UUID, in UpdateAgentInput) (*Agent, error)
+	// SetGlobalAgentRole binds a global agent to the global role that decides
+	// what it may do, or unbinds it when roleID is nil. It is the only way an
+	// agent's role changes — CreateGlobalAgent/UpdateGlobalAgent don't carry
+	// one — because binding a role is a privilege of its own
+	// (global_roles.assign), so it lives behind a route that requires it.
+	SetGlobalAgentRole(ctx context.Context, agentID uuid.UUID, roleID *uuid.UUID) (*Agent, error)
 	// DeleteGlobalAgent soft-deletes the agent and every project_members row
 	// referencing it, across every project it was invited into.
 	DeleteGlobalAgent(ctx context.Context, agentID uuid.UUID) error
@@ -172,6 +203,17 @@ type ConversationService interface {
 	// PauseConversation interrupts the in-flight turn only — the sandbox
 	// stays alive and the conversation can be replied to again once it pauses.
 	PauseConversation(ctx context.Context, projectID, conversationID, memberID uuid.UUID) error
+	// UpdateConversationTitle renames a conversation, returning the updated
+	// row. Once set this way, agent-runner's own best-effort copy of
+	// goose's session title never overwrites it again (see
+	// ConversationRepository.UpdateConversationTitle).
+	UpdateConversationTitle(ctx context.Context, projectID, conversationID, memberID uuid.UUID, title string) (*AgentConversation, error)
+	// DeleteConversation removes a conversation from the Conversations list
+	// for good, auto-stopping it first if it isn't already in a terminal
+	// status — deleting a still-active conversation is one action, not
+	// "stop, then delete". Soft delete, not a hard DELETE — see
+	// ConversationRepository.SoftDeleteConversation's doc comment.
+	DeleteConversation(ctx context.Context, projectID, conversationID, memberID uuid.UUID) error
 	// Heartbeat refreshes a chat conversation's idle timer; called
 	// periodically by the frontend while a conversation is loaded in a tab.
 	Heartbeat(ctx context.Context, projectID, conversationID, memberID uuid.UUID) error
@@ -203,6 +245,11 @@ type ConversationService interface {
 	GetGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) (*AgentConversation, error)
 	StopGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) error
 	PauseGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) error
+	// UpdateGlobalConversationTitle/DeleteGlobalConversation are
+	// UpdateConversationTitle/DeleteConversation's global-chat siblings —
+	// see those doc comments.
+	UpdateGlobalConversationTitle(ctx context.Context, conversationID, actorUserID uuid.UUID, title string) (*AgentConversation, error)
+	DeleteGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) error
 	GlobalHeartbeat(ctx context.Context, conversationID, actorUserID uuid.UUID) error
 	// SendGlobalConversationMessage is SendConversationMessage's global-chat
 	// sibling — see its doc comment for onBusy.
@@ -233,17 +280,13 @@ type ChatSessionService interface {
 	SendGlobalChatMessage(ctx context.Context, sessionID, actorUserID uuid.UUID, message string, contextItems []ContextItemRef, onBusy string) (*AgentConversation, error)
 }
 
-// ActivityFeedService defines the agent activity feed use case.
-type ActivityFeedService interface {
-	ListAgentActivities(ctx context.Context, in ListAgentActivitiesFilter, limit int) (items []*ActivityFeedItem, hasMore bool, err error)
-}
-
 // --- Input types ---
 
 // CreateAgentInput carries fields required to create an agent.
 type CreateAgentInput struct {
-	Name   string
-	Handle string
+	Name        string
+	Handle      string
+	Description string
 	// AgentType is "llm" (default) or "acp". LLM fields below are required
 	// (and ACP fields ignored) for "llm"; ACP fields are required (and LLM
 	// fields ignored) for "acp".
@@ -293,10 +336,12 @@ type CreateAgentInput struct {
 // CreateGlobalAgentInput carries fields required to create a global agent.
 // Mirrors CreateAgentInput minus ProjectRoleID (nothing to assign at
 // creation time — a global agent gets a project role only later, when
-// invited into a project), plus GlobalRoleID.
+// invited into a project). A new global agent has no global role either: it
+// is bound afterwards with SetGlobalAgentRole.
 type CreateGlobalAgentInput struct {
 	Name              string
 	Handle            string
+	Description       string
 	AgentType         string
 	LLMProvider       string
 	LLMModel          string
@@ -311,7 +356,6 @@ type CreateGlobalAgentInput struct {
 	GitCommitterEmail string
 	DockerEnabled     bool
 	ParallelismLimit  int
-	GlobalRoleID      *uuid.UUID
 	CreatedBy         *uuid.UUID
 }
 
@@ -319,6 +363,7 @@ type CreateGlobalAgentInput struct {
 type UpdateAgentInput struct {
 	Name        *string
 	Handle      *string
+	Description *string
 	LLMProvider *string
 	LLMModel    *string
 	LLMAPIKey   *string
@@ -342,18 +387,13 @@ type UpdateAgentInput struct {
 	// ParallelismLimit: nil means unchanged, same convention as every other
 	// pointer field here. See Agent.ParallelismLimit's doc comment.
 	ParallelismLimit *int
-	// GlobalRoleID is only meaningful for AgentScopeGlobal agents (see
-	// UpdateGlobalAgent); ignored by UpdateAgent for project-scoped agents.
-	GlobalRoleID *uuid.UUID
 	// DefaultEnvironmentID: nil means "the request didn't mention
 	// default_environment_id — leave it unchanged" (a JSON body with the
 	// key absent, or explicit null, decode to the same nil pointer either
-	// way); a pointer to uuid.Nil explicitly clears it — same
-	// "pass a zero UUID to clear" convention GlobalRoleID above already
-	// uses, for the identical reason (a plain pointer can't otherwise tell
-	// "omitted" from "explicit null"). Ignored by UpdateGlobalAgent — a
-	// global agent can never have a default environment (see
-	// Agent.DefaultEnvironmentID's doc comment).
+	// way); a pointer to uuid.Nil explicitly clears it (a plain pointer
+	// can't otherwise tell "omitted" from "explicit null"). Ignored by
+	// UpdateGlobalAgent — a global agent can never have a default
+	// environment (see Agent.DefaultEnvironmentID's doc comment).
 	DefaultEnvironmentID *uuid.UUID
 	// DefaultFolderID: same "nil means unchanged, uuid.Nil clears" contract
 	// as DefaultEnvironmentID above. When both fields are set in the same
@@ -364,6 +404,10 @@ type UpdateAgentInput struct {
 	// see agentsvc.Service.UpdateAgent. Ignored by UpdateGlobalAgent, same
 	// as DefaultEnvironmentID.
 	DefaultFolderID *uuid.UUID
+	// AccessMode: nil means unchanged, same convention as every other
+	// pointer field here. Must be AccessModeOpen or AccessModeRestricted
+	// when set (ErrAgentAccessModeInvalid otherwise).
+	AccessMode *string
 }
 
 // AddMCPServerInput carries fields to add an MCP server.

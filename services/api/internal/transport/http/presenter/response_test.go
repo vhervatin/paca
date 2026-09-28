@@ -11,6 +11,8 @@ import (
 	"github.com/Paca-AI/api/internal/apierr"
 	agentdom "github.com/Paca-AI/api/internal/domain/agent"
 	domainauth "github.com/Paca-AI/api/internal/domain/auth"
+	globalroledom "github.com/Paca-AI/api/internal/domain/globalrole"
+	taskdom "github.com/Paca-AI/api/internal/domain/task"
 	userdom "github.com/Paca-AI/api/internal/domain/user"
 	"github.com/Paca-AI/api/internal/transport/http/httpx"
 )
@@ -97,6 +99,51 @@ func TestError_APIErrorCodeMapping(t *testing.T) {
 	}
 }
 
+// TestError_AccessGrantCodeMapping guards against the exact class of bug
+// httpStatusForCode's own doc precedent warns about (see
+// TestStatusAndCodeFor_ProviderCLIErrors above): a code constructed directly
+// via apierr.New (as middleware.RequireAgentAccess/RequireEnvironmentAccess
+// do — they never go through the errors.Is(sentinel) switch
+// statusAndCodeFor uses) that isn't registered in httpStatusForCode's own
+// switch falls through to its default case — 500 Internal Server Error,
+// with the response message rewritten to the generic "internal server
+// error" — instead of the intended 4xx and a meaningful message.
+func TestError_AccessGrantCodeMapping(t *testing.T) {
+	tests := []struct {
+		code       apierr.Code
+		wantStatus int
+	}{
+		{apierr.CodeAgentAccessRestricted, http.StatusForbidden},
+		{apierr.CodeAgentAccessGrantExists, http.StatusConflict},
+		{apierr.CodeAgentAccessModeInvalid, http.StatusBadRequest},
+		{apierr.CodeEnvironmentAccessRestricted, http.StatusForbidden},
+		{apierr.CodeEnvironmentAccessGrantExists, http.StatusConflict},
+		{apierr.CodeEnvironmentAccessModeInvalid, http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.code), func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r := newTestRequest("")
+
+			Error(w, r, apierr.New(tt.code, "test message"))
+
+			if w.Code != tt.wantStatus {
+				t.Fatalf("code %s: expected %d, got %d", tt.code, tt.wantStatus, w.Code)
+			}
+			var env envelope
+			if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if env.ErrorCode != string(tt.code) {
+				t.Fatalf("expected error_code %q, got %q", tt.code, env.ErrorCode)
+			}
+			if env.Error != "test message" {
+				t.Fatalf("expected message passthrough (not the generic 500 sanitization), got %q", env.Error)
+			}
+		})
+	}
+}
+
 func TestError_DetailsIncludedForAPIErrorWithDetails(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := newTestRequest("")
@@ -177,6 +224,28 @@ func TestStatusAndCodeFor_DomainAuthErrors(t *testing.T) {
 		status, code := statusAndCodeFor(tc.err)
 		if status != tc.wantStatus || code != tc.wantCode {
 			t.Fatalf("for %v expected (%d,%s), got (%d,%s)", tc.err, tc.wantStatus, tc.wantCode, status, code)
+		}
+	}
+}
+
+// The default of a kind (global role, task status, task type) cannot be
+// deleted; that is a conflict with the current state, so 409 with a code the
+// UI can tell apart from "still in use".
+func TestStatusAndCodeFor_DefaultCannotBeDeleted(t *testing.T) {
+	cases := []struct {
+		err      error
+		wantCode apierr.Code
+	}{
+		{globalroledom.ErrIsDefault, apierr.CodeGlobalRoleIsDefault},
+		{globalroledom.ErrNoDefault, apierr.CodeGlobalRoleNoDefault},
+		{taskdom.ErrStatusIsDefault, apierr.CodeTaskStatusIsDefault},
+		{taskdom.ErrTypeIsDefault, apierr.CodeTaskTypeIsDefault},
+	}
+
+	for _, tc := range cases {
+		status, code := statusAndCodeFor(tc.err)
+		if status != http.StatusConflict || code != tc.wantCode {
+			t.Fatalf("for %v expected (409,%s), got (%d,%s)", tc.err, tc.wantCode, status, code)
 		}
 	}
 }

@@ -44,6 +44,9 @@ secrets:
   internalApiKey: ""
   agentApiKey: ""
   postgresPassword: ""
+  # Only read when rustfs.enabled is false (external S3) — the bundled
+  # RustFS's own credentials live under rustfs.secret.rustfs.* instead, see
+  # that section's doc comment for why the two aren't unified into one.
   storageAccessKeyId: ""
   storageSecretAccessKey: ""
 
@@ -96,17 +99,70 @@ valkey:
 externalRedisUrl: ""
 
 # ---------------------------------------------------------------------------
-# MinIO (S3-compatible object storage, bundled)
+# RustFS (S3-compatible object storage, bundled)
 # ---------------------------------------------------------------------------
-minio:
+# This is the upstream https://artifacthub.io/packages/helm/rustfs/rustfs
+# chart as a real dependency (see Chart.yaml), not a hand-rolled template —
+# every field below is that chart's own schema, passed straight through.
+# Anything not overridden here keeps upstream's own default; see
+# `helm show values` below for the full set this chart doesn't surface.
+#
+#   helm dependency update deploy/helm/paca   # fetches charts/rustfs-*.tgz
+#   helm show values deploy/helm/paca/charts/rustfs-*.tgz
+#
+# Several of upstream's own defaults are deliberately overridden below
+# because they don't fit a single bundled instance mirroring
+# docker-compose.prod.yml's own single-container rustfs service:
+#   - mode.distributed (4-node erasure-coded cluster) -> mode.standalone
+#     (one Deployment replica)
+#   - ingress.enabled: true -> false (this chart's own gateway is what
+#     fronts "/storage" externally — see templates/gateway — a second,
+#     direct Ingress to RustFS at upstream's default host
+#     "example.rustfs.com" is not wanted)
+#   - config.rustfs.obs_log_directory: "/logs" -> "" (upstream provisions a
+#     second PVC for file-based logs; compose's rustfs service, like every
+#     other component in this chart, just logs to stdout)
+rustfs:
   enabled: true
+  mode:
+    standalone:
+      enabled: true
+    distributed:
+      enabled: false
+  replicaCount: 1
   image:
-    repository: minio/minio
-    tag: "latest"
-  persistence:
-    enabled: true
-    size: 20Gi
-    storageClassName: ""
+    rustfs:
+      repository: rustfs/rustfs
+      # Left empty on purpose — falls back to this dependency's own
+      # appVersion, which Chart.yaml's "dependencies[].version" pins. See
+      # that field's own doc comment for why.
+      tag: ""
+  config:
+    rustfs:
+      obs_log_directory: ""
+      obs_environment: "production"
+  # Credentials for the bundled instance only — used to authenticate the
+  # `api` Pod against it (see paca.rustfsSecretName in _helpers.tpl). Same
+  # "no guessable default, fail loudly" policy as the `secrets` block above:
+  # upstream's own chart refuses to render unless both are set (or
+  # secret.existingSecret names a Secret you manage yourself instead).
+  # Unrelated to secrets.storageAccessKeyId/storageSecretAccessKey below,
+  # which only matter when rustfs.enabled is false.
+  secret:
+    existingSecret: ""
+    rustfs:
+      access_key: ""
+      secret_key: ""
+  storageclass:
+    name: ""
+    dataStorageSize: 20Gi
+  service:
+    endpoint:
+      port: 9000
+    console:
+      port: 9001
+  ingress:
+    enabled: false
   resources:
     requests:
       cpu: 100m
@@ -115,17 +171,49 @@ minio:
       memory: 1Gi
 
 storage:
-  # minio | s3 — set s3 with real AWS credentials (storageAccessKeyId/
-  # storageSecretAccessKey above) and minio.enabled: false to use S3
-  # instead of the bundled MinIO, mirroring compose's `--scale minio=0`.
-  provider: minio
-  # Empty defaults to the bundled MinIO's in-cluster Service address.
+  # rustfs | s3 — set s3 with real AWS credentials (storageAccessKeyId/
+  # storageSecretAccessKey below) and rustfs.enabled: false to use S3
+  # instead of the bundled RustFS, mirroring compose's `--scale rustfs=0`.
+  provider: rustfs
+  # Empty defaults to the bundled RustFS's in-cluster Service address.
   endpoint: ""
   # Empty defaults to "<publicUrl>/storage".
   publicUrl: ""
   region: us-east-1
   bucket: paca
   useSSL: false
+
+# ---------------------------------------------------------------------------
+# NFS provisioner (optional, off by default) — gives api.plugins.persistence
+# (below) a ReadWriteMany-capable StorageClass on clusters whose default one
+# is block storage only, e.g. most single-node/bare-metal clusters including
+# k3s's own bundled local-path-provisioner. Skip this if your cluster
+# already has a real RWX class (efs-csi, filestore-csi, azurefile, longhorn,
+# rook-ceph, ...) — leave disabled and set
+# api.plugins.persistence.storageClassName to that class's name instead.
+#
+# Runs an NFS-Ganesha server in-cluster (upstream chart:
+# https://artifacthub.io/packages/helm/kvaps/nfs-server-provisioner),
+# backed by persistence.storageClass below (any ordinary RWO class), and
+# dynamically provisions RWX PVCs from it under storageClass.name. When
+# enabled, api.plugins.persistence.storageClassName defaults to that same
+# name automatically unless you set it explicitly (see
+# templates/api/pvc.yaml).
+# ---------------------------------------------------------------------------
+nfsProvisioner:
+  enabled: false
+  persistence:
+    enabled: true
+    # The ordinary ReadWriteOnce StorageClass backing this NFS server's own
+    # data volume — empty uses the cluster's default StorageClass.
+    storageClass: ""
+    size: 1Gi
+  storageClass:
+    create: true
+    # Cluster-scoped, like every StorageClass — installing a second release
+    # on the same cluster with this also enabled needs a distinct name here,
+    # or that second `helm install` fails on an already-existing one.
+    name: nfs
 
 # ---------------------------------------------------------------------------
 # API (Go backend)
@@ -156,6 +244,10 @@ api:
   # leaving this at true makes browsers silently drop the auth cookie and
   # login never sticks — set it to false in that case.
   cookieSecure: true
+  # Requests per minute one client IP may make to each login / password-set
+  # / SSO endpoint (token refresh gets 3x). 0 disables the limit. The client
+  # IP is the rightmost X-Forwarded-For entry, which the gateway sets.
+  authRateLimitPerMinute: 20
 
   # Installed-plugin storage (backend WASM, frontend bundles, MCP bundles,
   # Agent Skills bundles — deploy/docker-compose.prod.yml's
@@ -267,7 +359,7 @@ agentRunner:
     # Empty (the default) resolves to "<release-name>-sandbox", a
     # dedicated namespace this chart creates for you (see
     # templates/agent-runner/sandbox-namespace.yaml) — never the release's
-    # own namespace alongside postgres/valkey/minio/api/web/gateway. The
+    # own namespace alongside postgres/valkey/rustfs/api/web/gateway. The
     # RBAC this chart grants (see templates/agent-runner/role.yaml) is
     # only ever scoped to whichever namespace this resolves to, so setting
     # it explicitly to a namespace you manage yourself works too, as long

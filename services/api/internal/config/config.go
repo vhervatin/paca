@@ -71,6 +71,11 @@ type ServerConfig struct {
 	// value is an exact-match allow-list. Configure via the comma-separated
 	// CORS_ORIGINS environment variable, e.g. "https://paca.example.com".
 	CORSAllowedOrigins []string
+	// AuthRateLimit is how many requests per minute one client IP may make
+	// to each credential endpoint under /auth (password login, password set,
+	// SSO login/callback); token refresh gets 3x that. 0 disables the
+	// limits. Configure via AUTH_RATE_LIMIT_PER_MINUTE (default 20).
+	AuthRateLimit int
 }
 
 // AdminConfig holds the default administrator credentials seeded on first startup.
@@ -122,13 +127,14 @@ type JWTConfig struct {
 
 // StorageConfig holds object-storage settings.
 // When Provider is "s3" the service connects to AWS S3 using the Region field.
-// When Provider is "minio" (default) it targets the Endpoint URL.
+// When Provider is anything else (default: "rustfs") it targets the Endpoint
+// URL as a self-hosted, S3-compatible store.
 // The bucket is created automatically on startup if it does not exist.
 type StorageConfig struct {
-	Provider        string // "s3" | "minio"  (default: "minio")
-	Endpoint        string // MinIO URL, e.g. "minio:9000"; ignored for AWS S3
+	Provider        string // "s3" | "rustfs"  (default: "rustfs")
+	Endpoint        string // self-hosted S3-compatible URL, e.g. "rustfs:9000"; ignored for AWS S3
 	PublicURL       string // public-facing base URL for presigned URLs, e.g. "http://localhost/storage"
-	Region          string // AWS region; used for S3; also supplied to MinIO (can be any value)
+	Region          string // AWS region; used for S3; also supplied to the self-hosted store (can be any value)
 	Bucket          string
 	AccessKeyID     string
 	SecretAccessKey string

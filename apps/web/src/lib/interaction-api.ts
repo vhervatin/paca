@@ -45,6 +45,10 @@ export interface Task {
 	view_group_key?: string | null;
 	created_at: string;
 	updated_at: string;
+	// "manual" (default) or "auto" — see the assignees PropertyField in
+	// properties-panel.tsx, which shows an "Auto" toggle instead of the
+	// member picker when this is "auto".
+	assignment_mode: "manual" | "auto";
 }
 
 export interface TaskListResult {
@@ -253,6 +257,10 @@ export interface InteractionView {
 	layout: ViewLayout;
 	config?: ViewConfig;
 	position: number;
+	/** True when `config` is this user's personal override, not what other project members see. */
+	is_personalized: boolean;
+	/** The project-shared default (equal to `config` when `is_personalized` is false). */
+	shared_config: ViewConfig;
 }
 
 // ── View shape helpers ─────────────────────────────────────────────────────────
@@ -350,6 +358,21 @@ export async function updateMyViewConfig(
 	const { data } = await apiClient.instance.put<
 		SuccessEnvelope<Omit<InteractionView, "layout">>
 	>(`/projects/${projectId}/views/${viewId}/config`, { config });
+	return mapView(data.data);
+}
+
+/**
+ * Clear the current user's PERSONAL view config, reverting them to the
+ * shared default (see {@link updateMyViewConfig}). Never touches the shared
+ * view or other members.
+ */
+export async function clearMyViewConfig(
+	projectId: string,
+	viewId: string,
+): Promise<InteractionView> {
+	const { data } = await apiClient.instance.delete<
+		SuccessEnvelope<Omit<InteractionView, "layout">>
+	>(`/projects/${projectId}/views/${viewId}/config`);
 	return mapView(data.data);
 }
 
@@ -689,6 +712,7 @@ export async function updateTask(
 		due_date: string | null;
 		tags: string[];
 		custom_fields: Record<string, unknown>;
+		assignment_mode: "manual" | "auto";
 	}>,
 ): Promise<Task> {
 	const { data } = await apiClient.instance.patch<SuccessEnvelope<Task>>(
@@ -705,16 +729,23 @@ export async function deleteTask(
 	await apiClient.instance.delete(`/projects/${projectId}/tasks/${taskId}`);
 }
 
+export const SUBTASKS_PAGE_SIZE = 50;
+
 export async function listSubtasks(
 	projectId: string,
 	parentTaskId: string,
-): Promise<Task[]> {
+	opts: { cursor?: string; pageSize?: number } = {},
+): Promise<TaskListResult> {
 	const { data } = await apiClient.instance.get<
 		SuccessEnvelope<TaskListResult>
 	>(`/projects/${projectId}/tasks`, {
-		params: { parent_task_id: parentTaskId, page: 1, page_size: 200 },
+		params: {
+			parent_task_id: parentTaskId,
+			cursor: opts.cursor,
+			page_size: opts.pageSize ?? SUBTASKS_PAGE_SIZE,
+		},
 	});
-	return data.data.items;
+	return data.data;
 }
 
 export async function listViewTaskPositions(
@@ -736,10 +767,21 @@ export const taskQueryOptions = (projectId: string, taskId: string) =>
 		staleTime: 15_000,
 	});
 
-export const subtasksQueryOptions = (projectId: string, parentTaskId: string) =>
-	queryOptions({
+/** Infinite-query version of the subtasks fetch — backs the task detail
+ *  panel's Subtasks section. Pages load SUBTASKS_PAGE_SIZE at a time via
+ *  next_cursor, same pattern as epicTasksInfiniteQueryOptions, so a task
+ *  with more than one page of direct children stays fully reachable behind
+ *  a "load more" affordance instead of silently truncating. */
+export const subtasksInfiniteQueryOptions = (
+	projectId: string,
+	parentTaskId: string,
+) =>
+	infiniteQueryOptions({
 		queryKey: ["projects", projectId, "tasks", parentTaskId, "subtasks"],
-		queryFn: () => listSubtasks(projectId, parentTaskId),
+		queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
+			listSubtasks(projectId, parentTaskId, { cursor: pageParam }),
+		initialPageParam: undefined as string | undefined,
+		getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
 		staleTime: 15_000,
 	});
 
@@ -884,14 +926,6 @@ export async function searchTasksForPicker(
 		cursor: opts.cursor,
 	});
 }
-
-/** Fetches child tasks of an epic (tasks with parent_task_id = epicId). */
-export const epicChildTasksQueryOptions = (projectId: string, epicId: string) =>
-	queryOptions({
-		queryKey: ["projects", projectId, "tasks", epicId, "children"],
-		queryFn: () => listSubtasks(projectId, epicId),
-		staleTime: 15_000,
-	});
 
 // ── Activity & Comments API ────────────────────────────────────────────────────
 

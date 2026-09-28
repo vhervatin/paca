@@ -2,7 +2,7 @@
 
 This chart (`deploy/helm/paca`) deploys the same stack as
 [`deploy/docker-compose.prod.yml`](../docker-compose.prod.yml) — postgres,
-valkey, minio, api, web, realtime, a Caddy gateway, and agent-runner — as
+valkey, rustfs, api, web, realtime, a Caddy gateway, and agent-runner — as
 Kubernetes resources. See that file first if you want the non-Kubernetes
 picture of how these pieces fit together; this chart mirrors it
 component-for-component rather than introducing a different architecture.
@@ -41,7 +41,7 @@ own. This is exactly why the namespace is dedicated by default instead of
 falling back to the release's own: granting this Role there would let
 agent-runner's ServiceAccount patch or delete this chart's own
 api/gateway/web Deployments/Services, and exec into/read logs from
-postgres/valkey/minio, not just sandbox objects. If you set
+postgres/valkey/rustfs, not just sandbox objects. If you set
 `agentRunner.sandbox.namespace` explicitly to a namespace you manage
 yourself, make sure nothing else you don't want agent-runner touching runs
 there — this chart won't create a namespace you've explicitly named (see
@@ -86,13 +86,19 @@ helm install paca oci://ghcr.io/paca-ai/charts/paca --version <release-version> 
 `<release-version>` is a [release](https://github.com/Paca-AI/paca/releases)
 tag without its leading `v` (e.g. `0.13.1` for `v0.13.1`); omit `--version` to
 install the newest chart published. To install from a repository checkout
-instead — e.g. to try an unreleased chart change — point at the chart
-directory itself:
+instead — e.g. to try an unreleased chart change — this chart depends on the
+upstream [rustfs/rustfs](https://artifacthub.io/packages/helm/rustfs/rustfs)
+chart (see `Chart.yaml`), so fetch that into `charts/` first, then point at
+the chart directory itself:
 
 ```bash
+helm dependency update deploy/helm/paca
 kubectl create namespace paca
 helm install paca deploy/helm/paca -n paca -f my-values.yaml
 ```
+
+(The published OCI chart above already bundles this dependency — that first
+step is only needed when installing straight from a checkout.)
 
 At minimum, `my-values.yaml` needs the required secrets `values.yaml`
 otherwise refuses to render without (there are no guessable defaults —
@@ -108,9 +114,17 @@ secrets:
   internalApiKey: "<openssl rand -hex 32>"
   agentApiKey: "<openssl rand -hex 32>"
   postgresPassword: "<a strong password>"
-  storageAccessKeyId: "<minio access key, or leave minioadmin for a first try>"
-  storageSecretAccessKey: "<minio secret key>"
+
+rustfs:
+  secret:
+    rustfs:
+      access_key: "<rustfs access key>"
+      secret_key: "<rustfs secret key>"
 ```
+
+That last block is only for the bundled RustFS (the default — see "What's
+bundled vs. external" below); using external S3 instead needs
+`secrets.storageAccessKeyId`/`storageSecretAccessKey` in its place.
 
 Then either point DNS at your ingress controller and set
 `ingress.enabled: true` with `ingress.host`, or set
@@ -132,7 +146,17 @@ pattern — disable the bundled version and point at a managed one instead:
 |---|---|---|
 | PostgreSQL | `postgres.enabled: false` | `externalDatabaseUrl` |
 | Valkey/Redis | `valkey.enabled: false` | `externalRedisUrl` |
-| MinIO/S3 | `minio.enabled: false` + `storage.provider: s3` | `storage.endpoint` (+ storage creds) |
+| RustFS/S3 | `rustfs.enabled: false` + `storage.provider: s3` | `storage.endpoint` (+ storage creds) |
+
+Unlike postgres/valkey above (hand-rolled templates in this chart), `rustfs`
+is the upstream
+[rustfs/rustfs](https://artifacthub.io/packages/helm/rustfs/rustfs) chart
+pulled in as a real dependency (`Chart.yaml`) — `values.yaml`'s `rustfs:`
+block is that chart's own schema passed straight through, so anything not
+already surfaced there (e.g. `rustfs.mtls`, `rustfs.pools` for horizontal
+scaling) is still configurable via the same key path. See
+`helm show values deploy/helm/paca/charts/rustfs-*.tgz` for its full set
+once `helm dependency update` has fetched it.
 
 `web.enabled: false` drops the bundled frontend entirely if you're serving
 the SPA from a CDN instead — the gateway keeps routing `/api`, `/ws`, and
@@ -152,10 +176,25 @@ StorageClass (`api.plugins.persistence.storageClassName` in
 `values.yaml`) — examples: `efs-csi` (AWS), `filestore-csi` (GKE),
 `azurefile` (AKS), `nfs-subdir-external-provisioner`, `longhorn`,
 `rook-ceph`. Most clusters' *default* StorageClass is block storage
-(ReadWriteOnce only) and will fail to bind. If you have no RWX class
-available and don't need custom plugins yet, set
-`api.plugins.persistence.enabled: false` — the app still runs, just
-without a working plugin-install flow.
+(ReadWriteOnce only) and will fail to bind.
+
+If you have no RWX class available, set `nfsProvisioner.enabled: true`
+(off by default) — this bundles an in-cluster NFS-Ganesha server
+([kvaps/nfs-server-provisioner](https://artifacthub.io/packages/helm/kvaps/nfs-server-provisioner))
+backed by any ordinary ReadWriteOnce class, and `api.plugins.persistence`
+picks up its `nfs` StorageClass automatically. See that value's own
+comment in `values.yaml` for what it needs (mainly
+`nfsProvisioner.persistence.storageClass`, if your cluster's default RWO
+class isn't the one you want backing it). Creates a cluster-scoped
+`StorageClass` and `ClusterRole` — the identity running `helm
+install`/`upgrade` needs cluster-level RBAC, not just namespace-scoped
+access — and its Pod runs with the `DAC_READ_SEARCH`/`SYS_RESOURCE` Linux
+capabilities added (needed by the NFS-Ganesha server it runs, on top of
+whatever `agentRunner`'s own sandbox Pods already require).
+
+If you don't need custom plugins yet and would rather skip both, set
+`api.plugins.persistence.enabled: false` instead — the app still runs,
+just without a working plugin-install flow.
 
 ## Bringing your own Secret
 
@@ -166,7 +205,12 @@ one this chart generates. See `templates/secret.yaml` for the exact key
 names required. If `postgres.enabled` is also true in this mode, that
 Secret's `POSTGRES_PASSWORD` key must match whatever password your own
 `DATABASE_URL` key uses — the bundled postgres StatefulSet reads
-`POSTGRES_PASSWORD` directly, so the two have to agree.
+`POSTGRES_PASSWORD` directly, so the two have to agree. Its
+`STORAGE_ACCESS_KEY_ID`/`STORAGE_SECRET_ACCESS_KEY` keys only matter when
+`rustfs.enabled` is false (external S3) — the bundled RustFS reads its own
+credentials from `rustfs.secret.*` instead (see "What's bundled vs.
+external" above), which has the same bring-your-own-Secret option via
+`rustfs.secret.existingSecret`.
 
 ## SSH access
 
@@ -285,15 +329,26 @@ downtime rather than actually restarting anything.
 ## Verifying before you install
 
 ```bash
+helm dependency update deploy/helm/paca   # once per checkout, or after Chart.yaml changes
 helm lint deploy/helm/paca
 helm template paca deploy/helm/paca -f my-values.yaml | less
 ```
 
-Both run entirely offline — no cluster required — and are worth running
-after any `values.yaml` change.
+All three run entirely offline once `charts/` is populated — no cluster
+required — and are worth running after any `values.yaml` change. Skipping
+the first step is loud, not silent: `template`/`install` refuse to run at
+all ("found in Chart.yaml, but missing in charts/ directory: rustfs" — or
+`nfs-server-provisioner`, whichever dependency's tarball is missing), and
+`lint` still passes but only after printing the same warning.
 
 ## Troubleshooting
 
+- **`helm install`/`template` fails with "found in Chart.yaml, but missing
+  in charts/ directory: rustfs"** (or `nfs-server-provisioner`, whichever
+  dependency's tarball is missing): run `helm dependency update
+  deploy/helm/paca` first — see "Verifying before you install" above. Only
+  affects installing from a repository checkout; the published OCI chart
+  already bundles both dependencies.
 - **A sandbox Job never starts a Pod / stays Pending**: check
   `kubectl describe job -n <sandbox namespace> <job-name>` — usually a
   resource quota, an unavailable `agentRunner.sandbox.image`, or a Pod

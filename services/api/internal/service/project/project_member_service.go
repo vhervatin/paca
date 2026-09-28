@@ -3,11 +3,14 @@ package projectsvc
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/google/uuid"
 
 	agentdom "github.com/Paca-AI/api/internal/domain/agent"
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
+	"github.com/Paca-AI/api/internal/events"
+	"github.com/Paca-AI/api/internal/platform/authz"
 )
 
 // ListMembers returns all members of the given project.
@@ -62,6 +65,7 @@ func (s *Service) AddMember(ctx context.Context, projectID uuid.UUID, in project
 		ProjectID:     projectID,
 		UserID:        in.UserID,
 		ProjectRoleID: in.ProjectRoleID,
+		Description:   strings.TrimSpace(in.Description),
 	}
 	if err := s.repo.AddMember(ctx, m); err != nil {
 		return nil, err
@@ -72,6 +76,7 @@ func (s *Service) AddMember(ctx context.Context, projectID uuid.UUID, in project
 	if err != nil {
 		return nil, err
 	}
+	s.record(ctx, projectID, events.EntityMember, added.ID, TopicMemberAdded, memberPayload(added))
 	return added, nil
 }
 
@@ -108,7 +113,12 @@ func (s *Service) addAgentMember(ctx context.Context, projectID, agentID, roleID
 	if err := s.repo.AddAgentMember(ctx, memberID, projectID, agentID, roleID); err != nil {
 		return nil, err
 	}
-	return s.repo.FindMemberByAgent(ctx, projectID, agentID)
+	added, err := s.repo.FindMemberByAgent(ctx, projectID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	s.record(ctx, projectID, events.EntityMember, added.ID, TopicMemberAdded, memberPayload(added))
+	return added, nil
 }
 
 // UpdateMemberRole changes the role of an existing project member.
@@ -167,10 +177,20 @@ func (s *Service) GetMyProjectPermissions(ctx context.Context, projectID, userID
 	if err != nil {
 		return nil, err
 	}
-	perms := role.Permissions
-	if perms == nil {
-		perms = map[string]any{}
+	// Copy rather than alias role.Permissions — it may be a shared/cached
+	// map — then add the same membership-implied grant
+	// AuthzPermissionStore.ListProjectPermissions applies for the backend
+	// authorizer (any active membership implies projects.read regardless of
+	// role contents; see that method's doc comment). Without this, a role
+	// whose seed no longer lists projects.read explicitly (e.g. Editor/
+	// Member/Viewer after this PR) reports it as denied here while the
+	// backend actually grants it — the two sides of the same role
+	// disagreeing in the deny direction.
+	perms := make(map[string]any, len(role.Permissions)+1)
+	for k, v := range role.Permissions {
+		perms[k] = v
 	}
+	perms[string(authz.PermissionProjectsRead)] = true
 	return perms, nil
 }
 
@@ -212,7 +232,45 @@ func (s *Service) UpdateMemberRoleByMemberID(ctx context.Context, projectID, mem
 		return nil, err
 	}
 
-	return s.repo.FindMemberByID(ctx, memberID)
+	updated, err := s.repo.FindMemberByID(ctx, memberID)
+	if err != nil {
+		return nil, err
+	}
+	if member.ProjectRoleID != in.ProjectRoleID {
+		payload := memberPayload(updated)
+		payload["previous_role_name"] = member.RoleName
+		s.record(ctx, projectID, events.EntityMember, memberID, TopicMemberRoleChanged, payload)
+	}
+	return updated, nil
+}
+
+// UpdateMemberDescription changes a member's Jev-facing description by member ID.
+func (s *Service) UpdateMemberDescription(ctx context.Context, projectID, memberID uuid.UUID, description string) (*projectdom.ProjectMember, error) {
+	if _, err := s.repo.FindByID(ctx, projectID); err != nil {
+		return nil, err
+	}
+
+	member, err := s.repo.FindMemberByID(ctx, memberID)
+	if err != nil {
+		return nil, err
+	}
+
+	if member.ProjectID != projectID {
+		return nil, projectdom.ErrMemberNotFound
+	}
+
+	if err := s.repo.UpdateMemberDescription(ctx, memberID, description); err != nil {
+		return nil, err
+	}
+
+	updated, err := s.repo.FindMemberByID(ctx, memberID)
+	if err != nil {
+		return nil, err
+	}
+	payload := memberPayload(updated)
+	payload["changes"] = []string{"description"}
+	s.record(ctx, projectID, events.EntityMember, memberID, TopicMemberUpdated, payload)
+	return updated, nil
 }
 
 // RemoveMemberByMemberID removes a project member by member ID.
@@ -230,5 +288,9 @@ func (s *Service) RemoveMemberByMemberID(ctx context.Context, projectID, memberI
 		return projectdom.ErrMemberNotFound
 	}
 
-	return s.repo.RemoveMemberByMemberID(ctx, memberID)
+	if err := s.repo.RemoveMemberByMemberID(ctx, memberID); err != nil {
+		return err
+	}
+	s.record(ctx, projectID, events.EntityMember, memberID, TopicMemberRemoved, memberPayload(member))
+	return nil
 }

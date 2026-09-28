@@ -23,6 +23,8 @@
   <a href="https://m.do.co/c/cce1c135acd1"><img src="https://opensource.nyc3.cdn.digitaloceanspaces.com/attribution/assets/PoweredByDO/DO_Powered_by_Badge_blue.svg" alt="Powered by DigitalOcean" height="40" /></a>
   &nbsp;&nbsp;
   <a href="https://app.virtuals.io/referral?code=rXZ9nf"><img src="https://os.virtuals.io/favicon.png" alt="Sponsored by Virtuals Protocol" height="40" /></a>
+  &nbsp;&nbsp;
+  <a href="https://fluxionai.world/register?source=github&campaign=github-paca&promo=PACA" title="Sponsored by Fluxion AI"><img src="docs/assets/fluxion-ai-logo.svg" alt="Sponsored by Fluxion AI" height="40" /></a>
 </p>
 
 <p align="center">
@@ -129,6 +131,20 @@ Plan  →  Act  →  Check  →  Adapt
 | **Act** | Sprint is live. Humans and AI agents pull tasks from the board, execute, and post updates. |
 | **Check** | QA agents run automated verification. Humans review AI output. The board reflects reality. |
 | **Adapt** | Data from the sprint informs the next cycle. The team — human and AI — retrospects together. |
+
+---
+
+## What's New in v0.17.0
+
+- **Jev AI integration** — plug [Jev](https://docs.typesafe.ai), an AI decision engine, into any project to let it make the small routing calls a team makes all day. It's opt-in and per-project: bring your own key for TypeSafe (the default) or any Jev-compatible provider such as [OpenJev](https://openjev.sh/docs) from **Settings → Jev AI**. The key is encrypted at rest and never shown again, and a project without a key behaves exactly as before.
+  - **Agent Auto-routing** — pick **Auto** in the chat's agent picker and Jev hands your message to the best-fit agent, based on each agent's description.
+  - **Task Auto-fill** — when a task is created, Jev fills in the fields left blank (priority, type, story points, tags, epic, and select/boolean custom fields). It only applies confident answers and never overwrites a field a person set.
+  - **Task Auto-assign** — set a task's assignee to **Auto** and Jev picks the best-matching member from their descriptions. If it isn't confident, it leaves the task unassigned and says why in the activity feed.
+  - **Jev Condition in automations** — a new condition node that routes a workflow on Jev's answer (a choice, a score, or yes/no), falling back to the **Else** branch whenever Jev is unsure or unavailable.
+
+<p align="center">
+  <img src="docs/assets/demo-jev.gif" width="720" alt="Paca v0.17.0 — Jev AI: Agent Auto-routing, Task Auto-fill, Auto-assign, and Jev Conditions" />
+</p>
 
 ---
 
@@ -453,3 +469,11 @@ But Paca is built from conviction: human-AI collaboration in a real Scrum team s
 ## License
 
 Distributed under the **Apache License 2.0**. See [LICENSE](LICENSE) for details.
+
+---
+
+## A Small Thank-You for the Community
+
+Some partners offer a little extra to folks who find them through Paca — just perks for this project, not promotions:
+
+- **Fluxion AI** — signup bonus bumped to **$3** for anyone who joins through Paca's community link: [https://fluxionai.world/register?source=github&campaign=github-paca&promo=PACA](https://fluxionai.world/register?source=github&campaign=github-paca&promo=PACA)

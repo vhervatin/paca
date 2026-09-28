@@ -9,9 +9,11 @@ import {
 	ExternalLink,
 	KeyRound,
 	Loader2,
+	Lock,
 	Plus,
 	Save,
 	Server,
+	ShieldCheck,
 	Trash2,
 	Wand2,
 } from "lucide-react";
@@ -22,6 +24,8 @@ import {
 	DefaultFolderSelect,
 } from "@/components/projects/environments/environment-folder-select";
 import { AvatarUpload } from "@/components/shared/avatar-upload";
+import { EntityAvatarContent } from "@/components/shared/entity-avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -51,14 +55,17 @@ import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import {
 	type ACPProvider,
 	type Agent,
+	type AgentAccessMode,
 	type AgentMCPServer,
 	type AgentSkill,
+	addAgentAccessGrant,
 	addEnvVar,
 	addGlobalEnvVar,
 	addGlobalMCPServer,
 	addGlobalSkill,
 	addMCPServer,
 	addSkill,
+	agentAccessGrantsQueryOptions,
 	agentEnvVarsQueryOptions,
 	agentMCPServersQueryOptions,
 	agentQueryOptions,
@@ -75,6 +82,7 @@ import {
 	globalAgentQueryOptions,
 	globalAgentSkillsQueryOptions,
 	llmModelsQueryOptions,
+	removeAgentAccessGrant,
 	updateAgent,
 	updateGlobalAgent,
 	updateGlobalMCPServer,
@@ -83,11 +91,18 @@ import {
 	updateSkill,
 	verifyCLILogin,
 } from "@/lib/agent-api";
+import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
 import { environmentsQueryOptions } from "@/lib/environment-api";
-import { resolveAgentAvatarUrl } from "@/lib/provider-logos";
+import { projectMembersQueryOptions } from "@/lib/project-api";
+import {
+	resolveAgentAvatarUrl,
+	resolveMemberAvatarUrl,
+} from "@/lib/provider-logos";
 import { splitShellCommand } from "@/lib/shell-command";
+import { getInitials } from "@/lib/utils";
 import { AcpBridgeSetup } from "./acp-bridge-setup";
 import { AgentActivityTab } from "./agent-activity-tab";
+import { AgentGlobalRoleTab } from "./agent-global-role-tab";
 
 // Shared between the project agent detail page
 // (routes/.../projects/$projectId/agents/$agentId/index.tsx) and the global
@@ -99,9 +114,17 @@ import { AgentActivityTab } from "./agent-activity-tab";
 // can't carry over is Activity: an agent's activity feed is inherently
 // project-shaped (task/doc activity within one project), and a global agent
 // may be invited into many projects or none — see AgentDetailView's
-// visibleTabs filtering below.
+// visibleTabs filtering below. Global role is the reverse: it exists only at
+// global scope (a project agent's role is its project role).
 
-type Tab = "overview" | "mcp-servers" | "skills" | "env-vars" | "activity";
+type Tab =
+	| "overview"
+	| "mcp-servers"
+	| "skills"
+	| "env-vars"
+	| "global-role"
+	| "access"
+	| "activity";
 
 const CUSTOM = "__custom__";
 
@@ -155,6 +178,7 @@ function OverviewTab({
 	);
 
 	const [name, setName] = useState(agent.name);
+	const [description, setDescription] = useState(agent.description);
 	const [llmApiKey, setLlmApiKey] = useState("");
 	const [llmBaseUrl, setLlmBaseUrl] = useState(agent.llm_base_url ?? "");
 	const [systemPrompt, setSystemPrompt] = useState(agent.system_prompt);
@@ -254,6 +278,7 @@ function OverviewTab({
 
 	const isDirty =
 		name !== agent.name ||
+		description !== agent.description ||
 		effectiveParallelismLimit !== agent.parallelism_limit ||
 		(isAcp
 			? acpProviderSelect !== (agent.acp_provider ?? "claude-code") ||
@@ -278,6 +303,7 @@ function OverviewTab({
 		mutationFn: () => {
 			const payload = {
 				name: name.trim(),
+				description: description.trim(),
 				parallelism_limit: effectiveParallelismLimit,
 				...(isAcp
 					? {
@@ -340,6 +366,22 @@ function OverviewTab({
 				: !!llmProvider && !!llmModel && !!llmBaseUrl.trim()) &&
 		!saveMutation.isPending;
 
+	// The environment/folder pickers are populated from a live query, so a
+	// fresh pick is always valid — this mainly guards one deleted between
+	// load and submit.
+	const saveErrorMessage = saveMutation.isError
+		? (() => {
+				switch (getApiErrorCode(saveMutation.error)) {
+					case ApiErrorCode.AgentDefaultEnvironmentInvalid:
+						return t("agents.detail.overview.defaultEnvironmentInvalid");
+					case ApiErrorCode.AgentDefaultFolderInvalid:
+						return t("agents.detail.overview.defaultFolderInvalid");
+					default:
+						return t("agents.detail.overview.saveFailed");
+				}
+			})()
+		: null;
+
 	return (
 		<div className="space-y-6 max-w-2xl">
 			<div className="space-y-1.5">
@@ -349,6 +391,20 @@ function OverviewTab({
 					onChange={(e) => setName(e.target.value)}
 					disabled={!canWrite}
 				/>
+			</div>
+
+			<div className="space-y-1.5">
+				<Label>{t("agents.detail.overview.descriptionLabel")}</Label>
+				<Textarea
+					value={description}
+					onChange={(e) => setDescription(e.target.value)}
+					rows={2}
+					disabled={!canWrite}
+					placeholder={t("agents.detail.overview.descriptionPlaceholder")}
+				/>
+				<p className="text-xs text-muted-foreground">
+					{t("agents.detail.overview.descriptionHint")}
+				</p>
 			</div>
 
 			<div className="space-y-1.5">
@@ -803,10 +859,8 @@ function OverviewTab({
 							{t("agents.detail.overview.saved")}
 						</span>
 					)}
-					{saveMutation.isError && (
-						<span className="text-xs text-destructive">
-							{t("agents.detail.overview.saveFailed")}
-						</span>
+					{saveErrorMessage && (
+						<span className="text-xs text-destructive">{saveErrorMessage}</span>
 					)}
 				</div>
 			)}
@@ -1230,6 +1284,226 @@ function MCPServersTab({
 	);
 }
 
+// ── Access Tab ────────────────────────────────────────────────────────────────
+// Project-scoped only (a global agent viewed with no projectId has no single
+// project's members to grant against — see AgentDetailView's visibleTabs
+// filtering, same reasoning as the Activity tab). Restricting/granting here
+// only ever governs *usage* (starting/replying to a chat) — MCP servers,
+// skills, and env vars above stay governed purely by agents.write regardless
+// of access_mode, same as the backend.
+
+function AccessTab({
+	projectId,
+	agentId,
+	accessMode,
+	canWrite,
+}: {
+	projectId: string;
+	agentId: string;
+	accessMode: AgentAccessMode;
+	canWrite: boolean;
+}) {
+	const { t } = useTranslation("projects");
+	const qc = useQueryClient();
+	const [selectedMemberId, setSelectedMemberId] = useState("");
+
+	const agentKey = agentQueryOptions(projectId, agentId).queryKey;
+	const grantsQuery = agentAccessGrantsQueryOptions(projectId, agentId);
+	const { data: grants = [] } = useQuery(grantsQuery);
+	const { data: members = [] } = useQuery(
+		projectMembersQueryOptions(projectId),
+	);
+
+	const toggleModeMutation = useMutation({
+		mutationFn: (restricted: boolean) =>
+			updateAgent(projectId, agentId, {
+				access_mode: restricted ? "restricted" : "open",
+			}),
+		onSuccess: () => qc.invalidateQueries({ queryKey: agentKey }),
+	});
+
+	const addMutation = useMutation({
+		mutationFn: (memberId: string) =>
+			addAgentAccessGrant(projectId, agentId, memberId),
+		onSuccess: () => {
+			setSelectedMemberId("");
+			qc.invalidateQueries({ queryKey: grantsQuery.queryKey });
+			qc.invalidateQueries({ queryKey: agentKey });
+		},
+	});
+
+	// availableMembers already excludes anyone with a grant, so this is
+	// mainly a race (stale member list, or granted concurrently elsewhere).
+	const addErrorMessage = addMutation.isError
+		? getApiErrorCode(addMutation.error) === ApiErrorCode.AgentAccessGrantExists
+			? t("agents.detail.access.alreadyGranted")
+			: t("agents.detail.access.grantFailed")
+		: null;
+
+	const removeMutation = useMutation({
+		mutationFn: (memberId: string) =>
+			removeAgentAccessGrant(projectId, agentId, memberId),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: grantsQuery.queryKey });
+			qc.invalidateQueries({ queryKey: agentKey });
+		},
+	});
+
+	const memberName = (m: {
+		member_type?: string;
+		agent_name?: string;
+		full_name: string;
+		username: string;
+	}) =>
+		m.member_type === "agent"
+			? (m.agent_name ?? m.username)
+			: m.full_name || m.username;
+
+	const grantedMemberIds = new Set(grants.map((g) => g.member_id));
+	const availableMembers = members.filter((m) => !grantedMemberIds.has(m.id));
+	const memberById = new Map(members.map((m) => [m.id, m]));
+
+	return (
+		<div className="space-y-6">
+			<div className="flex items-center justify-between rounded-lg border border-border/60 bg-card px-4 py-3">
+				<div className="space-y-0.5 pr-4">
+					<p className="text-sm font-medium">
+						{t("agents.detail.access.restrictLabel")}
+					</p>
+					<p className="text-xs text-muted-foreground">
+						{t("agents.detail.access.restrictDescription")}
+					</p>
+				</div>
+				<Switch
+					checked={accessMode === "restricted"}
+					onCheckedChange={(checked) =>
+						canWrite && toggleModeMutation.mutate(checked)
+					}
+					disabled={!canWrite || toggleModeMutation.isPending}
+				/>
+			</div>
+
+			{accessMode === "restricted" && (
+				<div className="space-y-3">
+					{canWrite && (
+						<div className="flex items-center gap-2">
+							<Select
+								value={selectedMemberId}
+								onValueChange={(v) => v && setSelectedMemberId(v)}
+								items={availableMembers.map((m) => ({
+									value: m.id,
+									label: memberName(m),
+								}))}
+							>
+								<SelectTrigger className="flex-1">
+									<SelectValue
+										placeholder={t("agents.detail.access.pickMember")}
+									/>
+								</SelectTrigger>
+								<SelectContent>
+									{availableMembers.map((m) => {
+										const isBot = m.member_type === "agent";
+										return (
+											<SelectItem key={m.id} value={m.id}>
+												<div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 to-primary/10 text-[10px] font-bold text-primary ring-1 ring-primary/20">
+													<EntityAvatarContent
+														avatarUrl={resolveMemberAvatarUrl(m)}
+													>
+														{isBot ? (
+															<Bot className="size-3" />
+														) : (
+															getInitials(memberName(m))
+														)}
+													</EntityAvatarContent>
+												</div>
+												<span className="flex-1 truncate text-left">
+													{memberName(m)}
+												</span>
+											</SelectItem>
+										);
+									})}
+								</SelectContent>
+							</Select>
+							<Button
+								size="sm"
+								disabled={!selectedMemberId || addMutation.isPending}
+								onClick={() =>
+									selectedMemberId && addMutation.mutate(selectedMemberId)
+								}
+							>
+								<Plus className="size-4 mr-1.5" />
+								{t("agents.detail.access.grantAccess")}
+							</Button>
+						</div>
+					)}
+
+					{addErrorMessage && (
+						<p className="text-sm text-destructive rounded-md bg-destructive/10 px-3 py-2">
+							{addErrorMessage}
+						</p>
+					)}
+
+					{grants.length === 0 ? (
+						<div className="flex flex-col items-center justify-center gap-3 py-14 rounded-xl border border-dashed border-border">
+							<Lock className="size-8 text-muted-foreground/40" />
+							<p className="text-sm text-muted-foreground">
+								{t("agents.detail.access.empty")}
+							</p>
+						</div>
+					) : (
+						<div className="space-y-2">
+							{grants.map((g) => {
+								const member = memberById.get(g.member_id);
+								const display = member ? memberName(member) : g.member_id;
+								const isBot = member?.member_type === "agent";
+								const avatarUrl = member
+									? resolveMemberAvatarUrl(member)
+									: undefined;
+								return (
+									<div
+										key={g.id}
+										className="flex items-center gap-3 rounded-xl border border-border/50 bg-card px-4 py-3 transition-colors hover:bg-muted/30"
+									>
+										<Avatar className="size-9 shrink-0">
+											{avatarUrl ? <AvatarImage src={avatarUrl} /> : null}
+											<AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
+												{isBot ? (
+													<Bot className="size-4" />
+												) : (
+													getInitials(display)
+												)}
+											</AvatarFallback>
+										</Avatar>
+										<div className="min-w-0 flex-1">
+											<p className="text-sm font-medium truncate">{display}</p>
+											{member && (
+												<p className="text-xs text-muted-foreground truncate">
+													@{member.username}
+												</p>
+											)}
+										</div>
+										{canWrite && (
+											<Button
+												variant="ghost"
+												size="icon"
+												className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+												onClick={() => removeMutation.mutate(g.member_id)}
+												disabled={removeMutation.isPending}
+											>
+												<Trash2 className="size-3.5" />
+											</Button>
+										)}
+									</div>
+								);
+							})}
+						</div>
+					)}
+				</div>
+			)}
+		</div>
+	);
+}
+
 // ── Skills Tab ────────────────────────────────────────────────────────────────
 
 function AddSkillDialog({
@@ -1277,6 +1551,19 @@ function AddSkillDialog({
 			setSourceUrl("");
 		},
 	});
+
+	const addErrorMessage = addMutation.isError
+		? (() => {
+				switch (getApiErrorCode(addMutation.error)) {
+					case ApiErrorCode.AgentSkillNameReserved:
+						return t("agents.detail.skills.addDialog.nameReserved");
+					case ApiErrorCode.AgentSkillNameInvalid:
+						return t("agents.detail.skills.addDialog.nameInvalid");
+					default:
+						return t("agents.detail.skills.addDialog.addFailed");
+				}
+			})()
+		: null;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -1347,6 +1634,11 @@ function AddSkillDialog({
 								onChange={(e) => setSourceUrl(e.target.value)}
 							/>
 						</div>
+					)}
+					{addErrorMessage && (
+						<p className="text-sm text-destructive rounded-md bg-destructive/10 px-3 py-2">
+							{addErrorMessage}
+						</p>
 					)}
 				</div>
 				<DialogFooter>
@@ -1538,6 +1830,19 @@ function AddEnvVarDialog({
 		},
 	});
 
+	const addErrorMessage = addMutation.isError
+		? (() => {
+				switch (getApiErrorCode(addMutation.error)) {
+					case ApiErrorCode.AgentEnvVarKeyTaken:
+						return t("agents.detail.envVars.addDialog.keyTaken");
+					case ApiErrorCode.AgentEnvVarKeyReserved:
+						return t("agents.detail.envVars.addDialog.keyReserved");
+					default:
+						return t("agents.detail.envVars.addDialog.addFailed");
+				}
+			})()
+		: null;
+
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="max-w-md">
@@ -1573,6 +1878,11 @@ function AddEnvVarDialog({
 							onChange={(e) => setValue(e.target.value)}
 						/>
 					</div>
+					{addErrorMessage && (
+						<p className="text-sm text-destructive rounded-md bg-destructive/10 px-3 py-2">
+							{addErrorMessage}
+						</p>
+					)}
 				</div>
 				<DialogFooter>
 					<Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -1719,6 +2029,16 @@ const TABS = [
 		icon: KeyRound,
 	},
 	{
+		id: "global-role",
+		labelKey: "agents.detail.tabs.globalRole",
+		icon: ShieldCheck,
+	},
+	{
+		id: "access",
+		labelKey: "agents.detail.tabs.access",
+		icon: Lock,
+	},
+	{
 		id: "activity",
 		labelKey: "agents.detail.tabs.activity",
 		icon: ActivityIcon,
@@ -1808,7 +2128,10 @@ export function AgentDetailView({
 		agent?.agent_type === "provider_cli" &&
 		agent.cli_provider !== "claude-code";
 	const visibleTabs = TABS.filter((tab) => {
-		if (tab.id === "activity" && !projectId) return false;
+		if ((tab.id === "activity" || tab.id === "access") && !projectId) {
+			return false;
+		}
+		if (tab.id === "global-role" && projectId) return false;
 		if (agent?.agent_type === "acp" && acpHiddenTabs.includes(tab.id)) {
 			return false;
 		}
@@ -1920,8 +2243,8 @@ export function AgentDetailView({
 			</div>
 
 			{/* Tabs */}
-			<div className="border-b border-border/50 px-6 shrink-0">
-				<div className="flex items-center gap-1 -mb-px">
+			<div className="border-b border-border/50 px-6 shrink-0 overflow-x-auto">
+				<div className="flex items-center gap-1 -mb-px w-max min-w-full">
 					{visibleTabs.map((tab) => {
 						const Icon = tab.icon;
 						const isActive = activeTab === tab.id;
@@ -1930,7 +2253,7 @@ export function AgentDetailView({
 								key={tab.id}
 								type="button"
 								onClick={() => handleTabChange(tab.id)}
-								className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+								className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-sm font-medium border-b-2 transition-colors ${
 									isActive
 										? "border-primary text-primary"
 										: "border-transparent text-muted-foreground hover:text-foreground"
@@ -1979,6 +2302,17 @@ export function AgentDetailView({
 					<EnvVarsTab
 						projectId={projectId}
 						agentId={agentId}
+						canWrite={canWrite}
+					/>
+				)}
+				{activeTab === "global-role" && !projectId && (
+					<AgentGlobalRoleTab agent={agent} canWrite={canWrite} />
+				)}
+				{activeTab === "access" && projectId && (
+					<AccessTab
+						projectId={projectId}
+						agentId={agentId}
+						accessMode={agent.access_mode}
 						canWrite={canWrite}
 					/>
 				)}

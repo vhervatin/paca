@@ -29,13 +29,15 @@
 		"automation": "자동화",
 		"team": "팀",
 		"settings": "설정",
-		"changelog": "새로운 소식"
+		"changelog": "새로운 소식",
+		"activity": "활동"
 	},
 	"projectSwitcher": {
 		"projects": "프로젝트",
 		"yourProjects": "내 프로젝트",
 		"noProjectsYet": "아직 프로젝트가 없습니다",
-		"newProject": "새 프로젝트"
+		"newProject": "새 프로젝트",
+		"loadingMore": "불러오는 중…"
 	},
 	"interactions": {
 		"title": "인터랙션",
@@ -55,7 +57,12 @@
 		"newSubfolder": "새 하위 폴더",
 		"rename": "이름 변경",
 		"delete": "삭제",
-		"untitled": "제목 없음"
+		"untitled": "제목 없음",
+		"errors": {
+			"titleInvalid": "제목이 유효하지 않습니다.",
+			"folderNameInvalid": "폴더 이름이 유효하지 않습니다.",
+			"renameFailed": "이름을 변경하지 못했습니다. 다시 시도해 주세요."
+		}
 	},
 	"notifications": {
 		"title": "알림",

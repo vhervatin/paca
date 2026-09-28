@@ -4,6 +4,7 @@ package projectsvc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -15,7 +16,10 @@ import (
 	attachmentdom "github.com/Paca-AI/api/internal/domain/attachment"
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
 	taskdom "github.com/Paca-AI/api/internal/domain/task"
+	"github.com/Paca-AI/api/internal/events"
 	"github.com/Paca-AI/api/internal/platform/authz"
+	"github.com/Paca-AI/api/internal/platform/secret"
+	activitysvc "github.com/Paca-AI/api/internal/service/activity"
 )
 
 // prefixRe validates that a task ID prefix contains only uppercase letters and digits.
@@ -103,17 +107,83 @@ type Service struct {
 	taskRepo  taskBootstrapper
 	agents    agentLookup
 	avatarSvc attachmentdom.AvatarService
+	encryptor *secret.Encryptor
+	activity  activitysvc.Recorder
 }
 
 // New returns a configured project service.
 func New(repo projectdom.Repository, taskRepo taskBootstrapper, agents agentLookup) *Service {
-	return &Service{repo: repo, taskRepo: taskRepo, agents: agents}
+	return &Service{repo: repo, taskRepo: taskRepo, agents: agents, activity: activitysvc.Discard}
 }
 
 // WithAvatarService configures avatar upload support.
 func (s *Service) WithAvatarService(svc attachmentdom.AvatarService) *Service {
 	s.avatarSvc = svc
 	return s
+}
+
+// WithEncryptor configures at-rest encryption for a project's Jev API key
+// (Project.JevAPIKeySecret) — the same *secret.Encryptor instance used for
+// agents.llm_api_key_secret, reused verbatim (see bootstrap/app.go).
+func (s *Service) WithEncryptor(enc *secret.Encryptor) *Service {
+	s.encryptor = enc
+	return s
+}
+
+// encryptJevKey mirrors agentsvc.Service.encryptKey exactly: a nil
+// encryptor (ENCRYPTION_KEY unset) falls back to storing the plaintext
+// unchanged rather than erroring, and an empty key is never encrypted —
+// there's nothing to protect and "" must stay recognizable as "not
+// configured" (see Project.JevConfigured). Decryption for actual use
+// against the Jev API happens at the call site via the same
+// *secret.Encryptor instance — see platform/jev.ClientForProject.
+func (s *Service) encryptJevKey(plaintext string) (string, error) {
+	if s.encryptor == nil || plaintext == "" {
+		return plaintext, nil
+	}
+	return s.encryptor.Encrypt(plaintext)
+}
+
+// UpdateJevConfig sets a project's Jev credentials. Each of apiKey/baseURL/
+// model is independently optional (nil = leave unchanged); apiKey's zero
+// value is the empty string, so passing a non-nil empty string explicitly
+// clears/disables Jev for this project, mirroring agentsvc.Service's
+// UpdateAgent semantics for LLMAPIKey.
+func (s *Service) UpdateJevConfig(ctx context.Context, projectID uuid.UUID, apiKey, baseURL, model *string) (*projectdom.Project, error) {
+	p, err := s.repo.FindByID(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	newKeySecret := p.JevAPIKeySecret
+	if apiKey != nil {
+		encrypted, err := s.encryptJevKey(strings.TrimSpace(*apiKey))
+		if err != nil {
+			return nil, fmt.Errorf("project svc: encrypt jev api key: %w", err)
+		}
+		newKeySecret = encrypted
+	}
+	newBaseURL := p.JevBaseURL
+	if baseURL != nil {
+		newBaseURL = strings.TrimSpace(*baseURL)
+	}
+	newModel := p.JevModel
+	if model != nil {
+		newModel = strings.TrimSpace(*model)
+	}
+
+	if err := s.repo.UpdateJevConfig(ctx, projectID, newKeySecret, newBaseURL, newModel); err != nil {
+		return nil, err
+	}
+	p.JevAPIKeySecret = newKeySecret
+	p.JevBaseURL = newBaseURL
+	p.JevModel = newModel
+	// Names the change only — never the key or its ciphertext.
+	s.record(ctx, p.ID, events.EntityProject, p.ID, TopicProjectUpdated, map[string]any{
+		"name":    p.Name,
+		"changes": []string{"jev_config"},
+	})
+	return p, nil
 }
 
 // ErrAvatarServiceRequired indicates a missing AvatarService dependency when
@@ -188,18 +258,14 @@ func (s *Service) Create(ctx context.Context, in projectdom.CreateProjectInput) 
 			ID:        uuid.New(),
 			ProjectID: &p.ID,
 			RoleName:  "Admin",
+			// Bare wildcard rather than an enumerated list of *All wildcards:
+			// Admin is meant to always have every project permission,
+			// including ones added after this project was created (like the
+			// project.settings.* split in 000054) without needing a matching
+			// migration each time. See 000056_set_admin_role_wildcard_permission.sql
+			// for the backfill onto existing projects' Admin rows.
 			Permissions: map[string]any{
-				string(authz.PermissionProjectsAll):       true,
-				string(authz.PermissionProjectMembersAll): true,
-				string(authz.PermissionProjectRolesAll):   true,
-				string(authz.PermissionTasksAll):          true,
-				string(authz.PermissionSprintsAll):        true,
-				string(authz.PermissionDocsAll):           true,
-				string(authz.PermissionAgentsAll):         true,
-				string(authz.PermissionConversationsAll):  true,
-				string(authz.PermissionWorkflowsAll):      true,
-				string(authz.PermissionEnvironmentsAll):   true,
-				string(authz.PermissionAnnotationsAll):    true,
+				string(authz.PermissionAll): true,
 			},
 			CreatedAt: now,
 			UpdatedAt: now,
@@ -208,14 +274,28 @@ func (s *Service) Create(ctx context.Context, in projectdom.CreateProjectInput) 
 			ID:        uuid.New(),
 			ProjectID: &p.ID,
 			RoleName:  "Editor",
+			// PermissionProjectsRead is omitted here and on Viewer below —
+			// AuthzPermissionStore.ListProjectPermissions grants it to any
+			// active project member unconditionally now, so listing it per
+			// role would be redundant (see that method's doc comment).
+			//
+			// The three ProjectSettings*Write grants are deliberately absent:
+			// redefining task types/statuses/custom fields is an Admin-level
+			// (project schema) action, not a content-editing one — same
+			// split tasks.write already draws between editing a task and
+			// reconfiguring what statuses/types exist. Editor can still see
+			// them (no dedicated read permission exists for the schema —
+			// TasksRead below already covers viewing it, same as it covers
+			// viewing the tasks that reference it).
 			Permissions: map[string]any{
-				string(authz.PermissionProjectsRead):        true,
 				string(authz.PermissionProjectMembersRead):  true,
 				string(authz.PermissionProjectRolesRead):    true,
 				string(authz.PermissionTasksRead):           true,
 				string(authz.PermissionTasksWrite):          true,
 				string(authz.PermissionSprintsRead):         true,
 				string(authz.PermissionSprintsWrite):        true,
+				string(authz.PermissionViewsRead):           true,
+				string(authz.PermissionViewsWrite):          true,
 				string(authz.PermissionDocsRead):            true,
 				string(authz.PermissionDocsWrite):           true,
 				string(authz.PermissionAgentsRead):          true,
@@ -239,11 +319,11 @@ func (s *Service) Create(ctx context.Context, in projectdom.CreateProjectInput) 
 			ProjectID: &p.ID,
 			RoleName:  "Viewer",
 			Permissions: map[string]any{
-				string(authz.PermissionProjectsRead):       true,
 				string(authz.PermissionProjectMembersRead): true,
 				string(authz.PermissionProjectRolesRead):   true,
 				string(authz.PermissionTasksRead):          true,
 				string(authz.PermissionSprintsRead):        true,
+				string(authz.PermissionViewsRead):          true,
 				string(authz.PermissionDocsRead):           true,
 				string(authz.PermissionAgentsRead):         true,
 				string(authz.PermissionConversationsRead):  true,
@@ -358,7 +438,33 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in projectdom.Update
 	if err := s.repo.Update(ctx, p); err != nil {
 		return nil, err
 	}
+	s.record(ctx, p.ID, events.EntityProject, p.ID, TopicProjectUpdated, map[string]any{
+		"name":    p.Name,
+		"changes": projectChangedFields(in),
+	})
 	return p, nil
+}
+
+// projectChangedFields lists the fields an update touched, for the activity
+// log. Settings are not diffed — the log only says they changed.
+func projectChangedFields(in projectdom.UpdateProjectInput) []string {
+	var out []string
+	if strings.TrimSpace(in.Name) != "" {
+		out = append(out, "name")
+	}
+	if strings.TrimSpace(in.Description) != "" {
+		out = append(out, "description")
+	}
+	if strings.TrimSpace(in.TaskIDPrefix) != "" {
+		out = append(out, "task_id_prefix")
+	}
+	if in.IsPublic != nil {
+		out = append(out, "is_public")
+	}
+	if in.Settings != nil {
+		out = append(out, "settings")
+	}
+	return out
 }
 
 // IsProjectPublic returns true when the project exists and has is_public set.

@@ -10,23 +10,31 @@
 				"taskStatuses": "Trạng thái nhiệm vụ",
 				"taskTypes": "Loại nhiệm vụ",
 				"customFields": "Trường tùy chỉnh",
+				"jev": "Jev AI",
 				"dangerZone": "Khu vực nguy hiểm",
 				"plugins": "Plugin"
+			},
+			"pluginTab": {
+				"noPermission": {
+					"title": "Bạn không có quyền xem tab này",
+					"description": "Hãy yêu cầu chủ sở hữu hoặc quản trị viên dự án cấp cho bạn quyền truy cập vào {{pluginName}}."
+				}
 			}
 		}
 	},
 	"agents": {
 		"createDialog": {
 			"title": "Tạo AI Agent",
-			"step1Description": "Thiết lập danh tính và vai trò của agent",
+			"step1Description": "Thiết lập danh tính của agent",
 			"step2Description": "Cấu hình mô hình AI vận hành agent của bạn",
-			"stepIndicator": "{{step}} / 2",
+			"step3DescriptionGlobal": "{{name}} đã được tạo với vai trò toàn cục mặc định. Giữ nguyên, chọn vai trò khác hoặc gỡ bỏ.",
+			"step3DescriptionProject": "Chọn vai trò của agent trong dự án này",
+			"stepIndicator": "{{step}} / {{total}}",
 			"startFromPreset": "Bắt đầu từ một mẫu có sẵn",
 			"nameLabel": "Tên",
 			"handleLabel": "Handle",
 			"handleHint": "Tự động tạo từ tên. Dùng để @nhắc đến trong bình luận.",
 			"projectRoleLabel": "Vai trò dự án",
-			"projectRolePlaceholder": "Chọn một vai trò dự án…",
 			"projectRoleHint": "Kiểm soát những gì agent có thể đọc và sửa đổi trong dự án này.",
 			"agentTypeLabel": "Loại agent",
 			"agentTypeLLM": "LLM (khóa API)",
@@ -77,21 +85,23 @@
 			"optional": "(tùy chọn)",
 			"charsCount": "{{count}} ký tự",
 			"createFailed": "Tạo agent thất bại. Vui lòng thử lại.",
+			"handleTaken": "Handle này đã được sử dụng. Quay lại và chọn một handle khác.",
+			"defaultEnvironmentInvalid": "Environment đó không còn khả dụng. Quay lại và chọn một environment khác.",
+			"defaultFolderInvalid": "Folder đó không còn khả dụng. Quay lại và chọn một folder khác.",
 			"cancel": "Hủy",
 			"continue": "Tiếp tục",
 			"back": "Quay lại",
 			"creating": "Đang tạo…",
 			"createAgent": "Tạo Agent",
+			"finish": "Hoàn tất",
 			"namePlaceholder": "Dev Bot",
-			"systemPromptPlaceholder": "Bạn là một kỹ sư phần mềm cấp cao…",
-			"globalRoleLabel": "Vai trò toàn cục",
-			"globalRolePlaceholder": "Chọn một vai trò toàn cục…",
-			"globalRoleHint": "Quyết định những gì agent có thể làm ở phạm vi toàn cục (ví dụ: từ trang chat trang chủ/quản trị). Tùy chọn — vai trò được cấp sau, khi được mời vào một dự án, là riêng biệt.",
-			"noGlobalRoleOption": "Không có vai trò"
+			"systemPromptPlaceholder": "Bạn là một kỹ sư phần mềm cấp cao…"
 		},
 		"card": {
 			"configure": "Cấu hình",
 			"delete": "Xóa",
+			"restricted": "Restricted",
+			"restrictedTooltip": "This agent is restricted — ask a project admin to grant you access before you can chat with it.",
 			"acpStatusConnected": "Trực tuyến",
 			"acpStatusDisconnected": "Ngoại tuyến",
 			"deleteDialog": {
@@ -111,6 +121,10 @@
 				"title": "Chưa có agent nào",
 				"description": "Thêm một AI agent để tự động hóa nhiệm vụ, review code, viết tài liệu và nhiều hơn nữa.",
 				"createFirstAgent": "Tạo agent đầu tiên của bạn"
+			},
+			"noPermission": {
+				"title": "You don't have permission to view agents",
+				"description": "Ask a project admin to grant you the agents.read permission."
 			}
 		},
 		"acpSetup": {
@@ -157,7 +171,30 @@
 				"mcpServers": "Máy chủ MCP",
 				"skills": "Skill",
 				"envVars": "Môi trường",
+				"globalRole": "Vai trò toàn cục",
+				"access": "Access",
 				"activity": "Hoạt động"
+			},
+			"globalRole": {
+				"title": "Vai trò toàn cục",
+				"description": "Những gì agent này được phép làm ở phạm vi toàn cục, ví dụ từ chat ở trang chủ và trang quản trị. Những gì nó được phép làm trong một dự án phụ thuộc vào vai trò của nó trong dự án đó.",
+				"none": "Không có vai trò toàn cục",
+				"noneHint": "Agent này không có quyền toàn cục nào.",
+				"assign": "Gán vai trò",
+				"change": "Đổi vai trò",
+				"assigning": "Đang gán…",
+				"remove": "Gỡ vai trò",
+				"removing": "Đang gỡ…",
+				"removeConfirm": "Gỡ vai trò toàn cục của agent này? Agent sẽ mất các quyền mà vai trò đó cấp.",
+				"cancel": "Hủy",
+				"readOnly": "Bạn có thể xem vai trò toàn cục của agent này nhưng không có quyền thay đổi.",
+				"unknownRole": "Đã gán một vai trò toàn cục. Bạn không có quyền xem vai trò nên tên không được hiển thị.",
+				"fullAccessWarning": "Vai trò này có toàn quyền truy cập. Agent sẽ có thể làm mọi việc, bao gồm quản lý người dùng và vai trò.",
+				"errors": {
+					"generic": "Không thể cập nhật vai trò. Vui lòng thử lại.",
+					"forbidden": "Bạn không có quyền thay đổi vai trò toàn cục.",
+					"roleNotFound": "Vai trò đó không còn tồn tại. Hãy tải lại trang và thử lại."
+				}
 			},
 			"avatar": {
 				"change": "Đổi ảnh đại diện",
@@ -194,6 +231,8 @@
 				"noDefaultEnvironment": "Môi trường tạm thời",
 				"defaultFolderLabel": "Thư mục mặc định",
 				"defaultFolderHint": "Thư mục bên trong môi trường mặc định mà các cuộc hội thoại của agent này sẽ làm việc.",
+				"defaultEnvironmentInvalid": "Environment đó không còn khả dụng. Hãy chọn một environment khác.",
+				"defaultFolderInvalid": "Folder đó không còn khả dụng. Hãy chọn một folder khác.",
 				"noDefaultFolder": "Không có thư mục mặc định",
 				"saveChanges": "Lưu thay đổi",
 				"saved": "Đã lưu",
@@ -226,7 +265,10 @@
 				"cliLoginNotAuthenticated": "Chưa được xác thực — hãy đăng nhập qua terminal rồi xác minh lại.",
 				"cliLoginVerifyFailed": "Không thể kiểm tra trạng thái đăng nhập. Vui lòng thử lại.",
 				"cliLoginLastVerified": "Xác minh lần cuối lúc {{date}}.",
-				"cliLoginNoEnvironment": "Agent này chưa có môi trường nào được đặt — hãy chọn một môi trường ở trên trước."
+				"cliLoginNoEnvironment": "Agent này chưa có môi trường nào được đặt — hãy chọn một môi trường ở trên trước.",
+				"descriptionLabel": "Mô tả",
+				"descriptionPlaceholder": "Tác nhân này dùng để làm gì?",
+				"descriptionHint": "Hiển thị cho Jev khi quyết định tác nhân nào sẽ xử lý cuộc trò chuyện, hoặc có nên giao nhiệm vụ cho tác nhân đó hay không, ở chế độ Tự động. Nhà cung cấp và mô hình được thêm tự động."
 			},
 			"mcp": {
 				"serverCount_one": "{{count}} máy chủ đã cấu hình",
@@ -265,7 +307,10 @@
 					"keyHint": "(chữ cái, chữ số, dấu gạch dưới — phải bắt đầu bằng chữ cái hoặc dấu gạch dưới)",
 					"valueLabel": "Giá trị",
 					"cancel": "Hủy",
-					"addVariable": "Thêm biến"
+					"addVariable": "Thêm biến",
+					"keyTaken": "Agent này đã có một biến môi trường với khóa đó.",
+					"keyReserved": "Khóa đó được dành riêng cho chính sandbox. Hãy chọn một khóa khác.",
+					"addFailed": "Không thể thêm biến môi trường. Vui lòng thử lại."
 				}
 			},
 			"skills": {
@@ -287,8 +332,20 @@
 					"skillContentLabel": "Nội dung skill (Markdown)",
 					"urlLabel": "URL",
 					"cancel": "Hủy",
-					"addSkill": "Thêm skill"
+					"addSkill": "Thêm skill",
+					"nameReserved": "Tên đó được dành riêng cho scaffolding nội bộ của Paca. Hãy chọn một tên khác.",
+					"nameInvalid": "Tên skill không được là \".\", \"..\" hoặc chứa dấu gạch chéo.",
+					"addFailed": "Không thể thêm skill. Vui lòng thử lại."
 				}
+			},
+			"access": {
+				"restrictLabel": "Restrict access",
+				"restrictDescription": "When on, only members granted access below may chat with this agent. Everyone who can manage agents can still see and configure it.",
+				"pickMember": "Select a member…",
+				"grantAccess": "Grant access",
+				"alreadyGranted": "This member already has access.",
+				"grantFailed": "Failed to grant access. Please try again.",
+				"empty": "No members have been granted access yet."
 			},
 			"activity": {
 				"commented": "đã bình luận",
@@ -318,12 +375,19 @@
 		"conversationView": {
 			"stop": "Dừng",
 			"notFound": "Không tìm thấy hội thoại",
+			"noPermission": {
+				"title": "You don't have permission to view this conversation",
+				"description": "Ask a project admin to grant you the conversations.read permission."
+			},
 			"chatSession": "Phiên trò chuyện",
 			"taskSession": "Phiên nhiệm vụ",
 			"pr": "PR",
 			"connect": "Kết nối",
 			"conversationEnded": "Cuộc trò chuyện này đã kết thúc.",
 			"textOnlyMessage": "Chỉ hỗ trợ tin nhắn văn bản.",
+			"agentAccessRestricted": "Agent này bị giới hạn quyền truy cập. Hãy nhờ quản trị viên dự án cấp quyền truy cập trước khi bạn có thể trò chuyện với agent này.",
+			"environmentAccessRestricted": "Môi trường của cuộc trò chuyện này bị giới hạn quyền truy cập. Hãy nhờ quản trị viên dự án cấp quyền truy cập trước khi bạn có thể trò chuyện với agent này.",
+			"chatNoPermission": "Bạn không có quyền gửi tin nhắn trong cuộc trò chuyện này.",
 			"failed": "Cuộc trò chuyện thất bại",
 			"noOutput": "Agent không tạo ra kết quả nào.",
 			"loadingOlder": "Đang tải…",
@@ -418,10 +482,16 @@
 			"title": "Môi trường",
 			"subtitle": "Sandbox có tên, hoạt động lâu dài mà agent của bạn có thể gắn vào giữa các cuộc hội thoại",
 			"newEnvironment": "Môi trường mới",
+			"restricted": "Restricted",
+			"restrictedTooltip": "This environment is restricted — ask a project admin to grant you access before you can use it.",
 			"empty": {
 				"title": "Chưa có môi trường nào",
 				"description": "Tạo một môi trường tĩnh để giữ tệp và tiến trình nền hoạt động xuyên suốt các cuộc hội thoại, thay vì tạo sandbox dùng một lần mỗi lần.",
 				"createFirstEnvironment": "Tạo môi trường đầu tiên của bạn"
+			},
+			"noPermission": {
+				"title": "You don't have permission to view environments",
+				"description": "Ask a project admin to grant you the environments.read permission."
 			}
 		},
 		"createDialog": {
@@ -439,6 +509,7 @@
 			"cpuLimitInvalid": "CPU phải tối thiểu là 0.1 (100m).",
 			"memoryLimitInvalid": "Bộ nhớ phải tối thiểu là 256Mi.",
 			"diskLimitInvalid": "Ổ đĩa phải là số nguyên dương (GB).",
+			"nameRequired": "Đặt tên cho environment.",
 			"createFailed": "Tạo môi trường thất bại. Vui lòng thử lại.",
 			"cancel": "Hủy",
 			"creating": "Đang tạo…",
@@ -455,8 +526,11 @@
 			"tabs": {
 				"overview": "Tổng quan",
 				"folders": "Thư mục",
-				"portForwards": "Chuyển tiếp cổng"
+				"portForwards": "Chuyển tiếp cổng",
+				"access": "Access"
 			},
+			"busy": "Environment này đang khởi động, dừng hoặc khởi động lại. Vui lòng thử lại sau giây lát.",
+			"actionFailed": "Thao tác không thành công. Vui lòng thử lại.",
 			"overview": {
 				"connect": "Kết nối",
 				"start": "Khởi động",
@@ -487,6 +561,7 @@
 				"portsPendingRestartLink": "Xem chuyển tiếp cổng",
 				"saveChanges": "Lưu thay đổi",
 				"saved": "Đã lưu",
+				"nameRequired": "Đặt tên cho environment.",
 				"saveFailed": "Lưu thất bại. Vui lòng thử lại.",
 				"deleteDialog": {
 					"title": "Xóa {{name}}?",
@@ -500,6 +575,10 @@
 				"count_one": "Đã cấu hình {{count}} thư mục",
 				"count_other": "Đã cấu hình {{count}} thư mục",
 				"addFolder": "Thêm thư mục",
+				"noPermission": {
+					"title": "You don't have access to this environment",
+					"description": "Ask a project admin to grant you access before you can view its folders."
+				},
 				"deleteFailed": "Không thể xóa thư mục. Vui lòng thử lại.",
 				"empty": {
 					"title": "Chưa có thư mục nào được thêm",
@@ -516,6 +595,8 @@
 						"empty": "Thư mục này trống",
 						"notRunning": "Khởi động môi trường để duyệt các tệp của nó."
 					},
+					"pathTaken": "Đã tồn tại một folder với đường dẫn này trong environment.",
+					"pathInvalid": "Đường dẫn phải là đường dẫn tuyệt đối (bắt đầu bằng /).",
 					"addFailed": "Không thể thêm thư mục. Vui lòng thử lại.",
 					"cancel": "Hủy",
 					"addFolder": "Thêm thư mục"
@@ -526,6 +607,10 @@
 				"count_one": "{{count}} cổng chuyển tiếp",
 				"count_other": "{{count}} cổng chuyển tiếp",
 				"add": "Thêm cổng chuyển tiếp",
+				"noPermission": {
+					"title": "You don't have access to this environment",
+					"description": "Ask a project admin to grant you access before you can view its port forwards."
+				},
 				"deleteFailed": "Không thể xóa cổng chuyển tiếp. Vui lòng thử lại.",
 				"containerPort": "Cổng container {{port}}",
 				"unassigned": "Chưa được gán",
@@ -546,14 +631,26 @@
 					"labelPlaceholder": "Server phát triển",
 					"cancel": "Hủy",
 					"add": "Thêm",
+					"portTaken": "Container port này đã được forward trên environment.",
+					"portOutOfRange": "Port phải nằm trong khoảng từ 1 đến 65535.",
 					"addFailed": "Không thể thêm cổng chuyển tiếp. Vui lòng thử lại."
 				},
 				"restartDialog": {
 					"title": "Khởi động lại môi trường?",
 					"description": "Thao tác này sẽ khởi động lại container của môi trường để áp dụng các cổng chuyển tiếp đã cập nhật. Mọi tiến trình đang chạy bên trong sẽ bị gián đoạn; tệp của bạn vẫn an toàn — chúng nằm trên một volume riêng.",
 					"cancel": "Hủy",
-					"confirm": "Khởi động lại"
+					"confirm": "Khởi động lại",
+					"restartFailed": "Khởi động lại environment thất bại. Vui lòng thử lại."
 				}
+			},
+			"access": {
+				"restrictLabel": "Restrict access",
+				"restrictDescription": "When on, only members granted access below may browse, SSH into, forward ports on, or open a terminal in this environment. Everyone who can manage environments can still see and configure it.",
+				"pickMember": "Select a member…",
+				"grantAccess": "Grant access",
+				"alreadyGranted": "This member already has access.",
+				"grantFailed": "Failed to grant access. Please try again.",
+				"empty": "No members have been granted access yet."
 			},
 			"sshKeys": {
 				"connectHint": "Thay <bastion-host> bằng địa chỉ bastion SSH đã cấu hình trên triển khai này.",
@@ -576,6 +673,8 @@
 					"publicKeyLabel": "Khóa công khai",
 					"cancel": "Hủy",
 					"addKey": "Thêm khóa",
+					"keyTaken": "Khóa này đã được đăng ký trên environment.",
+					"keyInvalid": "Đây có vẻ không phải là SSH public key hợp lệ.",
 					"addFailed": "Không thể thêm khóa SSH. Vui lòng thử lại."
 				}
 			},
@@ -602,6 +701,7 @@
 				"connect": "Kết nối",
 				"notRunning": "Khởi động môi trường trước khi kết nối.",
 				"readOnly": "Bạn không có quyền mở terminal trên môi trường này.",
+				"restricted": "This environment is restricted — ask a project admin to grant you access before you can open a terminal.",
 				"hint": "Mở trong một tab toàn màn hình mới.",
 				"pageTitle": "{{name}} — Terminal",
 				"pageTitleLoading": "Terminal",
@@ -612,7 +712,8 @@
 				"step1Description": "Đăng ký khóa công khai của cặp khóa SSH bạn muốn dùng để kết nối.",
 				"step2Title": "Kết nối từ terminal của bạn",
 				"step2Description": "Chạy lệnh này từ terminal của bạn:",
-				"notRunning": "Khởi động môi trường trước khi kết nối."
+				"notRunning": "Khởi động môi trường trước khi kết nối.",
+				"restricted": "This environment is restricted — ask a project admin to grant you access before you can connect via SSH."
 			}
 		}
 	},
@@ -621,6 +722,10 @@
 			"notFound": {
 				"title": "Không tìm thấy tài liệu",
 				"description": "Tài liệu này có thể đã bị xóa hoặc liên kết không hợp lệ."
+			},
+			"noPermission": {
+				"title": "You don't have permission to view this document",
+				"description": "Ask a project admin to grant you the docs.read permission."
 			},
 			"unsaved": "Chưa lưu",
 			"saving": "Đang lưu…",
@@ -659,6 +764,8 @@
 			"roleNameLabel": "Tên vai trò",
 			"roleNamePlaceholder": "vd: PROJECT_REVIEWER",
 			"permissionsLabel": "Quyền hạn",
+			"fullAccessBadge": "Toàn quyền truy cập",
+			"fullAccessDescription": "Vai trò này tự động bao gồm mọi quyền, kể cả những quyền được thêm trong tương lai. Thay đổi bất kỳ công tắc nào bên dưới sẽ chuyển nó thành một tập quyền cố định theo hiện tại.",
 			"enabledCount_one": "{{count}} đã bật",
 			"enabledCount_other": "{{count}} đã bật",
 			"cancel": "Hủy",
@@ -674,10 +781,6 @@
 			}
 		},
 		"permissions": {
-			"projectsRead": {
-				"label": "Xem dự án",
-				"description": "Xem chi tiết và cài đặt dự án"
-			},
 			"projectsWrite": {
 				"label": "Sửa dự án",
 				"description": "Cập nhật tên, mô tả và cài đặt dự án"
@@ -702,6 +805,18 @@
 				"label": "Quản lý vai trò",
 				"description": "Tạo, sửa và xóa vai trò dự án"
 			},
+			"settingsTaskTypesWrite": {
+				"label": "Manage Task Types",
+				"description": "Create, edit, delete, and set the default task type"
+			},
+			"settingsTaskStatusesWrite": {
+				"label": "Manage Task Statuses",
+				"description": "Create, edit, delete, reorder, and set the default task status"
+			},
+			"settingsCustomFieldsWrite": {
+				"label": "Manage Custom Fields",
+				"description": "Create, edit, and delete custom field definitions"
+			},
 			"tasksRead": {
 				"label": "Xem nhiệm vụ",
 				"description": "Duyệt và đọc nhiệm vụ trong dự án"
@@ -717,6 +832,14 @@
 			"sprintsWrite": {
 				"label": "Quản lý sprint",
 				"description": "Tạo, cập nhật và đóng sprint"
+			},
+			"viewsRead": {
+				"label": "View Boards",
+				"description": "Browse saved board and list views"
+			},
+			"viewsWrite": {
+				"label": "Manage Boards",
+				"description": "Create, edit, delete, and reorder board and list views"
 			},
 			"docsRead": {
 				"label": "Xem tài liệu",
@@ -754,6 +877,18 @@
 				"label": "Kết nối đến môi trường",
 				"description": "Mở phiên terminal tương tác bên trong một môi trường đang chạy"
 			},
+			"annotationsRead": {
+				"label": "View Annotations",
+				"description": "View page comments pinned via the browser extension"
+			},
+			"annotationsWrite": {
+				"label": "Manage Annotations",
+				"description": "Create, edit, and delete page annotations"
+			},
+			"annotationsResolve": {
+				"label": "Resolve Annotations",
+				"description": "Mark a page annotation resolved or reopen it, without authoring or deleting one"
+			},
 			"workflowsRead": {
 				"label": "Xem tự động hóa",
 				"description": "Xem các tự động hóa và cấu hình của chúng"
@@ -761,18 +896,24 @@
 			"workflowsWrite": {
 				"label": "Quản lý tự động hóa",
 				"description": "Tạo, chỉnh sửa, kích hoạt và xóa tự động hóa"
+			},
+			"activitiesRead": {
+				"label": "Xem nhật ký hoạt động",
+				"description": "Xem mọi hoạt động được ghi lại trong dự án này"
 			}
 		},
 		"permissionGroups": {
 			"project": "Dự án",
 			"members": "Thành viên",
-			"roles": "Vai trò",
+			"settings": "Settings",
 			"tasks": "Nhiệm vụ",
 			"sprints": "Sprint",
+			"views": "Views",
 			"documents": "Tài liệu",
 			"aiAgents": "AI Agent",
 			"conversations": "Cuộc trò chuyện",
 			"environments": "Môi trường",
+			"annotations": "Annotations",
 			"workflows": "Tự động hóa",
 			"plugins": "Plugin"
 		}
@@ -831,13 +972,18 @@
 				"permissions": "Quyền hạn",
 				"created": "Ngày tạo"
 			},
-			"systemRolesNote": "Vai trò hệ thống là mẫu dùng chung và không thể chỉnh sửa hoặc xóa."
+			"systemRolesNote": "Vai trò hệ thống là mẫu dùng chung và không thể chỉnh sửa hoặc xóa.",
+			"noPermission": {
+				"title": "You don't have permission to view roles",
+				"description": "Ask a project admin to grant you the project.roles.read permission."
+			}
 		},
 		"taskStatuses": {
 			"title": "Trạng thái nhiệm vụ",
 			"description": "Định nghĩa các trạng thái quy trình mà nhiệm vụ sẽ đi qua trong dự án này.",
 			"newStatus": "Trạng thái mới",
 			"reorderFailed": "Lưu thứ tự mới thất bại. Vui lòng thử lại.",
+			"reorderInvalid": "Danh sách trạng thái đã thay đổi ở nơi khác. Hãy làm mới trang và thử lại.",
 			"empty": {
 				"title": "Chưa có trạng thái nào được định nghĩa",
 				"description": "Tạo trạng thái để định nghĩa quy trình cho nhiệm vụ trong dự án này.",
@@ -851,7 +997,12 @@
 			"default": "Mặc định",
 			"setAsDefault": "Đặt làm trạng thái mặc định",
 			"editStatus": "Chỉnh sửa trạng thái",
-			"deleteStatus": "Xóa trạng thái"
+			"deleteStatus": "Xóa trạng thái",
+			"deleteDefaultDisabled": "Không thể xóa trạng thái mặc định. Hãy đặt một trạng thái khác làm mặc định trước.",
+			"noPermission": {
+				"title": "You don't have permission to view task statuses",
+				"description": "Ask a project admin to grant you the project.settings.task_statuses.read permission."
+			}
 		},
 		"taskTypes": {
 			"title": "Loại nhiệm vụ",
@@ -871,7 +1022,12 @@
 			"default": "Mặc định",
 			"setAsDefault": "Đặt làm loại mặc định",
 			"editType": "Chỉnh sửa loại",
-			"deleteType": "Xóa loại"
+			"deleteType": "Xóa loại",
+			"deleteDefaultDisabled": "Không thể xóa loại mặc định. Hãy đặt một loại khác làm mặc định trước.",
+			"noPermission": {
+				"title": "You don't have permission to view task types",
+				"description": "Ask a project admin to grant you the project.settings.task_types.read permission."
+			}
 		},
 		"customFields": {
 			"title": "Trường tùy chỉnh",
@@ -942,6 +1098,63 @@
 				"confirmTextSuffix": "? Dữ liệu nhiệm vụ lưu trong trường này sẽ bị mất. Hành động này không thể hoàn tác.",
 				"deleteFailed": "Xóa trường thất bại. Vui lòng thử lại.",
 				"deleteField": "Xóa trường"
+			},
+			"noPermission": {
+				"title": "You don't have permission to view custom fields",
+				"description": "Ask a project admin to grant you the project.settings.custom_fields.read permission."
+			}
+		},
+		"jev": {
+			"title": "Jev AI",
+			"description": "Định cấu hình cách Jev, công cụ ra quyết định AI, hỗ trợ dự án này.",
+			"credentials": {
+				"title": "Thông tin xác thực nhà cung cấp",
+				"description": "Kết nối nhà cung cấp tương thích Jev của riêng bạn — TypeSafe (mặc định), OpenJev hoặc máy chủ khác triển khai cùng API — để kích hoạt các tính năng bên dưới.",
+				"configuredBadge": "Đã cấu hình",
+				"notConfiguredBadge": "Chưa cấu hình",
+				"apiKeyLabel": "Khóa API",
+				"apiKeyPlaceholder": "Nhập khóa API",
+				"apiKeyConfiguredPlaceholder": "Để trống để giữ khóa hiện tại",
+				"baseUrlLabel": "Máy chủ (tùy chọn)",
+				"baseUrlPlaceholder": "https://api.typesafe.ai (mặc định)",
+				"modelLabel": "Mô hình (tùy chọn)",
+				"modelPlaceholder": "jev-latest (mặc định)",
+				"saveButton": "Lưu thông tin xác thực",
+				"testButton": "Kiểm tra kết nối",
+				"advancedLabel": "Nâng cao",
+				"testSuccess": "Kết nối thành công",
+				"testFailed": "Không thể kết nối. Vui lòng kiểm tra thông tin xác thực và thử lại."
+			},
+			"autofill": {
+				"title": "Tự động điền công việc",
+				"description": "Khi một công việc được tạo, Jev sẽ điền vào các trường bên dưới mà người tạo để trống.",
+				"enabledLabel": "Bật tự động điền",
+				"enabledHint": "Jev đề xuất giá trị cho các trường trống ngay sau khi công việc được tạo.",
+				"excludedFieldsLabel": "Các trường Jev có thể đặt",
+				"excludedFieldsHint": "Tắt một trường để Jev không bao giờ tự động đặt giá trị cho trường đó.",
+				"fieldImportance": "Mức độ quan trọng",
+				"fieldTaskType": "Loại công việc",
+				"fieldStoryPoints": "Story Points",
+				"fieldTags": "Thẻ",
+				"fieldEpic": "Epic"
+			},
+			"autoAssign": {
+				"title": "Tự động phân công công việc",
+				"description": "Để Jev chọn người phụ trách cho các công việc dùng chế độ phân công tự động.",
+				"scopeLabel": "Jev có thể phân công cho ai",
+				"scopeAll": "Tất cả thành viên",
+				"scopeHuman": "Chỉ thành viên là người",
+				"scopeHumanHint": "Loại trừ các tác nhân AI."
+			},
+			"saveChanges": "Lưu thay đổi",
+			"saved": "Đã lưu ✓",
+			"noPermission": "Bạn không có quyền chỉnh sửa dự án này.",
+			"errors": {
+				"updateFailed": "Cập nhật cài đặt thất bại. Vui lòng thử lại."
+			},
+			"notConfigured": {
+				"title": "Jev chưa được cấu hình",
+				"description": "Thêm thông tin xác thực nhà cung cấp ở trên để mở khóa tính năng tự động điền và tự động gán nhiệm vụ."
 			}
 		},
 		"dangerZone": {
@@ -967,6 +1180,8 @@
 			"confirmTextPrefix": "Xóa",
 			"confirmTextSuffix": "? Nhiệm vụ đang dùng trạng thái này sẽ mất trạng thái của chúng. Hành động này không thể hoàn tác.",
 			"deleteFailed": "Xóa trạng thái thất bại. Vui lòng thử lại.",
+			"isDefault": "Không thể xóa trạng thái mặc định. Hãy đặt một trạng thái khác làm mặc định trước.",
+			"inUseByAutomation": "Trạng thái này đang được một quy tắc tự động hóa sử dụng. Hãy cập nhật hoặc xóa quy tắc đó trước.",
 			"cancel": "Hủy",
 			"deleteStatus": "Xóa trạng thái"
 		},
@@ -1015,7 +1230,9 @@
 			"cancel": "Hủy",
 			"addMember": "Thêm thành viên",
 			"errors": {
-				"addFailed": "Thêm thành viên thất bại. Vui lòng thử lại."
+				"addFailed": "Thêm thành viên thất bại. Vui lòng thử lại.",
+				"alreadyAdded": "Người dùng hoặc agent này đã là thành viên của dự án.",
+				"roleNotFound": "Vai trò đó không còn tồn tại. Vui lòng chọn vai trò khác."
 			},
 			"modeUser": "Người dùng",
 			"modeAgent": "Agent AI",
@@ -1024,7 +1241,11 @@
 		},
 		"roleChip": {
 			"changeRole": "Đổi vai trò",
-			"changeFailed": "Đổi vai trò thất bại."
+			"errors": {
+				"memberNotFound": "Thành viên này không còn thuộc dự án nữa.",
+				"roleNotFound": "Vai trò đó không còn tồn tại.",
+				"changeFailed": "Đổi vai trò thất bại."
+			}
 		},
 		"memberRow": {
 			"removeMember": "Xóa thành viên"
@@ -1037,6 +1258,18 @@
 			"removeFailed": "Xóa thành viên thất bại. Vui lòng thử lại.",
 			"cancel": "Hủy",
 			"remove": "Xóa"
+		},
+		"noPermission": {
+			"title": "You don't have permission to view members",
+			"description": "Ask a project admin to grant you the project.members.read permission."
+		},
+		"descriptionChip": {
+			"edit": "Chỉnh sửa mô tả",
+			"title": "Mô tả",
+			"hint": "Hiển thị cho Jev khi quyết định có nên giao nhiệm vụ cho người này ở chế độ Tự động hay không.",
+			"placeholder": "Người này làm công việc gì?",
+			"save": "Lưu",
+			"saveFailed": "Không thể lưu mô tả."
 		}
 	},
 	"aiChat": {
@@ -1045,7 +1278,9 @@
 		"agentLabel": "Agent",
 		"selectAgentPlaceholder": "Chọn một agent…",
 		"selectAgentFirst": "Vui lòng chọn một agent trước.",
-		"noAgentsAvailable": "Chưa có agent nào khả dụng."
+		"noAgentsAvailable": "Chưa có agent nào khả dụng.",
+		"autoAgent": "Tự động",
+		"resolvingAgent": "Đang chọn tác nhân…"
 	},
 	"taskTypes": {
 		"deleteDialog": {
@@ -1053,6 +1288,8 @@
 			"confirmTextPrefix": "Xóa",
 			"confirmTextSuffix": "? Nhiệm vụ đang dùng loại này sẽ mất gán loại của chúng. Hành động này không thể hoàn tác.",
 			"deleteFailed": "Xóa loại nhiệm vụ thất bại. Vui lòng thử lại.",
+			"isDefault": "Không thể xóa loại mặc định. Hãy đặt một loại khác làm mặc định trước.",
+			"isSystem": "Không thể xóa loại hệ thống.",
 			"cancel": "Hủy",
 			"deleteType": "Xóa loại"
 		},
@@ -1075,7 +1312,9 @@
 			"createType": "Tạo loại",
 			"errors": {
 				"nameInvalid": "Tên loại trống hoặc không hợp lệ.",
-				"saveFailed": "Lưu loại nhiệm vụ thất bại. Vui lòng thử lại."
+				"nameReserved": "Tên đó được dành riêng cho một loại tích hợp sẵn.",
+				"saveFailed": "Lưu loại nhiệm vụ thất bại. Vui lòng thử lại.",
+				"isSystem": "Không thể chỉnh sửa loại hệ thống."
 			}
 		}
 	},
@@ -1091,6 +1330,10 @@
 			"ariaLabel": "Chi tiết nhiệm vụ",
 			"backToProject": "Quay lại dự án",
 			"projectFallback": "Dự án"
+		},
+		"noPermission": {
+			"title": "You don't have permission to view this task",
+			"description": "Ask a project admin to grant you the tasks.read permission."
 		},
 		"header": {
 			"created": "Đã tạo {{date}}",
@@ -1126,7 +1369,8 @@
 			"parent": "Nhiệm vụ cha",
 			"viewParent": "Xem nhiệm vụ cha",
 			"removeParent": "Gỡ nhiệm vụ cha",
-			"addFields": "Thêm trường"
+			"addFields": "Thêm trường",
+			"autoAssign": "Tự động"
 		},
 		"description": {
 			"title": "Mô tả",
@@ -1144,14 +1388,24 @@
 			"title": "Nhiệm vụ con",
 			"addButton": "Thêm nhiệm vụ con",
 			"titlePlaceholder": "Tiêu đề nhiệm vụ con…",
-			"empty": "Chưa có nhiệm vụ con nào"
+			"empty": "Chưa có nhiệm vụ con nào",
+			"loadMore": "Tải thêm công việc con",
+			"loadingMore": "Đang tải thêm…"
 		},
 		"links": {
 			"title": "Nhiệm vụ liên kết",
 			"addButton": "Thêm liên kết",
 			"openTask": "Mở nhiệm vụ",
 			"removeLink": "Gỡ liên kết",
-			"empty": "Không có nhiệm vụ liên kết"
+			"empty": "Không có nhiệm vụ liên kết",
+			"errors": {
+				"alreadyExists": "Liên kết này đã tồn tại.",
+				"cannotLinkSelf": "Không thể liên kết một nhiệm vụ với chính nó.",
+				"crossProject": "Chỉ có thể liên kết các nhiệm vụ trong cùng một dự án.",
+				"createFailed": "Không thể thêm liên kết. Vui lòng thử lại.",
+				"notFound": "Liên kết này đã bị gỡ bỏ.",
+				"deleteFailed": "Không thể gỡ liên kết. Vui lòng thử lại."
+			}
 		},
 		"attachments": {
 			"title": "Tệp đính kèm",
@@ -1164,7 +1418,13 @@
 			"unitBytes_one": "{{count}} B",
 			"unitBytes_other": "{{count}} B",
 			"unitKilobytes": "{{value}} KB",
-			"unitMegabytes": "{{value}} MB"
+			"unitMegabytes": "{{value}} MB",
+			"errors": {
+				"invalid": "Không thể tải lên tệp này. Vui lòng chọn tệp khác.",
+				"uploadFailed": "Không thể tải lên tệp. Vui lòng thử lại.",
+				"notFound": "Tệp đính kèm này đã bị xóa.",
+				"deleteFailed": "Không thể xóa tệp đính kèm. Vui lòng thử lại."
+			}
 		},
 		"addFieldDialog": {
 			"title": "Tạo trường tùy chỉnh",
@@ -1288,7 +1548,9 @@
 			"startedAiSession": "đã bắt đầu một phiên AI",
 			"watchSession": "Theo dõi phiên",
 			"madeChange": "đã thực hiện một thay đổi",
-			"descriptionChangeDiff": "Thay đổi mô tả"
+			"descriptionChangeDiff": "Thay đổi mô tả",
+			"autoAssignSkippedLowConfidence": "không thể tự tin chọn người được giao ({{confidence}}% độ tin cậy) — nhiệm vụ vẫn chưa được giao",
+			"autoAssignSkipped": "đã bỏ qua tự động giao việc — nhiệm vụ vẫn chưa được giao"
 		}
 	},
 	"portForwardDetail": {
@@ -1297,6 +1559,10 @@
 			"description": "Chuyển tiếp cổng này có thể đã bị xóa hoặc liên kết không hợp lệ.",
 			"ariaLabel": "Chi tiết chuyển tiếp cổng",
 			"backToEnvironment": "Quay lại môi trường"
+		},
+		"noPermission": {
+			"title": "You don't have access to this environment",
+			"description": "Ask a project admin to grant you access before you can view this port forward."
 		},
 		"tabs": {
 			"overview": "Tổng quan",
@@ -1328,7 +1594,12 @@
 			"resolve": "Giải quyết",
 			"reopen": "Mở lại",
 			"createTask": "Tạo tác vụ",
-			"taskCreated": "Đã tạo tác vụ"
+			"taskCreated": "Đã tạo tác vụ",
+			"errors": {
+				"alreadyHasTask": "Đã có nhiệm vụ được tạo cho bình luận này.",
+				"creationInProgress": "Việc tạo nhiệm vụ cho bình luận này đang được xử lý.",
+				"createTaskFailed": "Không thể tạo nhiệm vụ. Vui lòng thử lại."
+			}
 		}
 	},
 	"commentDetail": {
@@ -1337,6 +1608,10 @@
 			"description": "Bình luận này có thể đã bị xóa hoặc liên kết không hợp lệ.",
 			"ariaLabel": "Chi tiết bình luận",
 			"backToPortForward": "Quay lại chuyển tiếp cổng"
+		},
+		"noPermission": {
+			"title": "You don't have permission to view this comment",
+			"description": "Ask a project admin to grant you the annotations.read permission."
 		},
 		"header": {
 			"createdAt": "Đã bình luận {{date}}"
@@ -1353,7 +1628,11 @@
 		},
 		"thread": {
 			"replyPlaceholder": "Viết phản hồi…",
-			"reply": "Trả lời"
+			"reply": "Trả lời",
+			"errors": {
+				"bodyEmpty": "Phản hồi không được để trống.",
+				"replyFailed": "Không thể đăng phản hồi. Vui lòng thử lại."
+			}
 		},
 		"actions": {
 			"create": "Tạo",
@@ -1385,7 +1664,9 @@
 			"reporterTitle": "Người báo cáo",
 			"epicLabel": "Epic",
 			"noEpic": "Không có Epic",
-			"storyPointsTitle": "Story Points"
+			"storyPointsTitle": "Story Points",
+			"moveLeft": "Di chuyển sang cột trước",
+			"moveRight": "Di chuyển sang cột sau"
 		},
 		"taskContextMenu": {
 			"open": "Mở tác vụ",
@@ -1444,6 +1725,7 @@
 		}
 	},
 	"conversationsPage": {
+		"back": "Quay lại",
 		"title": "Hội thoại",
 		"triggerChat": "Trò chuyện",
 		"triggerWriteDescription": "Viết mô tả",
@@ -1451,6 +1733,24 @@
 		"triggerAutomation": "Tự động hóa",
 		"usageTitle": "{{tokens}} token · {{cost}}",
 		"prOpened": "PR đã mở",
+		"moreActions": "Thao tác khác",
+		"rename": {
+			"menuLabel": "Đổi tên",
+			"dialogTitle": "Đổi tên cuộc trò chuyện",
+			"placeholder": "Tên cuộc trò chuyện",
+			"cancel": "Hủy",
+			"confirm": "Đổi tên",
+			"renaming": "Đang đổi tên…",
+			"error": "Không thể đổi tên cuộc trò chuyện. Vui lòng thử lại."
+		},
+		"delete": {
+			"menuLabel": "Xóa",
+			"dialogTitle": "Xóa cuộc trò chuyện?",
+			"dialogDescription": "Thao tác này sẽ xóa vĩnh viễn \"{{title}}\" và lịch sử của nó. Không thể hoàn tác.",
+			"cancel": "Hủy",
+			"confirm": "Xóa",
+			"error": "Không thể xóa cuộc trò chuyện. Vui lòng thử lại."
+		},
 		"filters": {
 			"title": "Bộ lọc",
 			"agent": "Tác nhân",
@@ -1463,6 +1763,10 @@
 			"clearAll": "Xóa bộ lọc"
 		},
 		"list": {
+			"noPermission": {
+				"title": "You don't have permission to view conversations",
+				"description": "Ask a project admin to grant you the conversations.read permission."
+			},
 			"empty": {
 				"title": "Chưa có hội thoại nào",
 				"description": "Hội thoại bắt đầu khi một nhiệm vụ được giao cho agent hoặc khi có ai đó nhắn tin cho agent đó."
@@ -1486,11 +1790,18 @@
 			"renameView": "Đổi tên chế độ xem",
 			"deleteView": "Xóa chế độ xem",
 			"searchTasksPlaceholder": "Tìm kiếm nhiệm vụ…",
-			"pluginNotAvailable": "Plugin không khả dụng"
+			"pluginNotAvailable": "Plugin không khả dụng",
+			"viewErrors": {
+				"isLastView": "Đây là chế độ xem cuối cùng và không thể xóa.",
+				"deleteFailed": "Không thể xóa chế độ xem. Vui lòng thử lại.",
+				"reorderInvalid": "Danh sách chế độ xem đã thay đổi ở nơi khác. Hãy làm mới trang và thử lại.",
+				"reorderFailed": "Không thể sắp xếp lại chế độ xem. Vui lòng thử lại."
+			}
 		},
 		"viewSettings": {
 			"viewSettingsAriaLabel": "Cài đặt chế độ xem",
 			"title": "Cài đặt chế độ xem",
+			"onlyVisibleToYou": "Chỉ bạn nhìn thấy",
 			"chooseFields": "Chọn trường",
 			"back": "← Quay lại",
 			"clearFilters": "Xóa bộ lọc",
@@ -1517,6 +1828,8 @@
 			"reset": "Đặt lại",
 			"saving": "Đang lưu…",
 			"save": "Lưu",
+			"saveOnlyForMe": "Chỉ lưu cho tôi",
+			"saveForEveryone": "Lưu cho mọi người",
 			"sprintFilter": {
 				"noSprints": "Không có sprint",
 				"allSprints": "Tất cả sprint"
@@ -1638,7 +1951,9 @@
 				"unassignedHint": "Nhiệm vụ sẽ được gỡ khỏi mọi sprint",
 				"cancel": "Hủy",
 				"completing": "Đang hoàn thành…",
-				"completeSprint": "Hoàn thành sprint"
+				"completeSprint": "Hoàn thành sprint",
+				"alreadyComplete": "Sprint này đã được hoàn thành.",
+				"completeFailed": "Hoàn thành sprint thất bại. Vui lòng thử lại."
 			},
 			"deleteSprintModal": {
 				"title": "Xóa sprint?",
@@ -1721,7 +2036,11 @@
 				"createFirst": "Tạo tự động hóa đầu tiên của bạn"
 			},
 			"noDescription": "Không có mô tả",
-			"updated": "Đã cập nhật {{time}}"
+			"updated": "Đã cập nhật {{time}}",
+			"noPermission": {
+				"title": "You don't have permission to view automations",
+				"description": "Ask a project admin to grant you the workflows.read permission."
+			}
 		},
 		"status": {
 			"active": "Đang hoạt động",
@@ -1961,7 +2280,33 @@
 				"branchFallback": "Nhánh {{n}}",
 				"cronSchedule": "Chạy {{expression}}",
 				"webhookReady": "Đã cấu hình webhook",
-				"callApiSummary": "{{method}} {{host}}"
+				"callApiSummary": "{{method}} {{host}}",
+				"jevNoulTrue": "Có"
+			},
+			"jev": {
+				"answerTypeLabel": "Loại câu trả lời",
+				"answerTypes": {
+					"choice": "Lựa chọn — chọn một trong nhiều phương án",
+					"score": "Điểm — đánh giá theo thang",
+					"noul": "Có / Không"
+				},
+				"answerTypeChangeHint": "Các nhánh đã kết nối cho loại câu trả lời trước sẽ không còn được dùng nữa — hãy kết nối lại sau khi lưu.",
+				"instructionsLabel": "Câu hỏi cho Jev",
+				"instructionsPlaceholder": {
+					"choice": "ví dụ: Nhóm nào nên xử lý việc này?",
+					"score": "ví dụ: Vấn đề này có vẻ nghiêm trọng đến mức nào?",
+					"noul": "ví dụ: Khách hàng đang yêu cầu hoàn tiền."
+				},
+				"optionsTitle": "Tùy chọn",
+				"optionKeyPlaceholder": "khóa",
+				"optionDescriptionPlaceholder": "Khi nào chọn tùy chọn này",
+				"addOption": "Thêm tùy chọn",
+				"levelsTitle": "Cấp độ (từ thấp đến cao)",
+				"levelPlaceholder": "Mô tả cấp độ này",
+				"addLevel": "Thêm cấp độ",
+				"confidenceThresholdLabel": "Ngưỡng độ tin cậy",
+				"trueThresholdLabel": "Ngưỡng \"đúng\"",
+				"thresholdHint": "Dưới ngưỡng này, quy trình sẽ đi theo nhánh Else thay vì tin tưởng câu trả lời."
 			}
 		},
 		"runHistory": {
@@ -1985,6 +2330,132 @@
 			"subtitle": "Chế độ xem chỉ đọc về mọi tự động hóa đang chờ các công việc khác hoàn thành",
 			"empty": "Chưa có phụ thuộc công việc trước nào được cấu hình",
 			"watchedTasks": "Đang chờ {{count}} công việc"
+		},
+		"conditionTypes": {
+			"jev_condition": "Điều kiện Jev"
+		}
+	},
+	"activityLog": {
+		"title": "Hoạt động",
+		"subtitle": "Mọi thứ đã diễn ra trong dự án này",
+		"today": "Hôm nay",
+		"yesterday": "Hôm qua",
+		"deletedEntity": "Mục này đã bị xóa",
+		"noPermission": {
+			"title": "Bạn không thể xem nhật ký hoạt động",
+			"description": "Hãy đề nghị quản lý dự án cấp quyền “Xem nhật ký hoạt động”."
+		},
+		"empty": {
+			"title": "Chưa có hoạt động nào",
+			"description": "Các thay đổi trong dự án này sẽ hiển thị ở đây."
+		},
+		"emptyFiltered": {
+			"title": "Không có hoạt động phù hợp",
+			"description": "Hãy thử bỏ bớt bộ lọc hoặc đổi từ khóa tìm kiếm."
+		},
+		"filters": {
+			"title": "Bộ lọc",
+			"searchPlaceholder": "Tìm hoạt động…",
+			"type": "Loại",
+			"people": "Thành viên",
+			"source": "Nguồn",
+			"dateRange": "Khoảng thời gian",
+			"dateFrom": "Từ",
+			"dateTo": "Đến",
+			"clearAll": "Xóa tất cả"
+		},
+		"entityTypes": {
+			"task": "Công việc",
+			"doc": "Tài liệu",
+			"sprint": "Sprint",
+			"view": "Chế độ xem",
+			"automation": "Tự động hóa",
+			"environment": "Môi trường",
+			"member": "Thành viên",
+			"role": "Vai trò",
+			"agent": "Agent",
+			"project": "Dự án"
+		},
+		"origins": {
+			"user": "Người dùng",
+			"agent": "Agent",
+			"automation": "Tự động hóa",
+			"jev": "Jev",
+			"annotation": "Chú thích",
+			"system": "Hệ thống"
+		},
+		"detail": {
+			"asRole": "với vai trò {{role}}",
+			"roleChange": "{{from}} → {{to}}",
+			"renamedFrom": "tên cũ “{{name}}”",
+			"member": "cho {{name}}"
+		},
+		"projectFields": {
+			"name": "Tên",
+			"description": "Mô tả",
+			"task_id_prefix": "Tiền tố ID công việc",
+			"is_public": "Chế độ hiển thị",
+			"settings": "Cài đặt",
+			"jev_config": "Cấu hình Jev"
+		},
+		"types": {
+			"sprint_created": "đã tạo sprint",
+			"sprint_updated": "đã cập nhật sprint",
+			"sprint_deleted": "đã xóa sprint",
+			"sprint_completed": "đã hoàn thành sprint",
+			"view_created": "đã tạo chế độ xem",
+			"view_updated": "đã cập nhật chế độ xem",
+			"view_deleted": "đã xóa chế độ xem",
+			"automation_created": "đã tạo tự động hóa",
+			"automation_updated": "đã cập nhật tự động hóa",
+			"automation_deleted": "đã xóa tự động hóa",
+			"automation_activated": "đã bật tự động hóa",
+			"automation_deactivated": "đã tắt tự động hóa",
+			"automation_node_added": "đã thêm một bước vào",
+			"automation_node_removed": "đã gỡ một bước khỏi",
+			"automation_edge_added": "đã nối các bước trong",
+			"automation_edge_removed": "đã ngắt các bước trong",
+			"environment_created": "đã tạo môi trường",
+			"environment_updated": "đã cập nhật môi trường",
+			"environment_deleted": "đã xóa môi trường",
+			"environment_started": "đã khởi động môi trường",
+			"environment_stopped": "đã dừng môi trường",
+			"environment_restarted": "đã khởi động lại môi trường",
+			"environment_ssh_key_added": "đã thêm khóa SSH “{{label}}” vào",
+			"environment_ssh_key_removed": "đã gỡ khóa SSH “{{label}}” khỏi",
+			"environment_access_granted": "đã cấp quyền truy cập",
+			"environment_access_revoked": "đã thu hồi quyền truy cập",
+			"environment_port_forward_added": "đã chuyển tiếp cổng {{port}} trên",
+			"environment_port_forward_removed": "đã ngừng chuyển tiếp cổng {{port}} trên",
+			"annotation_created": "đã thêm chú thích trên",
+			"annotation_resolved": "đã giải quyết chú thích trên",
+			"annotation_reopened": "đã mở lại chú thích trên",
+			"annotation_commented": "đã trả lời chú thích trên",
+			"member_added": "đã thêm thành viên",
+			"member_role_changed": "đã đổi vai trò của",
+			"member_updated": "đã cập nhật thành viên",
+			"member_removed": "đã xóa thành viên",
+			"role_created": "đã tạo vai trò",
+			"role_updated": "đã cập nhật vai trò",
+			"role_deleted": "đã xóa vai trò",
+			"project_updated": "đã cập nhật cài đặt của",
+			"project_task_type_created": "đã tạo loại công việc “{{name}}” trong",
+			"project_task_type_updated": "đã cập nhật loại công việc “{{name}}” trong",
+			"project_task_type_deleted": "đã xóa loại công việc “{{name}}” trong",
+			"project_task_type_default_set": "đã đặt “{{name}}” làm loại công việc mặc định trong",
+			"project_task_status_created": "đã tạo trạng thái “{{name}}” trong",
+			"project_task_status_updated": "đã cập nhật trạng thái “{{name}}” trong",
+			"project_task_status_deleted": "đã xóa trạng thái “{{name}}” trong",
+			"project_task_status_default_set": "đã đặt “{{name}}” làm trạng thái mặc định trong",
+			"project_task_status_reordered": "đã sắp xếp lại trạng thái trong",
+			"project_custom_field_created": "đã tạo trường “{{name}}” trong",
+			"project_custom_field_updated": "đã cập nhật trường “{{name}}” trong",
+			"project_custom_field_deleted": "đã xóa trường “{{name}}” trong",
+			"project_agent_created": "đã thêm agent",
+			"project_agent_updated": "đã cập nhật agent",
+			"project_agent_deleted": "đã gỡ agent",
+			"comment": "đã bình luận về",
+			"fallback": "đã thực hiện {{type}} trên"
 		}
 	}
 }

@@ -10,23 +10,31 @@
 				"taskStatuses": "タスクステータス",
 				"taskTypes": "タスクタイプ",
 				"customFields": "カスタムフィールド",
+				"jev": "Jev AI",
 				"dangerZone": "危険な操作",
 				"plugins": "プラグイン"
+			},
+			"pluginTab": {
+				"noPermission": {
+					"title": "このタブを表示する権限がありません",
+					"description": "{{pluginName}}へのアクセス権限をプロジェクトのオーナーまたは管理者に依頼してください。"
+				}
 			}
 		}
 	},
 	"agents": {
 		"createDialog": {
 			"title": "AIエージェントを作成",
-			"step1Description": "エージェントの名前とロールを設定します",
+			"step1Description": "エージェントの名前を設定します",
 			"step2Description": "エージェントを動かすAIモデルを構成します",
-			"stepIndicator": "{{step}} / 2",
+			"step3DescriptionGlobal": "{{name}} は既定のグローバルロールで作成されました。そのままにするか、別のロールを選ぶか、削除できます。",
+			"step3DescriptionProject": "このプロジェクトでのエージェントのロールを選択します",
+			"stepIndicator": "{{step}} / {{total}}",
 			"startFromPreset": "プリセットから開始",
 			"nameLabel": "名前",
 			"handleLabel": "ハンドル",
 			"handleHint": "名前から自動生成されます。コメント内の@メンションに使用されます。",
 			"projectRoleLabel": "プロジェクトロール",
-			"projectRolePlaceholder": "プロジェクトロールを選択…",
 			"projectRoleHint": "このプロジェクト内でエージェントが読み取り・変更できる範囲を制御します。",
 			"agentTypeLabel": "エージェントタイプ",
 			"agentTypeLLM": "LLM（APIキー）",
@@ -77,21 +85,23 @@
 			"optional": "（任意）",
 			"charsCount": "{{count}}文字",
 			"createFailed": "エージェントの作成に失敗しました。もう一度お試しください。",
+			"handleTaken": "このハンドルはすでに使用されています。戻って別のハンドルを選択してください。",
+			"defaultEnvironmentInvalid": "この環境はもう利用できません。戻って別の環境を選択してください。",
+			"defaultFolderInvalid": "このフォルダーはもう利用できません。戻って別のフォルダーを選択してください。",
 			"cancel": "キャンセル",
 			"continue": "続ける",
 			"back": "戻る",
 			"creating": "作成中…",
 			"createAgent": "エージェントを作成",
+			"finish": "完了",
 			"namePlaceholder": "Dev Bot",
-			"systemPromptPlaceholder": "あなたはシニアソフトウェアエンジニアです…",
-			"globalRoleLabel": "グローバルロール",
-			"globalRolePlaceholder": "グローバルロールを選択…",
-			"globalRoleHint": "エージェントがグローバルスコープ(ホーム/管理チャットなど)で何を実行できるかを制御します。任意 — プロジェクトに招待された後に付与されるロールとは別物です。",
-			"noGlobalRoleOption": "ロールなし"
+			"systemPromptPlaceholder": "あなたはシニアソフトウェアエンジニアです…"
 		},
 		"card": {
 			"configure": "設定",
 			"delete": "削除",
+			"restricted": "Restricted",
+			"restrictedTooltip": "This agent is restricted — ask a project admin to grant you access before you can chat with it.",
 			"acpStatusConnected": "オンライン",
 			"acpStatusDisconnected": "オフライン",
 			"deleteDialog": {
@@ -111,6 +121,10 @@
 				"title": "エージェントはまだいません",
 				"description": "AIエージェントを追加して、タスクの自動化、コードレビュー、ドキュメント作成などを行いましょう。",
 				"createFirstAgent": "最初のエージェントを作成"
+			},
+			"noPermission": {
+				"title": "You don't have permission to view agents",
+				"description": "Ask a project admin to grant you the agents.read permission."
 			}
 		},
 		"acpSetup": {
@@ -157,7 +171,30 @@
 				"mcpServers": "MCPサーバー",
 				"skills": "スキル",
 				"envVars": "環境変数",
+				"globalRole": "グローバルロール",
+				"access": "Access",
 				"activity": "アクティビティ"
+			},
+			"globalRole": {
+				"title": "グローバルロール",
+				"description": "このエージェントがグローバルスコープで実行できる操作（ホームや管理画面のチャットなど）を決定します。プロジェクト内で実行できる操作は、そのプロジェクトでのロールによって決まります。",
+				"none": "グローバルロールなし",
+				"noneHint": "このエージェントにはグローバル権限がありません。",
+				"assign": "ロールを割り当て",
+				"change": "ロールを変更",
+				"assigning": "割り当て中…",
+				"remove": "ロールを解除",
+				"removing": "解除中…",
+				"removeConfirm": "このエージェントのグローバルロールを解除しますか？ロールが付与していた権限を失います。",
+				"cancel": "キャンセル",
+				"readOnly": "このエージェントのグローバルロールは表示できますが、変更する権限がありません。",
+				"unknownRole": "グローバルロールが割り当てられています。ロールを表示する権限がないため、名前は表示されません。",
+				"fullAccessWarning": "このロールにはフルアクセス権があります。エージェントは、ユーザーやロールの管理を含め、すべての操作を実行できるようになります。",
+				"errors": {
+					"generic": "ロールを更新できませんでした。もう一度お試しください。",
+					"forbidden": "グローバルロールを変更する権限がありません。",
+					"roleNotFound": "そのロールは存在しなくなりました。ページを再読み込みしてもう一度お試しください。"
+				}
 			},
 			"avatar": {
 				"change": "アバターを変更",
@@ -194,6 +231,8 @@
 				"noDefaultEnvironment": "一時的な環境",
 				"defaultFolderLabel": "デフォルトフォルダー",
 				"defaultFolderHint": "デフォルト環境内で、このエージェントの会話が作業するフォルダーです。",
+				"defaultEnvironmentInvalid": "この環境はもう利用できません。別の環境を選択してください。",
+				"defaultFolderInvalid": "このフォルダーはもう利用できません。別のフォルダーを選択してください。",
 				"noDefaultFolder": "デフォルトフォルダーなし",
 				"saveChanges": "変更を保存",
 				"saved": "保存しました",
@@ -226,7 +265,10 @@
 				"cliLoginNotAuthenticated": "まだ認証されていません — ターミナルからログインし、再度確認してください。",
 				"cliLoginVerifyFailed": "ログイン状態を確認できませんでした。もう一度お試しください。",
 				"cliLoginLastVerified": "最終確認日時: {{date}}。",
-				"cliLoginNoEnvironment": "このエージェントには環境が設定されていません — まず上で環境を選択してください。"
+				"cliLoginNoEnvironment": "このエージェントには環境が設定されていません — まず上で環境を選択してください。",
+				"descriptionLabel": "説明",
+				"descriptionPlaceholder": "このエージェントの用途は？",
+				"descriptionHint": "自動モードで、どのエージェントがチャットを担当するか、またはタスクを割り当てるかをJevが判断する際に表示されます。プロバイダーとモデルは自動的に追加されます。"
 			},
 			"mcp": {
 				"serverCount_one": "{{count}}件のサーバーを設定済み",
@@ -265,7 +307,10 @@
 					"keyHint": "（英字・数字・アンダースコア。英字またはアンダースコアで始まる必要があります）",
 					"valueLabel": "値",
 					"cancel": "キャンセル",
-					"addVariable": "変数を追加"
+					"addVariable": "変数を追加",
+					"keyTaken": "このエージェントには同じキーの環境変数がすでに存在します。",
+					"keyReserved": "そのキーはサンドボックス自体のために予約されています。別のキーを選択してください。",
+					"addFailed": "環境変数の追加に失敗しました。もう一度お試しください。"
 				}
 			},
 			"skills": {
@@ -287,8 +332,20 @@
 					"skillContentLabel": "スキル内容（Markdown）",
 					"urlLabel": "URL",
 					"cancel": "キャンセル",
-					"addSkill": "スキルを追加"
+					"addSkill": "スキルを追加",
+					"nameReserved": "その名前はPaca自体の内部構造用に予約されています。別の名前を選択してください。",
+					"nameInvalid": "スキル名に「.」「..」を使用したり、スラッシュを含めたりすることはできません。",
+					"addFailed": "スキルの追加に失敗しました。もう一度お試しください。"
 				}
+			},
+			"access": {
+				"restrictLabel": "Restrict access",
+				"restrictDescription": "When on, only members granted access below may chat with this agent. Everyone who can manage agents can still see and configure it.",
+				"pickMember": "Select a member…",
+				"grantAccess": "Grant access",
+				"alreadyGranted": "This member already has access.",
+				"grantFailed": "Failed to grant access. Please try again.",
+				"empty": "No members have been granted access yet."
 			},
 			"activity": {
 				"commented": "コメントしました",
@@ -318,12 +375,19 @@
 		"conversationView": {
 			"stop": "停止",
 			"notFound": "会話が見つかりません",
+			"noPermission": {
+				"title": "You don't have permission to view this conversation",
+				"description": "Ask a project admin to grant you the conversations.read permission."
+			},
 			"chatSession": "チャットセッション",
 			"taskSession": "タスクセッション",
 			"pr": "PR",
 			"connect": "接続",
 			"conversationEnded": "この会話は終了しました。",
 			"textOnlyMessage": "テキストメッセージのみサポートされています。",
+			"agentAccessRestricted": "このエージェントはアクセスが制限されています。チャットする前に、プロジェクト管理者にアクセス権を付与してもらってください。",
+			"environmentAccessRestricted": "この会話の環境はアクセスが制限されています。このエージェントとチャットする前に、プロジェクト管理者にアクセス権を付与してもらってください。",
+			"chatNoPermission": "この会話でメッセージを送信する権限がありません。",
 			"failed": "会話が失敗しました",
 			"noOutput": "エージェントは出力を生成しませんでした。",
 			"loadingOlder": "読み込み中…",
@@ -418,10 +482,16 @@
 			"title": "環境",
 			"subtitle": "エージェントが会話をまたいで接続できる、名前付きの長期稼働サンドボックス",
 			"newEnvironment": "新しい環境",
+			"restricted": "Restricted",
+			"restrictedTooltip": "This environment is restricted — ask a project admin to grant you access before you can use it.",
 			"empty": {
 				"title": "まだ環境がありません",
 				"description": "毎回使い捨てのサンドボックスを作成する代わりに、静的環境を作成してファイルやバックグラウンドプロセスを会話をまたいで維持しましょう。",
 				"createFirstEnvironment": "最初の環境を作成"
+			},
+			"noPermission": {
+				"title": "You don't have permission to view environments",
+				"description": "Ask a project admin to grant you the environments.read permission."
 			}
 		},
 		"createDialog": {
@@ -439,6 +509,7 @@
 			"cpuLimitInvalid": "CPUは0.1(100m)以上にしてください。",
 			"memoryLimitInvalid": "メモリは256Mi以上にしてください。",
 			"diskLimitInvalid": "ディスクは正の整数(GB)で指定してください。",
+			"nameRequired": "環境に名前を付けてください。",
 			"createFailed": "環境の作成に失敗しました。もう一度お試しください。",
 			"cancel": "キャンセル",
 			"creating": "作成中…",
@@ -455,8 +526,11 @@
 			"tabs": {
 				"overview": "概要",
 				"folders": "フォルダー",
-				"portForwards": "ポートフォワード"
+				"portForwards": "ポートフォワード",
+				"access": "Access"
 			},
+			"busy": "この環境はすでに起動、停止、または再起動中です。しばらくしてからもう一度お試しください。",
+			"actionFailed": "この操作に失敗しました。もう一度お試しください。",
 			"overview": {
 				"connect": "接続",
 				"start": "開始",
@@ -487,6 +561,7 @@
 				"portsPendingRestartLink": "ポートフォワードを表示",
 				"saveChanges": "変更を保存",
 				"saved": "保存しました",
+				"nameRequired": "環境に名前を付けてください。",
 				"saveFailed": "保存に失敗しました。もう一度お試しください。",
 				"deleteDialog": {
 					"title": "{{name}}を削除しますか?",
@@ -500,6 +575,10 @@
 				"count_one": "{{count}}個のフォルダーが設定されています",
 				"count_other": "{{count}}個のフォルダーが設定されています",
 				"addFolder": "フォルダーを追加",
+				"noPermission": {
+					"title": "You don't have access to this environment",
+					"description": "Ask a project admin to grant you access before you can view its folders."
+				},
 				"deleteFailed": "フォルダーの削除に失敗しました。もう一度お試しください。",
 				"empty": {
 					"title": "フォルダーが追加されていません",
@@ -516,6 +595,8 @@
 						"empty": "このフォルダーは空です",
 						"notRunning": "ファイルを参照するには環境を起動してください。"
 					},
+					"pathTaken": "このパスのフォルダはこの環境にすでに存在します。",
+					"pathInvalid": "パスは絶対パス(/で始まる)である必要があります。",
 					"addFailed": "フォルダーの追加に失敗しました。もう一度お試しください。",
 					"cancel": "キャンセル",
 					"addFolder": "フォルダーを追加"
@@ -526,6 +607,10 @@
 				"count_one": "{{count}}件のポートフォワード",
 				"count_other": "{{count}}件のポートフォワード",
 				"add": "ポートフォワードを追加",
+				"noPermission": {
+					"title": "You don't have access to this environment",
+					"description": "Ask a project admin to grant you access before you can view its port forwards."
+				},
 				"deleteFailed": "ポートフォワードの削除に失敗しました。もう一度お試しください。",
 				"containerPort": "コンテナポート {{port}}",
 				"unassigned": "まだ割り当てられていません",
@@ -546,14 +631,26 @@
 					"labelPlaceholder": "開発サーバー",
 					"cancel": "キャンセル",
 					"add": "追加",
+					"portTaken": "このコンテナポートはこの環境ですでに転送されています。",
+					"portOutOfRange": "ポートは1〜65535の範囲で指定してください。",
 					"addFailed": "ポートフォワードの追加に失敗しました。もう一度お試しください。"
 				},
 				"restartDialog": {
 					"title": "環境を再起動しますか?",
 					"description": "更新されたポートフォワードを適用するために環境のコンテナを再起動します。内部で実行中のプロセスは中断されます。ファイルは別のボリュームに保存されているため安全です。",
 					"cancel": "キャンセル",
-					"confirm": "再起動"
+					"confirm": "再起動",
+					"restartFailed": "環境の再起動に失敗しました。もう一度お試しください。"
 				}
+			},
+			"access": {
+				"restrictLabel": "Restrict access",
+				"restrictDescription": "When on, only members granted access below may browse, SSH into, forward ports on, or open a terminal in this environment. Everyone who can manage environments can still see and configure it.",
+				"pickMember": "Select a member…",
+				"grantAccess": "Grant access",
+				"alreadyGranted": "This member already has access.",
+				"grantFailed": "Failed to grant access. Please try again.",
+				"empty": "No members have been granted access yet."
 			},
 			"sshKeys": {
 				"connectHint": "<bastion-host> を、このデプロイで設定されたSSH踏み台のアドレスに置き換えてください。",
@@ -576,6 +673,8 @@
 					"publicKeyLabel": "公開鍵",
 					"cancel": "キャンセル",
 					"addKey": "鍵を追加",
+					"keyTaken": "この鍵はこの環境にすでに登録されています。",
+					"keyInvalid": "有効なSSH公開鍵ではないようです。",
 					"addFailed": "SSH鍵の追加に失敗しました。もう一度お試しください。"
 				}
 			},
@@ -602,6 +701,7 @@
 				"connect": "接続",
 				"notRunning": "接続する前に環境を起動してください。",
 				"readOnly": "この環境でターミナルを開く権限がありません。",
+				"restricted": "This environment is restricted — ask a project admin to grant you access before you can open a terminal.",
 				"hint": "新しい全画面タブで開きます。",
 				"pageTitle": "{{name}} — ターミナル",
 				"pageTitleLoading": "ターミナル",
@@ -612,7 +712,8 @@
 				"step1Description": "接続に使用するSSH鍵ペアの公開鍵を登録してください。",
 				"step2Title": "ターミナルから接続",
 				"step2Description": "ターミナルで次のコマンドを実行してください：",
-				"notRunning": "接続する前に環境を起動してください。"
+				"notRunning": "接続する前に環境を起動してください。",
+				"restricted": "This environment is restricted — ask a project admin to grant you access before you can connect via SSH."
 			}
 		}
 	},
@@ -621,6 +722,10 @@
 			"notFound": {
 				"title": "ドキュメントが見つかりません",
 				"description": "このドキュメントは削除されたか、リンクが無効である可能性があります。"
+			},
+			"noPermission": {
+				"title": "You don't have permission to view this document",
+				"description": "Ask a project admin to grant you the docs.read permission."
 			},
 			"unsaved": "未保存",
 			"saving": "保存中…",
@@ -659,6 +764,8 @@
 			"roleNameLabel": "ロール名",
 			"roleNamePlaceholder": "例: PROJECT_REVIEWER",
 			"permissionsLabel": "権限",
+			"fullAccessBadge": "フルアクセス",
+			"fullAccessDescription": "このロールには、将来追加される権限を含め、すべての権限が自動的に含まれます。以下のいずれかを切り替えると、現在の権限の固定セットに変換されます。",
 			"enabledCount_one": "{{count}}件有効",
 			"enabledCount_other": "{{count}}件有効",
 			"cancel": "キャンセル",
@@ -674,10 +781,6 @@
 			}
 		},
 		"permissions": {
-			"projectsRead": {
-				"label": "プロジェクトの閲覧",
-				"description": "プロジェクトの詳細と設定を表示します"
-			},
 			"projectsWrite": {
 				"label": "プロジェクトの編集",
 				"description": "プロジェクト名、説明、設定を更新します"
@@ -702,6 +805,18 @@
 				"label": "ロールの管理",
 				"description": "プロジェクトロールの作成・編集・削除"
 			},
+			"settingsTaskTypesWrite": {
+				"label": "Manage Task Types",
+				"description": "Create, edit, delete, and set the default task type"
+			},
+			"settingsTaskStatusesWrite": {
+				"label": "Manage Task Statuses",
+				"description": "Create, edit, delete, reorder, and set the default task status"
+			},
+			"settingsCustomFieldsWrite": {
+				"label": "Manage Custom Fields",
+				"description": "Create, edit, and delete custom field definitions"
+			},
 			"tasksRead": {
 				"label": "タスクの閲覧",
 				"description": "プロジェクト内のタスクを閲覧します"
@@ -717,6 +832,14 @@
 			"sprintsWrite": {
 				"label": "スプリントの管理",
 				"description": "スプリントの作成・更新・終了を行います"
+			},
+			"viewsRead": {
+				"label": "View Boards",
+				"description": "Browse saved board and list views"
+			},
+			"viewsWrite": {
+				"label": "Manage Boards",
+				"description": "Create, edit, delete, and reorder board and list views"
 			},
 			"docsRead": {
 				"label": "ドキュメントの閲覧",
@@ -754,6 +877,18 @@
 				"label": "環境への接続",
 				"description": "実行中の環境内でインタラクティブなターミナルセッションを開きます"
 			},
+			"annotationsRead": {
+				"label": "View Annotations",
+				"description": "View page comments pinned via the browser extension"
+			},
+			"annotationsWrite": {
+				"label": "Manage Annotations",
+				"description": "Create, edit, and delete page annotations"
+			},
+			"annotationsResolve": {
+				"label": "Resolve Annotations",
+				"description": "Mark a page annotation resolved or reopen it, without authoring or deleting one"
+			},
 			"workflowsRead": {
 				"label": "自動化を表示",
 				"description": "自動化とその設定を閲覧する"
@@ -761,18 +896,24 @@
 			"workflowsWrite": {
 				"label": "自動化を管理",
 				"description": "自動化の作成、編集、有効化、削除を行う"
+			},
+			"activitiesRead": {
+				"label": "アクティビティログの閲覧",
+				"description": "このプロジェクトで記録されたすべてのアクティビティを表示"
 			}
 		},
 		"permissionGroups": {
 			"project": "プロジェクト",
 			"members": "メンバー",
-			"roles": "ロール",
+			"settings": "Settings",
 			"tasks": "タスク",
 			"sprints": "スプリント",
+			"views": "Views",
 			"documents": "ドキュメント",
 			"aiAgents": "AIエージェント",
 			"conversations": "会話",
 			"environments": "環境",
+			"annotations": "Annotations",
 			"workflows": "自動化",
 			"plugins": "プラグイン"
 		}
@@ -831,13 +972,18 @@
 				"permissions": "権限",
 				"created": "作成日"
 			},
-			"systemRolesNote": "システムロールは共有テンプレートであり、編集・削除はできません。"
+			"systemRolesNote": "システムロールは共有テンプレートであり、編集・削除はできません。",
+			"noPermission": {
+				"title": "You don't have permission to view roles",
+				"description": "Ask a project admin to grant you the project.roles.read permission."
+			}
 		},
 		"taskStatuses": {
 			"title": "タスクステータス",
 			"description": "このプロジェクトでタスクが進行するワークフローステータスを定義します。",
 			"newStatus": "新規ステータス",
 			"reorderFailed": "新しい順序の保存に失敗しました。もう一度お試しください。",
+			"reorderInvalid": "ステータス一覧が他の場所で変更されました。ページを更新してもう一度お試しください。",
 			"empty": {
 				"title": "ステータスが定義されていません",
 				"description": "ステータスを作成して、このプロジェクトのタスクワークフローを定義しましょう。",
@@ -851,7 +997,12 @@
 			"default": "既定",
 			"setAsDefault": "既定のステータスに設定",
 			"editStatus": "ステータスを編集",
-			"deleteStatus": "ステータスを削除"
+			"deleteStatus": "ステータスを削除",
+			"deleteDefaultDisabled": "既定のステータスは削除できません。先に別のステータスを既定に設定してください。",
+			"noPermission": {
+				"title": "You don't have permission to view task statuses",
+				"description": "Ask a project admin to grant you the project.settings.task_statuses.read permission."
+			}
 		},
 		"taskTypes": {
 			"title": "タスクタイプ",
@@ -871,7 +1022,12 @@
 			"default": "既定",
 			"setAsDefault": "既定のタイプに設定",
 			"editType": "タイプを編集",
-			"deleteType": "タイプを削除"
+			"deleteType": "タイプを削除",
+			"deleteDefaultDisabled": "既定のタイプは削除できません。先に別のタイプを既定に設定してください。",
+			"noPermission": {
+				"title": "You don't have permission to view task types",
+				"description": "Ask a project admin to grant you the project.settings.task_types.read permission."
+			}
 		},
 		"customFields": {
 			"title": "カスタムフィールド",
@@ -942,6 +1098,63 @@
 				"confirmTextSuffix": "？このフィールドに保存されているタスクデータは失われます。この操作は取り消せません。",
 				"deleteFailed": "フィールドの削除に失敗しました。もう一度お試しください。",
 				"deleteField": "フィールドを削除"
+			},
+			"noPermission": {
+				"title": "You don't have permission to view custom fields",
+				"description": "Ask a project admin to grant you the project.settings.custom_fields.read permission."
+			}
+		},
+		"jev": {
+			"title": "Jev AI",
+			"description": "AI意思決定エンジンのJevがこのプロジェクトをどのように支援するかを設定します。",
+			"credentials": {
+				"title": "プロバイダーの認証情報",
+				"description": "Jev互換のプロバイダー(デフォルトのTypeSafe、OpenJev、または同じAPIを実装する他のホスト)を接続して、以下の機能を利用します。",
+				"configuredBadge": "設定済み",
+				"notConfiguredBadge": "未設定",
+				"apiKeyLabel": "APIキー",
+				"apiKeyPlaceholder": "APIキーを入力",
+				"apiKeyConfiguredPlaceholder": "空欄のままにすると現在のキーを保持します",
+				"baseUrlLabel": "ホスト(任意)",
+				"baseUrlPlaceholder": "https://api.typesafe.ai(デフォルト)",
+				"modelLabel": "モデル(任意)",
+				"modelPlaceholder": "jev-latest(デフォルト)",
+				"saveButton": "認証情報を保存",
+				"testButton": "接続をテスト",
+				"advancedLabel": "詳細設定",
+				"testSuccess": "接続に成功しました",
+				"testFailed": "接続できませんでした。認証情報を確認して再試行してください。"
+			},
+			"autofill": {
+				"title": "タスクの自動入力",
+				"description": "タスクが作成されると、Jevは作成者が空欄のままにしたフィールドに値を入力します。",
+				"enabledLabel": "自動入力を有効にする",
+				"enabledHint": "タスク作成の直後に、Jevが空欄のフィールドに値を提案します。",
+				"excludedFieldsLabel": "Jevが設定できるフィールド",
+				"excludedFieldsHint": "フィールドをオフにすると、Jevがそのフィールドを自動設定しなくなります。",
+				"fieldImportance": "重要度",
+				"fieldTaskType": "タスクタイプ",
+				"fieldStoryPoints": "ストーリーポイント",
+				"fieldTags": "タグ",
+				"fieldEpic": "エピック"
+			},
+			"autoAssign": {
+				"title": "タスクの自動割り当て",
+				"description": "自動割り当てのタスクの担当者をJevに選ばせます。",
+				"scopeLabel": "Jevが割り当てられる対象",
+				"scopeAll": "すべてのメンバー",
+				"scopeHuman": "人間のメンバーのみ",
+				"scopeHumanHint": "AIエージェントは対象外になります。"
+			},
+			"saveChanges": "変更を保存",
+			"saved": "保存しました ✓",
+			"noPermission": "このプロジェクトを編集する権限がありません。",
+			"errors": {
+				"updateFailed": "設定の更新に失敗しました。もう一度お試しください。"
+			},
+			"notConfigured": {
+				"title": "Jev はまだ設定されていません",
+				"description": "上のプロバイダー認証情報を追加すると、タスクの自動入力と自動割り当てが利用できます。"
 			}
 		},
 		"dangerZone": {
@@ -967,6 +1180,8 @@
 			"confirmTextPrefix": "削除しますか:",
 			"confirmTextSuffix": "？このステータスを使用しているタスクはステータスを失います。この操作は取り消せません。",
 			"deleteFailed": "ステータスの削除に失敗しました。もう一度お試しください。",
+			"isDefault": "既定のステータスは削除できません。先に別のステータスを既定に設定してください。",
+			"inUseByAutomation": "このステータスは自動化ルールで使用されています。先にそのルールを更新または削除してください。",
 			"cancel": "キャンセル",
 			"deleteStatus": "ステータスを削除"
 		},
@@ -1015,7 +1230,9 @@
 			"cancel": "キャンセル",
 			"addMember": "メンバーを追加",
 			"errors": {
-				"addFailed": "メンバーの追加に失敗しました。もう一度お試しください。"
+				"addFailed": "メンバーの追加に失敗しました。もう一度お試しください。",
+				"alreadyAdded": "このユーザーまたはエージェントはすでにプロジェクトのメンバーです。",
+				"roleNotFound": "そのロールはもう存在しません。別のロールを選択してください。"
 			},
 			"modeUser": "ユーザー",
 			"modeAgent": "AIエージェント",
@@ -1024,7 +1241,11 @@
 		},
 		"roleChip": {
 			"changeRole": "ロールを変更",
-			"changeFailed": "ロールの変更に失敗しました。"
+			"errors": {
+				"memberNotFound": "このメンバーはすでにプロジェクトのメンバーではありません。",
+				"roleNotFound": "そのロールはもう存在しません。",
+				"changeFailed": "ロールの変更に失敗しました。"
+			}
 		},
 		"memberRow": {
 			"removeMember": "メンバーを削除"
@@ -1037,6 +1258,18 @@
 			"removeFailed": "メンバーの削除に失敗しました。もう一度お試しください。",
 			"cancel": "キャンセル",
 			"remove": "削除"
+		},
+		"noPermission": {
+			"title": "You don't have permission to view members",
+			"description": "Ask a project admin to grant you the project.members.read permission."
+		},
+		"descriptionChip": {
+			"edit": "説明を編集",
+			"title": "説明",
+			"hint": "自動モードでこの人にタスクを割り当てるかどうかをJevが判断する際に表示されます。",
+			"placeholder": "この人の担当業務は？",
+			"save": "保存",
+			"saveFailed": "説明の保存に失敗しました。"
 		}
 	},
 	"aiChat": {
@@ -1045,7 +1278,9 @@
 		"agentLabel": "エージェント",
 		"selectAgentPlaceholder": "エージェントを選択…",
 		"selectAgentFirst": "まずエージェントを選択してください。",
-		"noAgentsAvailable": "利用できるエージェントはまだありません。"
+		"noAgentsAvailable": "利用できるエージェントはまだありません。",
+		"autoAgent": "自動",
+		"resolvingAgent": "エージェントを選択中…"
 	},
 	"taskTypes": {
 		"deleteDialog": {
@@ -1053,6 +1288,8 @@
 			"confirmTextPrefix": "削除しますか:",
 			"confirmTextSuffix": "？このタイプを使用しているタスクはタイプの割り当てを失います。この操作は取り消せません。",
 			"deleteFailed": "タスクタイプの削除に失敗しました。もう一度お試しください。",
+			"isDefault": "既定のタイプは削除できません。先に別のタイプを既定に設定してください。",
+			"isSystem": "システムタイプは削除できません。",
 			"cancel": "キャンセル",
 			"deleteType": "タイプを削除"
 		},
@@ -1075,7 +1312,9 @@
 			"createType": "タイプを作成",
 			"errors": {
 				"nameInvalid": "タイプ名が空か無効です。",
-				"saveFailed": "タスクタイプの保存に失敗しました。もう一度お試しください。"
+				"nameReserved": "その名前は組み込みタイプ用に予約されています。",
+				"saveFailed": "タスクタイプの保存に失敗しました。もう一度お試しください。",
+				"isSystem": "システムタイプは編集できません。"
 			}
 		}
 	},
@@ -1091,6 +1330,10 @@
 			"ariaLabel": "タスク詳細",
 			"backToProject": "プロジェクトに戻る",
 			"projectFallback": "プロジェクト"
+		},
+		"noPermission": {
+			"title": "You don't have permission to view this task",
+			"description": "Ask a project admin to grant you the tasks.read permission."
 		},
 		"header": {
 			"created": "{{date}}に作成",
@@ -1126,7 +1369,8 @@
 			"parent": "親タスク",
 			"viewParent": "親タスクを表示",
 			"removeParent": "親タスクを削除",
-			"addFields": "フィールドを追加"
+			"addFields": "フィールドを追加",
+			"autoAssign": "自動"
 		},
 		"description": {
 			"title": "説明",
@@ -1144,14 +1388,24 @@
 			"title": "サブタスク",
 			"addButton": "サブタスクを追加",
 			"titlePlaceholder": "サブタスクのタイトル…",
-			"empty": "サブタスクはまだありません"
+			"empty": "サブタスクはまだありません",
+			"loadMore": "サブタスクをもっと読み込む",
+			"loadingMore": "読み込み中…"
 		},
 		"links": {
 			"title": "関連タスク",
 			"addButton": "リンクを追加",
 			"openTask": "タスクを開く",
 			"removeLink": "リンクを削除",
-			"empty": "関連タスクはありません"
+			"empty": "関連タスクはありません",
+			"errors": {
+				"alreadyExists": "このリンクは既に存在します。",
+				"cannotLinkSelf": "タスクを自分自身にリンクすることはできません。",
+				"crossProject": "タスクは同じプロジェクト内でのみリンクできます。",
+				"createFailed": "リンクの追加に失敗しました。もう一度お試しください。",
+				"notFound": "このリンクは既に削除されています。",
+				"deleteFailed": "リンクの削除に失敗しました。もう一度お試しください。"
+			}
 		},
 		"attachments": {
 			"title": "添付ファイル",
@@ -1164,7 +1418,13 @@
 			"unitBytes_one": "{{count}} B",
 			"unitBytes_other": "{{count}} B",
 			"unitKilobytes": "{{value}} KB",
-			"unitMegabytes": "{{value}} MB"
+			"unitMegabytes": "{{value}} MB",
+			"errors": {
+				"invalid": "そのファイルはアップロードできません。別のファイルを選択してください。",
+				"uploadFailed": "ファイルのアップロードに失敗しました。もう一度お試しください。",
+				"notFound": "この添付ファイルはすでに削除されています。",
+				"deleteFailed": "添付ファイルの削除に失敗しました。もう一度お試しください。"
+			}
 		},
 		"addFieldDialog": {
 			"title": "カスタムフィールドを作成",
@@ -1288,7 +1548,9 @@
 			"startedAiSession": "AIセッションを開始しました",
 			"watchSession": "セッションを見る",
 			"madeChange": "変更を加えました",
-			"descriptionChangeDiff": "説明の変更差分"
+			"descriptionChangeDiff": "説明の変更差分",
+			"autoAssignSkippedLowConfidence": "担当者を確信を持って選べませんでした（信頼度{{confidence}}%）— タスクは未割り当てのままです",
+			"autoAssignSkipped": "自動割り当てをスキップしました — タスクは未割り当てのままです"
 		}
 	},
 	"portForwardDetail": {
@@ -1297,6 +1559,10 @@
 			"description": "このポートフォワードは削除されたか、リンクが無効です。",
 			"ariaLabel": "ポートフォワードの詳細",
 			"backToEnvironment": "環境に戻る"
+		},
+		"noPermission": {
+			"title": "You don't have access to this environment",
+			"description": "Ask a project admin to grant you access before you can view this port forward."
 		},
 		"tabs": {
 			"overview": "概要",
@@ -1328,7 +1594,12 @@
 			"resolve": "解決",
 			"reopen": "再オープン",
 			"createTask": "タスクを作成",
-			"taskCreated": "タスクを作成しました"
+			"taskCreated": "タスクを作成しました",
+			"errors": {
+				"alreadyHasTask": "このコメントにはすでにタスクが作成されています。",
+				"creationInProgress": "このコメントのタスク作成は既に進行中です。",
+				"createTaskFailed": "タスクの作成に失敗しました。もう一度お試しください。"
+			}
 		}
 	},
 	"commentDetail": {
@@ -1337,6 +1608,10 @@
 			"description": "このコメントは削除されたか、リンクが無効です。",
 			"ariaLabel": "コメントの詳細",
 			"backToPortForward": "ポートフォワードに戻る"
+		},
+		"noPermission": {
+			"title": "You don't have permission to view this comment",
+			"description": "Ask a project admin to grant you the annotations.read permission."
 		},
 		"header": {
 			"createdAt": "{{date}} にコメント"
@@ -1353,7 +1628,11 @@
 		},
 		"thread": {
 			"replyPlaceholder": "返信を入力…",
-			"reply": "返信"
+			"reply": "返信",
+			"errors": {
+				"bodyEmpty": "返信を空にすることはできません。",
+				"replyFailed": "返信の投稿に失敗しました。もう一度お試しください。"
+			}
 		},
 		"actions": {
 			"create": "作成",
@@ -1385,7 +1664,9 @@
 			"reporterTitle": "報告者",
 			"epicLabel": "エピック",
 			"noEpic": "エピックなし",
-			"storyPointsTitle": "ストーリーポイント"
+			"storyPointsTitle": "ストーリーポイント",
+			"moveLeft": "前の列へ移動",
+			"moveRight": "次の列へ移動"
 		},
 		"taskContextMenu": {
 			"open": "タスクを開く",
@@ -1444,6 +1725,7 @@
 		}
 	},
 	"conversationsPage": {
+		"back": "戻る",
 		"title": "会話",
 		"triggerChat": "チャット",
 		"triggerWriteDescription": "説明の作成",
@@ -1451,6 +1733,24 @@
 		"triggerAutomation": "自動化",
 		"usageTitle": "{{tokens}}トークン · {{cost}}",
 		"prOpened": "PRを作成しました",
+		"moreActions": "その他の操作",
+		"rename": {
+			"menuLabel": "名前を変更",
+			"dialogTitle": "会話の名前を変更",
+			"placeholder": "会話名",
+			"cancel": "キャンセル",
+			"confirm": "変更",
+			"renaming": "変更中…",
+			"error": "会話の名前を変更できませんでした。もう一度お試しください。"
+		},
+		"delete": {
+			"menuLabel": "削除",
+			"dialogTitle": "会話を削除しますか?",
+			"dialogDescription": "「{{title}}」とその履歴を完全に削除します。この操作は元に戻せません。",
+			"cancel": "キャンセル",
+			"confirm": "削除",
+			"error": "会話を削除できませんでした。もう一度お試しください。"
+		},
 		"filters": {
 			"title": "フィルター",
 			"agent": "エージェント",
@@ -1463,6 +1763,10 @@
 			"clearAll": "フィルターをクリア"
 		},
 		"list": {
+			"noPermission": {
+				"title": "You don't have permission to view conversations",
+				"description": "Ask a project admin to grant you the conversations.read permission."
+			},
 			"empty": {
 				"title": "会話はまだありません",
 				"description": "タスクがエージェントに割り当てられるか、誰かがメッセージを送ると会話が始まります。"
@@ -1486,11 +1790,18 @@
 			"renameView": "ビュー名を変更",
 			"deleteView": "ビューを削除",
 			"searchTasksPlaceholder": "タスクを検索…",
-			"pluginNotAvailable": "プラグインを利用できません"
+			"pluginNotAvailable": "プラグインを利用できません",
+			"viewErrors": {
+				"isLastView": "最後のビューは削除できません。",
+				"deleteFailed": "ビューの削除に失敗しました。もう一度お試しください。",
+				"reorderInvalid": "他の場所でビューの一覧が変更されました。ページを更新してもう一度お試しください。",
+				"reorderFailed": "ビューの並べ替えに失敗しました。もう一度お試しください。"
+			}
 		},
 		"viewSettings": {
 			"viewSettingsAriaLabel": "ビュー設定",
 			"title": "ビュー設定",
+			"onlyVisibleToYou": "自分にのみ表示",
 			"chooseFields": "フィールドを選択",
 			"back": "← 戻る",
 			"clearFilters": "フィルターをクリア",
@@ -1517,6 +1828,8 @@
 			"reset": "リセット",
 			"saving": "保存中…",
 			"save": "保存",
+			"saveOnlyForMe": "自分だけに保存",
+			"saveForEveryone": "全員に保存",
 			"sprintFilter": {
 				"noSprints": "スプリントはありません",
 				"allSprints": "すべてのスプリント"
@@ -1638,7 +1951,9 @@
 				"unassignedHint": "タスクはどのスプリントにも割り当てられない状態になります",
 				"cancel": "キャンセル",
 				"completing": "完了処理中…",
-				"completeSprint": "スプリントを完了"
+				"completeSprint": "スプリントを完了",
+				"alreadyComplete": "このスプリントはすでに完了しています。",
+				"completeFailed": "スプリントの完了に失敗しました。もう一度お試しください。"
 			},
 			"deleteSprintModal": {
 				"title": "スプリントを削除しますか？",
@@ -1721,7 +2036,11 @@
 				"createFirst": "最初の自動化を作成"
 			},
 			"noDescription": "説明なし",
-			"updated": "{{time}}に更新"
+			"updated": "{{time}}に更新",
+			"noPermission": {
+				"title": "You don't have permission to view automations",
+				"description": "Ask a project admin to grant you the workflows.read permission."
+			}
 		},
 		"status": {
 			"active": "有効",
@@ -1961,7 +2280,33 @@
 				"branchFallback": "分岐{{n}}",
 				"cronSchedule": "{{expression}} に実行",
 				"webhookReady": "Webhook設定済み",
-				"callApiSummary": "{{method}} {{host}}"
+				"callApiSummary": "{{method}} {{host}}",
+				"jevNoulTrue": "はい"
+			},
+			"jev": {
+				"answerTypeLabel": "回答タイプ",
+				"answerTypes": {
+					"choice": "選択 — 複数の選択肢から1つを選ぶ",
+					"score": "スコア — 段階で評価する",
+					"noul": "はい / いいえ"
+				},
+				"answerTypeChangeHint": "以前の回答タイプ用に接続したブランチは使われなくなります。保存後に接続し直してください。",
+				"instructionsLabel": "Jevへの質問",
+				"instructionsPlaceholder": {
+					"choice": "例：どのチームが対応すべきか？",
+					"score": "例：この問題はどの程度深刻に見えるか？",
+					"noul": "例：顧客が返金を求めている。"
+				},
+				"optionsTitle": "オプション",
+				"optionKeyPlaceholder": "キー",
+				"optionDescriptionPlaceholder": "このオプションを選ぶ条件",
+				"addOption": "オプションを追加",
+				"levelsTitle": "レベル（低い順から高い順）",
+				"levelPlaceholder": "このレベルを説明",
+				"addLevel": "レベルを追加",
+				"confidenceThresholdLabel": "信頼度のしきい値",
+				"trueThresholdLabel": "「真」のしきい値",
+				"thresholdHint": "これを下回ると、ワークフローは回答を信頼せずElse分岐に従います。"
 			}
 		},
 		"runHistory": {
@@ -1985,6 +2330,132 @@
 			"subtitle": "他のタスクの完了を待っているすべての自動化を表示する読み取り専用ビュー",
 			"empty": "先行タスクの依存関係はまだ設定されていません",
 			"watchedTasks": "{{count}}件のタスクの完了待ち"
+		},
+		"conditionTypes": {
+			"jev_condition": "Jev 条件"
+		}
+	},
+	"activityLog": {
+		"title": "アクティビティ",
+		"subtitle": "このプロジェクトで起きたすべての出来事",
+		"today": "今日",
+		"yesterday": "昨日",
+		"deletedEntity": "この項目は削除されました",
+		"noPermission": {
+			"title": "アクティビティログを閲覧できません",
+			"description": "プロジェクトマネージャーに「アクティビティログの閲覧」権限を依頼してください。"
+		},
+		"empty": {
+			"title": "まだアクティビティはありません",
+			"description": "このプロジェクトでの変更がここに表示されます。"
+		},
+		"emptyFiltered": {
+			"title": "一致するアクティビティはありません",
+			"description": "フィルターを外すか、検索語を変更してください。"
+		},
+		"filters": {
+			"title": "フィルター",
+			"searchPlaceholder": "アクティビティを検索…",
+			"type": "種類",
+			"people": "メンバー",
+			"source": "ソース",
+			"dateRange": "期間",
+			"dateFrom": "開始",
+			"dateTo": "終了",
+			"clearAll": "すべてクリア"
+		},
+		"entityTypes": {
+			"task": "タスク",
+			"doc": "ドキュメント",
+			"sprint": "スプリント",
+			"view": "ビュー",
+			"automation": "オートメーション",
+			"environment": "環境",
+			"member": "メンバー",
+			"role": "ロール",
+			"agent": "エージェント",
+			"project": "プロジェクト"
+		},
+		"origins": {
+			"user": "ユーザー",
+			"agent": "エージェント",
+			"automation": "オートメーション",
+			"jev": "Jev",
+			"annotation": "アノテーション",
+			"system": "システム"
+		},
+		"detail": {
+			"asRole": "ロール: {{role}}",
+			"roleChange": "{{from}} → {{to}}",
+			"renamedFrom": "旧名「{{name}}」",
+			"member": "対象: {{name}}"
+		},
+		"projectFields": {
+			"name": "名前",
+			"description": "説明",
+			"task_id_prefix": "タスクIDプレフィックス",
+			"is_public": "公開設定",
+			"settings": "設定",
+			"jev_config": "Jev の設定"
+		},
+		"types": {
+			"sprint_created": "スプリントを作成:",
+			"sprint_updated": "スプリントを更新:",
+			"sprint_deleted": "スプリントを削除:",
+			"sprint_completed": "スプリントを完了:",
+			"view_created": "ビューを作成:",
+			"view_updated": "ビューを更新:",
+			"view_deleted": "ビューを削除:",
+			"automation_created": "オートメーションを作成:",
+			"automation_updated": "オートメーションを更新:",
+			"automation_deleted": "オートメーションを削除:",
+			"automation_activated": "オートメーションを有効化:",
+			"automation_deactivated": "オートメーションを無効化:",
+			"automation_node_added": "ステップを追加:",
+			"automation_node_removed": "ステップを削除:",
+			"automation_edge_added": "ステップを接続:",
+			"automation_edge_removed": "ステップの接続を解除:",
+			"environment_created": "環境を作成:",
+			"environment_updated": "環境を更新:",
+			"environment_deleted": "環境を削除:",
+			"environment_started": "環境を起動:",
+			"environment_stopped": "環境を停止:",
+			"environment_restarted": "環境を再起動:",
+			"environment_ssh_key_added": "SSH キー「{{label}}」を追加:",
+			"environment_ssh_key_removed": "SSH キー「{{label}}」を削除:",
+			"environment_access_granted": "アクセス権を付与:",
+			"environment_access_revoked": "アクセス権を取り消し:",
+			"environment_port_forward_added": "ポート {{port}} を転送:",
+			"environment_port_forward_removed": "ポート {{port}} の転送を停止:",
+			"annotation_created": "アノテーションを追加:",
+			"annotation_resolved": "アノテーションを解決:",
+			"annotation_reopened": "アノテーションを再オープン:",
+			"annotation_commented": "アノテーションに返信:",
+			"member_added": "メンバーを追加:",
+			"member_role_changed": "ロールを変更:",
+			"member_updated": "メンバーを更新:",
+			"member_removed": "メンバーを削除:",
+			"role_created": "ロールを作成:",
+			"role_updated": "ロールを更新:",
+			"role_deleted": "ロールを削除:",
+			"project_updated": "設定を更新:",
+			"project_task_type_created": "タスクタイプ「{{name}}」を作成:",
+			"project_task_type_updated": "タスクタイプ「{{name}}」を更新:",
+			"project_task_type_deleted": "タスクタイプ「{{name}}」を削除:",
+			"project_task_type_default_set": "「{{name}}」をデフォルトのタスクタイプに設定:",
+			"project_task_status_created": "ステータス「{{name}}」を作成:",
+			"project_task_status_updated": "ステータス「{{name}}」を更新:",
+			"project_task_status_deleted": "ステータス「{{name}}」を削除:",
+			"project_task_status_default_set": "「{{name}}」をデフォルトのステータスに設定:",
+			"project_task_status_reordered": "ステータスを並べ替え:",
+			"project_custom_field_created": "フィールド「{{name}}」を作成:",
+			"project_custom_field_updated": "フィールド「{{name}}」を更新:",
+			"project_custom_field_deleted": "フィールド「{{name}}」を削除:",
+			"project_agent_created": "エージェントを追加:",
+			"project_agent_updated": "エージェントを更新:",
+			"project_agent_deleted": "エージェントを削除:",
+			"comment": "コメント:",
+			"fallback": "{{type}}:"
 		}
 	}
 }

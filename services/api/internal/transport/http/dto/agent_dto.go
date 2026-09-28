@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	activitydom "github.com/Paca-AI/api/internal/domain/activity"
 	agentdom "github.com/Paca-AI/api/internal/domain/agent"
 )
 
@@ -25,6 +26,10 @@ type AgentResponse struct {
 	MemberID     *uuid.UUID `json:"member_id,omitempty"`
 	Name         string     `json:"name"`
 	Handle       string     `json:"handle"`
+	// Description is shown to Jev (the AI decision API) when picking which
+	// agent should handle a chat in Auto mode, or whether to assign it a
+	// task — see agentdom.Agent.ComposeJevDescription.
+	Description string `json:"description"`
 	// AvatarURL/AvatarThumbURL are presigned GET URLs, populated by the
 	// handler (not this mapper) via attachmentdom.AvatarService — nil when
 	// no avatar has been uploaded.
@@ -65,13 +70,22 @@ type AgentResponse struct {
 	// agent's conversations work in by default — nil unless
 	// DefaultEnvironmentID is also set. See
 	// agentdom.Agent.DefaultFolderID's doc comment.
-	DefaultFolderID *uuid.UUID               `json:"default_folder_id,omitempty"`
-	CreatedBy       *uuid.UUID               `json:"created_by,omitempty"`
-	CreatedAt       time.Time                `json:"created_at"`
-	UpdatedAt       time.Time                `json:"updated_at"`
-	MCPServers      []AgentMCPServerResponse `json:"mcp_servers,omitempty"`
-	Skills          []AgentSkillResponse     `json:"skills,omitempty"`
-	EnvVars         []AgentEnvVarResponse    `json:"env_vars,omitempty"`
+	DefaultFolderID *uuid.UUID `json:"default_folder_id,omitempty"`
+	// AccessMode is "open" or "restricted" — see agentdom.Agent.AccessMode's
+	// doc comment. AccessGranted is per-caller (not stored on the entity):
+	// true whenever the requesting member could actually use this agent
+	// right now — always true when AccessMode is "open", populated by the
+	// handler from AgentAccessGrantService otherwise. Together these drive
+	// the "visible but locked" UI for a restricted agent the caller isn't
+	// granted.
+	AccessMode    string                   `json:"access_mode"`
+	AccessGranted bool                     `json:"access_granted"`
+	CreatedBy     *uuid.UUID               `json:"created_by,omitempty"`
+	CreatedAt     time.Time                `json:"created_at"`
+	UpdatedAt     time.Time                `json:"updated_at"`
+	MCPServers    []AgentMCPServerResponse `json:"mcp_servers,omitempty"`
+	Skills        []AgentSkillResponse     `json:"skills,omitempty"`
+	EnvVars       []AgentEnvVarResponse    `json:"env_vars,omitempty"`
 }
 
 // CreateAgentRequest is the body for POST /projects/:projectId/agents.
@@ -83,6 +97,7 @@ type AgentResponse struct {
 type CreateAgentRequest struct {
 	Name        string   `json:"name" binding:"required"`
 	Handle      string   `json:"handle" binding:"required"`
+	Description string   `json:"description"`
 	AgentType   string   `json:"agent_type"`
 	LLMProvider string   `json:"llm_provider"`
 	LLMModel    string   `json:"llm_model"`
@@ -122,11 +137,12 @@ type CreateAgentRequest struct {
 }
 
 // UpdateAgentRequest is the body for PATCH /projects/:projectId/agents/:agentId
-// and PATCH /admin/agents/:agentId. GlobalRoleID is only meaningful for the
-// latter (global agents) — pass a zero UUID to clear an assigned role.
+// and PATCH /admin/agents/:agentId. GlobalRoleID is no longer accepted on
+// either — see its comment.
 type UpdateAgentRequest struct {
 	Name        *string  `json:"name"`
 	Handle      *string  `json:"handle"`
+	Description *string  `json:"description"`
 	LLMProvider *string  `json:"llm_provider"`
 	LLMModel    *string  `json:"llm_model"`
 	LLMAPIKey   *string  `json:"llm_api_key"`
@@ -148,8 +164,13 @@ type UpdateAgentRequest struct {
 	DockerEnabled     *bool   `json:"docker_enabled"`
 	// ParallelismLimit: nil means unchanged, same convention as every other
 	// pointer field here.
-	ParallelismLimit *int       `json:"parallelism_limit"`
-	GlobalRoleID     *uuid.UUID `json:"global_role_id"`
+	ParallelismLimit *int `json:"parallelism_limit"`
+	// GlobalRoleID is not accepted here: binding a global agent to a role
+	// needs global_roles.assign, so it has its own routes
+	// (PUT/DELETE /admin/agents/:agentId/global-role). The field exists only
+	// so PATCH /admin/agents/:agentId can reject a request that still sends
+	// one with a clear 400 instead of ignoring it.
+	GlobalRoleID *uuid.UUID `json:"global_role_id"`
 	// DefaultEnvironmentID: omit to leave unchanged, pass a zero UUID
 	// ("00000000-0000-0000-0000-000000000000") to clear it, or a real
 	// environment ID to set it — see agentdom.UpdateAgentInput.
@@ -159,30 +180,43 @@ type UpdateAgentRequest struct {
 	// DefaultEnvironmentID above — see agentdom.UpdateAgentInput.
 	// DefaultFolderID's doc comment. Ignored for global-scope agents.
 	DefaultFolderID *uuid.UUID `json:"default_folder_id"`
+	// AccessMode: nil means unchanged. Must be "open" or "restricted" when
+	// set — see agentdom.Agent.AccessMode's doc comment.
+	AccessMode *string `json:"access_mode"`
 }
 
 // CreateGlobalAgentRequest is the body for POST /admin/agents. Mirrors
 // CreateAgentRequest minus ProjectRoleID (nothing to assign at creation
 // time — a global agent gets a project role only later, when invited into a
-// project), plus GlobalRoleID.
+// project). A new global agent has no global role; bind one afterwards with
+// PUT /admin/agents/:agentId/global-role.
 type CreateGlobalAgentRequest struct {
-	Name              string     `json:"name" binding:"required"`
-	Handle            string     `json:"handle" binding:"required"`
-	AgentType         string     `json:"agent_type"`
-	LLMProvider       string     `json:"llm_provider"`
-	LLMModel          string     `json:"llm_model"`
-	LLMAPIKey         string     `json:"llm_api_key"`
-	LLMBaseURL        string     `json:"llm_base_url"`
-	ACPProvider       string     `json:"acp_provider"`
-	ACPCommand        []string   `json:"acp_command"`
-	SystemPrompt      string     `json:"system_prompt"`
-	MaxIterations     int        `json:"max_iterations"`
-	TimeoutMinutes    int        `json:"timeout_minutes"`
-	GitCommitterName  string     `json:"git_committer_name"`
-	GitCommitterEmail string     `json:"git_committer_email"`
-	DockerEnabled     bool       `json:"docker_enabled"`
-	ParallelismLimit  int        `json:"parallelism_limit"`
-	GlobalRoleID      *uuid.UUID `json:"global_role_id"`
+	Name              string   `json:"name" binding:"required"`
+	Handle            string   `json:"handle" binding:"required"`
+	Description       string   `json:"description"`
+	AgentType         string   `json:"agent_type"`
+	LLMProvider       string   `json:"llm_provider"`
+	LLMModel          string   `json:"llm_model"`
+	LLMAPIKey         string   `json:"llm_api_key"`
+	LLMBaseURL        string   `json:"llm_base_url"`
+	ACPProvider       string   `json:"acp_provider"`
+	ACPCommand        []string `json:"acp_command"`
+	SystemPrompt      string   `json:"system_prompt"`
+	MaxIterations     int      `json:"max_iterations"`
+	TimeoutMinutes    int      `json:"timeout_minutes"`
+	GitCommitterName  string   `json:"git_committer_name"`
+	GitCommitterEmail string   `json:"git_committer_email"`
+	DockerEnabled     bool     `json:"docker_enabled"`
+	ParallelismLimit  int      `json:"parallelism_limit"`
+	// GlobalRoleID is not accepted here — see UpdateAgentRequest.GlobalRoleID.
+	GlobalRoleID *uuid.UUID `json:"global_role_id"`
+}
+
+// SetGlobalAgentRoleRequest is the body for PUT /admin/agents/:agentId/global-role:
+// the global role the agent is bound to. Requires global_roles.assign on top
+// of agents.write.
+type SetGlobalAgentRoleRequest struct {
+	GlobalRoleID uuid.UUID `json:"global_role_id" binding:"required"`
 }
 
 // GenerateACPBridgeTokenResponse is the body returned for POST
@@ -228,6 +262,7 @@ func AgentFromEntity(a *agentdom.Agent) AgentResponse {
 		MemberID:             a.MemberID,
 		Name:                 a.Name,
 		Handle:               a.Handle,
+		Description:          a.Description,
 		AgentType:            a.AgentType,
 		LLMProvider:          a.LLMProvider,
 		LLMModel:             a.LLMModel,
@@ -250,9 +285,18 @@ func AgentFromEntity(a *agentdom.Agent) AgentResponse {
 		ParallelismLimit:     a.ParallelismLimit,
 		DefaultEnvironmentID: a.DefaultEnvironmentID,
 		DefaultFolderID:      a.DefaultFolderID,
-		CreatedBy:            a.CreatedBy,
-		CreatedAt:            a.CreatedAt,
-		UpdatedAt:            a.UpdatedAt,
+		AccessMode:           a.AccessMode,
+		// Correct as-is for an "open" agent (the common case, no caller
+		// context needed); the handler overrides this for a "restricted"
+		// one once it knows which member is asking — see
+		// AgentHandler.toAgentResponse.
+		AccessGranted: a.AccessMode != agentdom.AccessModeRestricted,
+		CreatedBy:     a.CreatedBy,
+		CreatedAt:     a.CreatedAt,
+		UpdatedAt:     a.UpdatedAt,
+	}
+	if resp.AccessMode == "" {
+		resp.AccessMode = agentdom.AccessModeOpen
 	}
 	if a.ProjectID != uuid.Nil {
 		id := a.ProjectID
@@ -487,7 +531,13 @@ type AgentConversationResponse struct {
 	// replace (see agentdom.AgentConversation.EnvironmentID's doc comment).
 	// No replacement field: branch_name no longer appears in conversation
 	// API responses at all.
-	PRUrl       *string    `json:"pr_url,omitempty"`
+	PRUrl *string `json:"pr_url,omitempty"`
+	// Title is nil until goose names the underlying session (agent-runner's
+	// best-effort copy) or the user renames the conversation directly (see
+	// UpdateConversationTitleRequest). apps/web falls back to displaying
+	// the agent's name when this is absent — there is no server-generated
+	// default string.
+	Title       *string    `json:"title,omitempty"`
 	StartedAt   *time.Time `json:"started_at,omitempty"`
 	FinishedAt  *time.Time `json:"finished_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
@@ -527,6 +577,16 @@ type SendMessageRequest struct {
 	OnBusy string `json:"on_busy,omitempty"`
 }
 
+// UpdateConversationTitleRequest is the body for PATCH
+// /conversations/:id — renames a conversation. Title is required and
+// trimmed/length-checked by the handler (see
+// handler.MaxConversationTitleLength), not by a struct tag: this package's
+// handlers decode with encoding/json directly rather than a binding
+// library that would enforce "binding" tags.
+type UpdateConversationTitleRequest struct {
+	Title string `json:"title"`
+}
+
 // ConversationFromEntity maps an AgentConversation entity to its DTO.
 func ConversationFromEntity(c *agentdom.AgentConversation) AgentConversationResponse {
 	resp := AgentConversationResponse{
@@ -545,6 +605,7 @@ func ConversationFromEntity(c *agentdom.AgentConversation) AgentConversationResp
 		CostUSD:             c.CostUSD,
 		ErrorMessage:        c.ErrorMessage,
 		PRUrl:               c.PRUrl,
+		Title:               c.Title,
 		StartedAt:           c.StartedAt,
 		FinishedAt:          c.FinishedAt,
 		CreatedAt:           c.CreatedAt,
@@ -573,18 +634,19 @@ type AgentActivityResponse struct {
 	UpdatedAt     time.Time       `json:"updated_at"`
 }
 
-// AgentActivityFromEntity maps a domain ActivityFeedItem to an AgentActivityResponse DTO.
-func AgentActivityFromEntity(a *agentdom.ActivityFeedItem) AgentActivityResponse {
+// AgentActivityFromEntity maps an activity log entry to the agent tab's
+// task/doc-shaped view of it.
+func AgentActivityFromEntity(a *activitydom.Activity) AgentActivityResponse {
 	content := a.Content
 	if len(content) == 0 {
 		content = json.RawMessage("{}")
 	}
 	return AgentActivityResponse{
 		ID:            a.ID,
-		SourceType:    string(a.SourceType),
-		SourceID:      a.SourceID,
-		SourceTitle:   a.SourceTitle,
-		SourceDeleted: a.SourceDeleted,
+		SourceType:    a.EntityType,
+		SourceID:      a.EntityIDOrNil(),
+		SourceTitle:   a.EntityTitle,
+		SourceDeleted: a.EntityDeleted,
 		ActivityType:  a.ActivityType,
 		Content:       content,
 		CreatedAt:     a.CreatedAt,
@@ -647,6 +709,24 @@ type StartChatSessionRequest struct {
 	OnBusy string `json:"on_busy,omitempty"`
 }
 
+// ResolveAutoAgentRequest is the body for POST /projects/:projectId/agents/resolve-auto
+// and POST /agents/resolve-auto (global) — Auto mode's first step, resolving
+// which agent should handle a new conversation before StartChatSession/
+// StartGlobalChatSession is called with the answer.
+type ResolveAutoAgentRequest struct {
+	Message string `json:"message" binding:"required"`
+}
+
+// ResolveAutoAgentResponse is the resolved agent to start (or continue) the
+// chat with. Confidence is 0 when Jev wasn't configured/reachable and the
+// resolution fell back to an arbitrary candidate — see
+// handler.resolveAutoAgent's doc comment on why that's the right fallback
+// for a low-stakes, reversible action like picking a chat agent.
+type ResolveAutoAgentResponse struct {
+	AgentID    uuid.UUID `json:"agent_id"`
+	Confidence float64   `json:"confidence"`
+}
+
 // SendChatMessageRequest is the body for POST /chat-sessions/:sessionId/messages.
 type SendChatMessageRequest struct {
 	Message string `json:"message" binding:"required"`
@@ -705,4 +785,30 @@ func SkillTemplateFromEntity(t *agentdom.SkillTemplate) SkillTemplateResponse {
 		Content:     t.Content,
 		Triggers:    triggers,
 	}
+}
+
+// AgentAccessGrantResponse is one member's access grant on a restricted agent.
+type AgentAccessGrantResponse struct {
+	ID        uuid.UUID  `json:"id"`
+	AgentID   uuid.UUID  `json:"agent_id"`
+	MemberID  uuid.UUID  `json:"member_id"`
+	GrantedBy *uuid.UUID `json:"granted_by,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+// AgentAccessGrantFromEntity maps an AgentAccessGrant entity to its DTO.
+func AgentAccessGrantFromEntity(g *agentdom.AgentAccessGrant) AgentAccessGrantResponse {
+	return AgentAccessGrantResponse{
+		ID:        g.ID,
+		AgentID:   g.AgentID,
+		MemberID:  g.MemberID,
+		GrantedBy: g.GrantedBy,
+		CreatedAt: g.CreatedAt,
+	}
+}
+
+// AddAgentAccessGrantRequest is the body for POST
+// /projects/:projectId/agents/:agentId/access-grants.
+type AddAgentAccessGrantRequest struct {
+	MemberID uuid.UUID `json:"member_id" binding:"required"`
 }

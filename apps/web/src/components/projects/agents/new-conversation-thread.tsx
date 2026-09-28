@@ -13,6 +13,8 @@ import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import {
 	conversationQueryOptions,
 	globalConversationQueryOptions,
+	resolveAutoAgent,
+	resolveGlobalAutoAgent,
 	startChatSession,
 	startGlobalChatSession,
 } from "@/lib/agent-api";
@@ -21,6 +23,7 @@ import { useAgentBusyPrompt } from "./agent-busy-dialog";
 import {
 	AgentPickerContext,
 	AgentPickerInline,
+	AUTO_AGENT_ID,
 	EnvironmentPickerContext,
 	EnvironmentPickerInline,
 	FolderPickerInline,
@@ -28,7 +31,11 @@ import {
 	useEnvironmentPicker,
 	useGlobalAgentPicker,
 } from "./agent-picker";
-import { extractTextOnlyContent } from "./conversation-to-thread-messages";
+import { ConversationErrorBox } from "./conversation-error-box";
+import {
+	chatSessionAccessDeniedKey,
+	extractTextOnlyContent,
+} from "./conversation-to-thread-messages";
 
 // Shared between the project-scoped Conversations page's blank-composer
 // index route and the global one — see conversations-layout.tsx for the
@@ -72,6 +79,17 @@ export function NewConversationThread({
 	});
 
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	// assistant-ui's onNew rejection isn't caught anywhere in its own
+	// send/append chain (ComposerRuntimeCore.send -> handleSend ->
+	// ThreadRuntimeCore.append all call the next step unawaited, so a thrown
+	// Error here becomes an unhandled promise rejection, not a rendered
+	// MessageError — that primitive reads a message's own persisted
+	// status.reason==="error", which only a server-confirmed failed turn
+	// ever has). Driven by local state and rendered via viewportOverlay
+	// instead — the same ConversationErrorBox mechanism already used for
+	// conversation.error_message — so a dispatch failure is actually visible
+	// rather than silently dropped.
+	const [sendError, setSendError] = useState<string | null>(null);
 
 	// Global chat (no projectId) is deliberately open to any authenticated
 	// user (see router.go's global chat-session routes); only gate starting a
@@ -99,10 +117,21 @@ export function NewConversationThread({
 		// Guards against a fast double-Enter firing two chat sessions before
 		// the first request resolves and this component navigates away.
 		setIsSubmitting(true);
+		setSendError(null);
 		try {
+			// "Auto" isn't a real agent — resolve it to one via Jev, based on
+			// this opening message, before starting the session. Any failure
+			// here (e.g. no agents to choose from) surfaces through the same
+			// catch block below as an ordinary send failure.
+			const resolvedAgentId =
+				agentId === AUTO_AGENT_ID
+					? projectId
+						? (await resolveAutoAgent(projectId, text)).agent_id
+						: (await resolveGlobalAutoAgent(text)).agent_id
+					: agentId;
 			if (projectId) {
 				const result = await sendWithBusyPrompt((onBusy) =>
-					startChatSession(projectId, agentId, {
+					startChatSession(projectId, resolvedAgentId, {
 						message: text,
 						...(environmentId ? { environment_id: environmentId } : {}),
 						...(folderId ? { folder_id: folderId } : {}),
@@ -124,7 +153,7 @@ export function NewConversationThread({
 				});
 			} else {
 				const result = await sendWithBusyPrompt((onBusy) =>
-					startGlobalChatSession(agentId, {
+					startGlobalChatSession(resolvedAgentId, {
 						message: text,
 						contextItems,
 						on_busy: onBusy,
@@ -143,6 +172,13 @@ export function NewConversationThread({
 					params: { conversationId: result.conversation.id },
 				});
 			}
+		} catch (err) {
+			const key = chatSessionAccessDeniedKey(err);
+			if (key) {
+				setSendError(t(key));
+				return;
+			}
+			throw err;
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -163,7 +199,14 @@ export function NewConversationThread({
 		<AgentPickerContext.Provider value={pickerState}>
 			<EnvironmentPickerContext.Provider value={environmentPickerState}>
 				<AssistantRuntimeProvider runtime={runtime}>
-					<Thread components={{ ComposerStart: ComposerStartRow }} />
+					<Thread
+						components={{ ComposerStart: ComposerStartRow }}
+						viewportOverlay={
+							sendError ? (
+								<ConversationErrorBox message={sendError} />
+							) : undefined
+						}
+					/>
 				</AssistantRuntimeProvider>
 			</EnvironmentPickerContext.Provider>
 			{agentBusyDialog}

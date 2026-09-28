@@ -11,7 +11,8 @@ type Repository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*User, error)
 	FindByUsername(ctx context.Context, username string) (*User, error)
 	// FindByEmail returns a user by email, scoped to active (non-deleted)
-	// users, matching the uni_users_email_active unique index.
+	// users, matching the uni_users_email_active unique index. The match
+	// ignores case.
 	FindByEmail(ctx context.Context, email string) (*User, error)
 	// FindByUsernameIncludingDeleted returns a user by username even when
 	// the row is soft-deleted.
@@ -22,6 +23,12 @@ type Repository interface {
 	// same count List returns as its total, without paginating any rows.
 	// Used by the home page's workspace stats widget for team-member count.
 	CountUsers(ctx context.Context) (int64, error)
+	// CountUsersMustChangePassword returns the total count of active,
+	// non-system users with MustChangePassword set — the same filter as
+	// CountUsers, plus the must-change-password condition. Used by the admin
+	// users page's stats bar so the count reflects every user, not just
+	// whichever page is currently displayed.
+	CountUsersMustChangePassword(ctx context.Context) (int64, error)
 	Create(ctx context.Context, u *User) error
 	Update(ctx context.Context, u *User) error
 	Delete(ctx context.Context, id uuid.UUID) error

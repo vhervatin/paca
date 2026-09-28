@@ -45,6 +45,11 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("config: COOKIE_SECURE: %w", err)
 	}
 
+	authRateLimit, err := strconv.Atoi(env("AUTH_RATE_LIMIT_PER_MINUTE", "20"))
+	if err != nil || authRateLimit < 0 {
+		return nil, fmt.Errorf("config: AUTH_RATE_LIMIT_PER_MINUTE must be a non-negative integer, got %q", env("AUTH_RATE_LIMIT_PER_MINUTE", "20"))
+	}
+
 	// Collect all missing required keys before returning so the caller sees
 	// every problem in a single error rather than one failure at a time.
 	var errs []error
@@ -158,6 +163,7 @@ func Load() (*Config, error) {
 			CookieSecure:       cookieSecure,
 			PublicURL:          env("PUBLIC_URL", ""),
 			CORSAllowedOrigins: parseCORSOrigins(env("CORS_ORIGINS", "*")),
+			AuthRateLimit:      authRateLimit,
 		},
 		Database: DatabaseConfig{
 			DSN: dsn,
@@ -181,8 +187,8 @@ func Load() (*Config, error) {
 			Password: adminPass,
 		},
 		Storage: StorageConfig{
-			Provider:        env("STORAGE_PROVIDER", "minio"),
-			Endpoint:        env("STORAGE_ENDPOINT", "minio:9000"),
+			Provider:        env("STORAGE_PROVIDER", "rustfs"),
+			Endpoint:        env("STORAGE_ENDPOINT", "rustfs:9000"),
 			PublicURL:       env("STORAGE_PUBLIC_URL", ""),
 			Region:          env("STORAGE_REGION", "us-east-1"),
 			Bucket:          env("STORAGE_BUCKET", "paca"),

@@ -29,13 +29,15 @@
 		"automation": "Automation",
 		"team": "Team",
 		"settings": "Settings",
-		"changelog": "What's New"
+		"changelog": "What's New",
+		"activity": "Activity"
 	},
 	"projectSwitcher": {
 		"projects": "Projects",
 		"yourProjects": "Your Projects",
 		"noProjectsYet": "No projects yet",
-		"newProject": "New project"
+		"newProject": "New project",
+		"loadingMore": "Loading more…"
 	},
 	"interactions": {
 		"title": "Interactions",
@@ -55,7 +57,12 @@
 		"newSubfolder": "New Subfolder",
 		"rename": "Rename",
 		"delete": "Delete",
-		"untitled": "Untitled"
+		"untitled": "Untitled",
+		"errors": {
+			"titleInvalid": "That title isn't valid.",
+			"folderNameInvalid": "That folder name isn't valid.",
+			"renameFailed": "Rename failed. Please try again."
+		}
 	},
 	"notifications": {
 		"title": "Notifications",

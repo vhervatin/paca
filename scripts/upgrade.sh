@@ -68,6 +68,26 @@
 #                                SSH access as above.
 #   PACA_SSH_BASTION_HOST       Only used when enabling SSH access      (default: derived from
 #                                as above.                                the existing PUBLIC_URL)
+#   PACA_ACKNOWLEDGE_STORAGE_MIGRATION   Proceed even though a real     (default: unset)
+#                                bundled MinIO container still exists (see
+#                                "Storage backend migration" below) — set to
+#                                1 only after migrating its data to RustFS
+#                                by hand (docs/deployment/README.md).
+#   PACA_KEEP_MINIO              Keep STORAGE_PROVIDER=minio instead of   (default: unset)
+#                                migrating to rustfs (see "Storage
+#                                backend migration" below) — a stopgap,
+#                                not a long-term choice.
+#
+# Upgrading an install still running the bundled MinIO container? MinIO
+# removed its own images from Docker Hub, so this release replaces it with
+# RustFS — see "Storage backend migration" further down in this script and
+# docs/deployment/README.md's "Migrating from MinIO to RustFS" section. This
+# script refuses to proceed until you say which way you want it: migrate the
+# data (PACA_ACKNOWLEDGE_STORAGE_MIGRATION=1, after following the guide
+# above) or keep the existing MinIO container running for now
+# (PACA_KEEP_MINIO=1) — it will never silently swap your storage backend out
+# from under real attachment data, or silently decide for you which of the
+# two you meant.
 #
 # Extra arguments are passed through to the final `docker compose up -d`,
 # for any --scale (or other compose flag) beyond what's already inferred
@@ -293,6 +313,109 @@ if [[ "$PROCEED" != "yes" ]]; then
     exit 0
 fi
 
+# ── Storage backend migration ──────────────────────────────────────────────────
+# MinIO pulled its own images from Docker Hub and archived its open-source
+# repo (see docs/deployment/README.md) — this release's docker-compose.yml
+# replaces the bundled "minio" service with "rustfs". An install that still
+# has a real minio container from before this release has attachment data
+# sitting in its minio_data volume that this script does not migrate
+# automatically: downloading the new docker-compose.yml and restarting below
+# would, by default, leave the api container pointed at a brand-new, empty
+# rustfs container while that data sits inert in the now-orphaned minio_data
+# volume — unless told otherwise below.
+#
+# The same question applies, for a different reason, to an install whose
+# .env already stale-points at minio (STORAGE_PROVIDER=minio,
+# STORAGE_ENDPOINT=minio:9000) with no minio container left to serve it at
+# all — some earlier, unprotected upgrade already removed the container
+# without updating .env (see "Recovery" further below for how that happens).
+# There's no live connection to protect by waiting in that case, but this
+# script still won't guess whether you'd rather patch STORAGE_ENDPOINT at a
+# minio setup you manage yourself or move to rustfs, so the same three-way
+# choice below covers it too — unless a rustfs container already exists,
+# which "Recovery" below repoints to on its own since there's nothing left
+# to decide by then.
+#
+# Three ways forward, in order of preference:
+#   1. Migrate the data to RustFS by hand first (docs/deployment/README.md's
+#      "Migrating from MinIO to RustFS" section), then re-run with
+#      PACA_ACKNOWLEDGE_STORAGE_MIGRATION=1.
+#   2. Keep STORAGE_PROVIDER=minio instead — nothing to migrate, nothing
+#      removed: STORAGE_PROVIDER/STORAGE_ENDPOINT in .env are left exactly
+#      as they are, and (when a minio container is actually still running)
+#      this run skips --remove-orphans so it keeps running completely
+#      undisturbed alongside the rest of the upgraded stack. A stopgap, not
+#      a long-term choice — MinIO's own repo is archived and gets no more
+#      security patches, so migrate when you get the chance. Opt in with
+#      PACA_KEEP_MINIO=1, or answer the interactive prompt below.
+#   3. Do neither: this script refuses to proceed. The default when neither
+#      of the above is set, and the only outcome possible under PACA_YES=1
+#      unless PACA_ACKNOWLEDGE_STORAGE_MIGRATION or PACA_KEEP_MINIO is also
+#      set — an unattended run should never silently guess between "already
+#      migrated" and "keep the old one running" on your behalf.
+#
+# Gated on a real minio container existing, OR on .env still literally
+# pointed at the bundled minio endpoint with neither a minio nor a rustfs
+# container behind it (STORAGE_MIGRATION_UNRESOLVED below) — not just
+# STORAGE_PROVIDER's value, so an install that already moved to AWS S3 (and
+# just never removed the old, unused minio container), or one deliberately
+# pointed STORAGE_PROVIDER at a self-managed MinIO living outside this
+# compose project (a custom STORAGE_ENDPOINT, not the bundled minio:9000),
+# isn't blocked for no reason.
+#
+# These are read/derived once here and reused everywhere below (through
+# "Storage backend migration, continued" and "Recovery" further down)
+# instead of re-querying .env / `docker compose ps` in every branch —
+# container state doesn't change out from under this script between here
+# and there.
+STORAGE_PROVIDER_AT_START="$(get_env_var .env STORAGE_PROVIDER)"
+HAD_MINIO_CONTAINER="no"
+service_has_container minio && HAD_MINIO_CONTAINER="yes"
+HAD_RUSTFS_CONTAINER="no"
+service_has_container rustfs && HAD_RUSTFS_CONTAINER="yes"
+
+STORAGE_MIGRATION_UNRESOLVED="no"
+if [[ "$HAD_MINIO_CONTAINER" == "yes" ]]; then
+    STORAGE_MIGRATION_UNRESOLVED="yes"
+elif [[ "$STORAGE_PROVIDER_AT_START" == "minio" ]] \
+    && [[ "$HAD_RUSTFS_CONTAINER" == "no" ]] \
+    && [[ "$(get_env_var .env STORAGE_ENDPOINT)" == "minio:9000" ]]; then
+    STORAGE_MIGRATION_UNRESOLVED="yes"
+fi
+
+KEEP_MINIO="no"
+if [[ "$STORAGE_PROVIDER_AT_START" != "s3" ]] && [[ "$STORAGE_MIGRATION_UNRESOLVED" == "yes" ]] \
+    && [[ "${PACA_ACKNOWLEDGE_STORAGE_MIGRATION:-}" != "1" ]]; then
+    if [[ "${PACA_KEEP_MINIO:-}" == "1" ]]; then
+        KEEP_MINIO="yes"
+    elif [[ "${PACA_YES:-0}" != "1" ]]; then
+        if [[ "$HAD_MINIO_CONTAINER" == "yes" ]]; then
+            warn "This install still has a bundled MinIO container with real attachment data."
+        else
+            warn "This install's .env still points STORAGE_PROVIDER at minio, but no minio container is left here to serve it (and no rustfs container either)."
+        fi
+        warn "This release switches the bundled object store to RustFS (MinIO removed its own images from Docker Hub — see docs/deployment/README.md)."
+        yes_no KEEP_MINIO "Keep STORAGE_PROVIDER=minio for now instead of migrating to rustfs? (not recommended long-term — MinIO's upstream project is archived and gets no more security patches)" "n"
+    fi
+
+    if [[ "$KEEP_MINIO" != "yes" ]]; then
+        if [[ "$HAD_MINIO_CONTAINER" == "yes" ]]; then
+            error "This install still has a bundled MinIO container with real attachment data. Nothing has been changed yet."
+        else
+            error "This install's .env still points STORAGE_PROVIDER at minio, with no minio container left to serve it. Nothing has been changed yet."
+        fi
+        error "Either migrate first — docs/deployment/README.md's \"Migrating from MinIO to RustFS\" section — then re-run with PACA_ACKNOWLEDGE_STORAGE_MIGRATION=1,"
+        error "or re-run with PACA_KEEP_MINIO=1 to keep STORAGE_PROVIDER=minio for now instead (not recommended long-term)."
+        exit 1
+    fi
+
+    if [[ "$HAD_MINIO_CONTAINER" == "yes" ]]; then
+        warn "Keeping your existing MinIO container: STORAGE_PROVIDER/STORAGE_ENDPOINT in .env stay pointed at it, unchanged, and this run skips --remove-orphans so it keeps running undisturbed. Migrate to RustFS whenever you're ready — docs/deployment/README.md's \"Migrating from MinIO to RustFS\" section."
+    else
+        warn "Keeping STORAGE_PROVIDER=minio in .env, unchanged. No minio container exists for this compose project any more, so the api service will keep failing to start until STORAGE_ENDPOINT points at a real, reachable object store you manage yourself — set it by hand."
+    fi
+fi
+
 mkdir -p caddy
 
 # ── Backup and refresh infrastructure files ───────────────────────────────────
@@ -321,6 +444,66 @@ backup_env_once() {
         ENV_BACKED_UP=1
     fi
 }
+
+# repoint_storage_to_rustfs
+# Shared by both storage-migration cases below (acknowledged migration, and
+# recovering an already-orphaned config) — same action either way, only the
+# reason and how it's logged differ, which stays at each call site.
+repoint_storage_to_rustfs() {
+    backup_env_once
+    set_env_var .env STORAGE_PROVIDER "rustfs"
+    set_env_var .env STORAGE_ENDPOINT "rustfs:9000"
+}
+
+# ── Storage backend migration, continued ──────────────────────────────────────
+# Acknowledging the migration (path 1 in the "Storage backend migration"
+# section above) means the data has already been copied over by hand and
+# this run WILL remove the now-orphaned minio container (--remove-orphans,
+# default further below) — so .env must actually point at rustfs afterwards,
+# or the api service is left trying to reach a hostname nothing resolves
+# anymore. Gated the same way as that section (STORAGE_MIGRATION_UNRESOLVED,
+# non-S3) rather than on the ack flag alone, so setting
+# PACA_ACKNOWLEDGE_STORAGE_MIGRATION=1 on an install that was never blocked
+# in the first place (no existing minio container, and nothing stale to
+# recover either) is a harmless no-op.
+if [[ "$STORAGE_PROVIDER_AT_START" != "s3" ]] && [[ "$STORAGE_MIGRATION_UNRESOLVED" == "yes" ]] \
+    && [[ "${PACA_ACKNOWLEDGE_STORAGE_MIGRATION:-}" == "1" ]]; then
+    repoint_storage_to_rustfs
+    info "Migration acknowledged — STORAGE_PROVIDER/STORAGE_ENDPOINT in .env now point at rustfs:9000."
+fi
+
+# Recovery: an install can end up with STORAGE_PROVIDER=minio /
+# STORAGE_ENDPOINT=minio:9000 in .env while no minio container exists at all
+# — confirmed live: a version of the guard above once only fired when it
+# could see a real minio container to protect, so a container already
+# removed by some earlier, unprotected upgrade (a manual
+# `docker compose up --remove-orphans`, a script version older than that
+# guard, or any other path outside this script's control) left .env silently
+# stale with nothing left to catch it. The symptom looks nothing like a
+# storage problem at first: the api container crash-loops on "dial tcp:
+# lookup minio ... server misbehaving" during its ensure-bucket bootstrap
+# step, and because gateway/web/realtime/agent-runner all wait for api to
+# become healthy first, the entire stack stays down, not just uploads.
+#
+# STORAGE_MIGRATION_UNRESOLVED above now catches that stale state too, so
+# only one half of the actual recovery still lives here: when a rustfs
+# container already exists, a previous run already resolved the ambiguity
+# (via the guard above, an older version of this script, or by hand) and
+# just never got as far as updating .env — nothing left to decide, so
+# repoint at it silently rather than ask again.
+#
+# Scoped narrowly on purpose — both the provider AND the exact bundled
+# endpoint, not just "provider isn't s3" the way the guard above checks —
+# so this never touches an install that deliberately points STORAGE_PROVIDER
+# at a self-managed MinIO instance living outside this compose project.
+if [[ "$STORAGE_PROVIDER_AT_START" == "minio" ]] \
+    && [[ "$(get_env_var .env STORAGE_ENDPOINT)" == "minio:9000" ]] \
+    && [[ "$HAD_MINIO_CONTAINER" == "no" ]] \
+    && [[ "$HAD_RUSTFS_CONTAINER" == "yes" ]]; then
+    repoint_storage_to_rustfs
+    warn "Found STORAGE_PROVIDER=minio in .env with no minio container left to serve it — repointed at the existing rustfs container instead so the api service can start."
+    warn "If that old minio container's data was never migrated before it disappeared, it may still be sitting unattached in its old volume rather than actually lost — check for it (e.g. \`docker volume ls | grep minio\`) and, if found, mirror it into rustfs by hand: docs/deployment/README.md's \"Migrating from MinIO to RustFS\" section has the mc commands, run against a temporary container pointed at that old volume instead of the (now gone) live one."
+fi
 
 # ── Agent Runner migration ────────────────────────────────────────────────────
 # Installs from before Agent Runner (the Go/Goose service) replaced the old
@@ -446,11 +629,20 @@ if [[ -n "$(get_env_var .env DATABASE_URL)" ]]; then
     info "Using an external database (DATABASE_URL is set) — skipping the postgres service."
 fi
 
-# Storage: S3 means the bundled MinIO container must never run — same
-# reasoning as postgres above, derived from STORAGE_PROVIDER.
+# Storage: S3, or keeping the existing MinIO container instead (see "Storage
+# backend migration" above), both mean the bundled RustFS container must
+# never run — same reasoning as postgres above, derived from STORAGE_PROVIDER
+# for the S3 case and from KEEP_MINIO for the MinIO one.
 if [[ "$(get_env_var .env STORAGE_PROVIDER)" == "s3" ]]; then
-    SCALE_OPTS+=(--scale minio=0)
-    info "Using AWS S3 (STORAGE_PROVIDER=s3 in .env) — skipping the minio service."
+    SCALE_OPTS+=(--scale rustfs=0)
+    info "Using AWS S3 (STORAGE_PROVIDER=s3 in .env) — skipping the rustfs service."
+elif [[ "$KEEP_MINIO" == "yes" ]]; then
+    SCALE_OPTS+=(--scale rustfs=0)
+    if [[ "$HAD_MINIO_CONTAINER" == "yes" ]]; then
+        info "Keeping the existing MinIO container — skipping the rustfs service."
+    else
+        info "STORAGE_PROVIDER=minio in .env with no bundled container behind it — skipping the rustfs service. Point STORAGE_ENDPOINT at a real, reachable object store by hand."
+    fi
 fi
 
 # Backfill variables for the db-backup service introduced after this install
@@ -613,8 +805,17 @@ fi
 
 # shellcheck disable=SC2086
 $COMPOSE_CMD --env-file .env pull
+
+# --remove-orphans would tear down the MinIO container KEEP_MINIO is
+# deliberately keeping running (it's no longer defined in the compose file
+# just downloaded, so it reads as an orphan otherwise) — see "Storage
+# backend migration" above.
+UP_FLAGS=(-d)
+if [[ "$KEEP_MINIO" != "yes" ]]; then
+    UP_FLAGS+=(--remove-orphans)
+fi
 # shellcheck disable=SC2086
-$COMPOSE_CMD --env-file .env up -d --remove-orphans ${SCALE_OPTS[@]+"${SCALE_OPTS[@]}"} "$@"
+$COMPOSE_CMD --env-file .env up "${UP_FLAGS[@]}" ${SCALE_OPTS[@]+"${SCALE_OPTS[@]}"} "$@"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 

@@ -49,6 +49,9 @@ func (m *mockUserSvc) List(context.Context, int, int) ([]*userdom.User, int64, e
 func (m *mockUserSvc) CountUsers(context.Context) (int64, error) {
 	return 0, nil
 }
+func (m *mockUserSvc) CountUsersMustChangePassword(context.Context) (int64, error) {
+	return 0, nil
+}
 func (m *mockUserSvc) ListGlobalPermissions(context.Context, uuid.UUID) ([]string, error) {
 	return []string{string(authz.PermissionUsersRead)}, nil
 }
@@ -92,6 +95,15 @@ func (m *mockGlobalRoleSvc) Update(context.Context, uuid.UUID, globalroledom.Upd
 func (m *mockGlobalRoleSvc) Delete(context.Context, uuid.UUID) error { return nil }
 func (m *mockGlobalRoleSvc) ReplaceUserRoles(context.Context, uuid.UUID, []uuid.UUID) ([]*globalroledom.GlobalRole, error) {
 	return []*globalroledom.GlobalRole{}, nil
+}
+func (m *mockGlobalRoleSvc) FindByID(context.Context, uuid.UUID) (*globalroledom.GlobalRole, error) {
+	return &globalroledom.GlobalRole{ID: uuid.New(), Name: "SUPER_ADMIN", Permissions: map[string]any{}}, nil
+}
+func (m *mockGlobalRoleSvc) SetDefault(context.Context, uuid.UUID) (*globalroledom.GlobalRole, error) {
+	return &globalroledom.GlobalRole{ID: uuid.New(), Name: "SUPER_ADMIN", Permissions: map[string]any{}, IsDefault: true}, nil
+}
+func (m *mockGlobalRoleSvc) FindDefault(context.Context) (*globalroledom.GlobalRole, error) {
+	return nil, globalroledom.ErrNoDefault
 }
 
 // stubProjectSvc is a minimal projectdom.Service with no projects, just
@@ -142,6 +154,9 @@ func (s *stubProjectSvc) RemoveMember(context.Context, uuid.UUID, uuid.UUID) err
 func (s *stubProjectSvc) UpdateMemberRoleByMemberID(context.Context, uuid.UUID, uuid.UUID, projectdom.UpdateMemberRoleInput) (*projectdom.ProjectMember, error) {
 	return nil, nil
 }
+func (s *stubProjectSvc) UpdateMemberDescription(context.Context, uuid.UUID, uuid.UUID, string) (*projectdom.ProjectMember, error) {
+	return nil, nil
+}
 func (s *stubProjectSvc) RemoveMemberByMemberID(context.Context, uuid.UUID, uuid.UUID) error {
 	return nil
 }
@@ -162,6 +177,9 @@ func (s *stubProjectSvc) UpdateRole(context.Context, uuid.UUID, uuid.UUID, proje
 	return nil, nil
 }
 func (s *stubProjectSvc) DeleteRole(context.Context, uuid.UUID, uuid.UUID) error { return nil }
+func (s *stubProjectSvc) FindRoleByID(context.Context, uuid.UUID) (*projectdom.ProjectRole, error) {
+	return nil, projectdom.ErrRoleNotFound
+}
 
 // fakeSettingsSvc is a minimal settingsdom.Service — enough to exercise
 // routing/permission checks for the /admin/settings endpoints without a
@@ -495,5 +513,49 @@ func TestProjectsRoute_GetByID_StillParsesProjectID(t *testing.T) {
 	}
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 (unknown project id from stub service), got %d (%s)", w.Code, w.Body.String())
+	}
+}
+
+func TestNew_AuthRateLimit(t *testing.T) {
+	deps := Deps{
+		TokenManager: jwttoken.New("test-secret", 15*time.Minute, 24*time.Hour),
+		Authorizer:   authz.NewAuthorizer(&allowAllPermissionStore{}),
+		Health:       handler.NewHealthHandler(),
+		Auth: handler.NewAuthHandler(&mockAuthSvc{}, handler.CookieConfig{
+			AccessTTL: 15 * time.Minute, RefreshTTL: 24 * time.Hour, RefreshSessionTTL: 12 * time.Hour,
+		}),
+		User:          handler.NewUserHandler(&mockUserSvc{}),
+		Log:           slog.New(slog.NewTextHandler(io.Discard, nil)),
+		AuthRateLimit: 2,
+	}
+	r := New(deps)
+	login := func(ip string) int {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/auth/login",
+			strings.NewReader(`{"username":"alice","password":"pw"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = ip + ":1234"
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+	for i := range 2 {
+		if code := login("203.0.113.1"); code == http.StatusTooManyRequests {
+			t.Fatalf("login %d rate-limited too early", i+1)
+		}
+	}
+	if code := login("203.0.113.1"); code != http.StatusTooManyRequests {
+		t.Fatalf("third login: got %d, want 429", code)
+	}
+	if code := login("203.0.113.2"); code == http.StatusTooManyRequests {
+		t.Fatal("another client was rate-limited")
+	}
+
+	// Refresh has its own, larger budget: exhausting login doesn't block it.
+	w := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/auth/refresh", nil)
+	req.RemoteAddr = "203.0.113.1:1234"
+	r.ServeHTTP(w, req)
+	if w.Code == http.StatusTooManyRequests {
+		t.Fatal("refresh shares login's budget")
 	}
 }

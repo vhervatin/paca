@@ -29,13 +29,15 @@
 		"automation": "Tự động hóa",
 		"team": "Đội nhóm",
 		"settings": "Cài đặt",
-		"changelog": "Có gì mới"
+		"changelog": "Có gì mới",
+		"activity": "Hoạt động"
 	},
 	"projectSwitcher": {
 		"projects": "Dự án",
 		"yourProjects": "Dự án của bạn",
 		"noProjectsYet": "Chưa có dự án nào",
-		"newProject": "Dự án mới"
+		"newProject": "Dự án mới",
+		"loadingMore": "Đang tải thêm…"
 	},
 	"interactions": {
 		"title": "Tương tác",
@@ -55,7 +57,12 @@
 		"newSubfolder": "Thư mục con mới",
 		"rename": "Đổi tên",
 		"delete": "Xóa",
-		"untitled": "Chưa đặt tên"
+		"untitled": "Chưa đặt tên",
+		"errors": {
+			"titleInvalid": "Tiêu đề đó không hợp lệ.",
+			"folderNameInvalid": "Tên thư mục đó không hợp lệ.",
+			"renameFailed": "Đổi tên không thành công. Vui lòng thử lại."
+		}
 	},
 	"notifications": {
 		"title": "Thông báo",

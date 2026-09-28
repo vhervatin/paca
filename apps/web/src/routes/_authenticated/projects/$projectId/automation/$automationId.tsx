@@ -33,6 +33,8 @@ import {
 	automationRunsQueryOptions,
 	type ConditionConfig,
 	deactivateAutomation,
+	JEV_CONDITION_NODE_TYPE,
+	type JevConditionConfig,
 	type PluginNodeConfigSchema,
 	pluginNodeTypesQueryOptions,
 	removeAutomationEdge,
@@ -61,19 +63,23 @@ function extractErrorMessage(err: unknown, fallback: string): string {
 export const Route = createFileRoute(
 	"/_authenticated/projects/$projectId/automation/$automationId",
 )({
+	// Only the automation graph itself is prefetched (workflows.read).
+	// taskStatuses/taskTypes/members/customFields below are each used purely
+	// to render human-readable labels inside node-config summaries (status
+	// name instead of a bare UUID, etc.) — every one of those `useQuery`
+	// calls already defaults to [] and is never this route's only content,
+	// so prefetching them here just meant a role missing any one of
+	// project.settings.task_statuses/task_types/custom_fields.read or
+	// project.members.read (all independent permissions a role could lack
+	// without lacking workflows.read) crashed the whole automation page
+	// instead of showing raw IDs in a few summaries.
 	loader: async ({
 		context: { queryClient },
 		params: { projectId, automationId },
 	}) => {
-		await Promise.all([
-			queryClient.ensureQueryData(
-				automationQueryOptions(projectId, automationId),
-			),
-			queryClient.ensureQueryData(taskStatusesQueryOptions(projectId)),
-			queryClient.ensureQueryData(projectMembersQueryOptions(projectId)),
-			queryClient.ensureQueryData(customFieldsQueryOptions(projectId)),
-			queryClient.ensureQueryData(taskTypesQueryOptions(projectId)),
-		]);
+		await queryClient.ensureQueryData(
+			automationQueryOptions(projectId, automationId),
+		);
 	},
 	component: AutomationBuilderPage,
 });
@@ -141,6 +147,9 @@ function AutomationBuilderPage() {
 	): string {
 		if (kind === "condition" && type === "condition") {
 			return t("automation.nodeKind.condition");
+		}
+		if (kind === "condition" && type === JEV_CONDITION_NODE_TYPE) {
+			return t("automation.conditionTypes.jev_condition");
 		}
 		if (
 			kind === "trigger" &&
@@ -292,6 +301,12 @@ function AutomationBuilderPage() {
 			return t("automation.nodeConfig.description.branches", {
 				count: cfg.branches?.length ?? 0,
 			});
+		}
+		if (node.kind === "condition" && node.type === JEV_CONDITION_NODE_TYPE) {
+			const cfg = node.config as JevConditionConfig;
+			return (
+				cfg.instructions || t("automation.nodeConfig.description.notConfigured")
+			);
 		}
 		if (node.kind === "action") {
 			const cfg = node.config as ActionConfig;
@@ -533,17 +548,17 @@ function AutomationBuilderPage() {
 							<ArrowLeft className="size-4" />
 						</Link>
 						{renaming ? (
-							<div className="flex items-center gap-1.5">
+							<div className="flex items-center gap-1.5 min-w-0">
 								<Input
 									autoFocus
 									value={nameDraft}
 									onChange={(e) => setNameDraft(e.target.value)}
-									className="h-8 w-56"
+									className="h-8 w-56 min-w-0"
 								/>
 								<Button
 									size="icon"
 									variant="ghost"
-									className="size-8"
+									className="size-8 shrink-0"
 									onClick={() => renameMutation.mutate()}
 								>
 									<Save className="size-3.5" />
@@ -551,7 +566,7 @@ function AutomationBuilderPage() {
 								<Button
 									size="icon"
 									variant="ghost"
-									className="size-8"
+									className="size-8 shrink-0"
 									onClick={() => setRenaming(false)}
 								>
 									<X className="size-3.5" />
@@ -603,7 +618,7 @@ function AutomationBuilderPage() {
 
 			{/* View tabs (Graph / Run History) + view-specific actions */}
 			<div className="border-b border-border/50 px-4 shrink-0">
-				<div className="flex items-center justify-between gap-3">
+				<div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
 					<div className="flex items-center gap-1 -mb-px">
 						<button
 							type="button"

@@ -3,7 +3,7 @@
 Paca — self-hosted AI-powered project management, deployed on Kubernetes.
 
 This chart mirrors [`deploy/docker-compose.prod.yml`](https://github.com/Paca-AI/paca/blob/master/deploy/docker-compose.prod.yml)
-component-for-component: PostgreSQL, Valkey (Redis-compatible), MinIO
+component-for-component: PostgreSQL, Valkey (Redis-compatible), RustFS
 (S3-compatible), the Go API, the React web app served via Caddy, a
 Socket.IO realtime hub, an AI agent runner, and a Caddy gateway in front
 of all of it.
@@ -19,7 +19,9 @@ class requirements, and TLS/ingress guidance — see the full
 - Helm 3.8+ (OCI registry support)
 - A `ReadWriteMany`-capable StorageClass if you want `api.plugins.persistence`
   enabled (installed plugins shared between the `api` and gateway Pods) —
-  see the deployment guide linked above
+  either your cluster's own, or set `nfsProvisioner.enabled: true` to have
+  this chart provide one (see "NFS provisioner" below); either way see the
+  deployment guide linked above for the full picture
 
 ## Installing
 
@@ -58,8 +60,8 @@ Generate strong values yourself, e.g. `openssl rand -hex 32`.
 | `secrets.internalApiKey` | Pre-shared key authenticating `api` <-> `agent-runner`'s internal routes (only required when `agentRunner.enabled`) | `""` |
 | `secrets.agentApiKey` | Agent API key | `""` |
 | `secrets.postgresPassword` | PostgreSQL password | `""` |
-| `secrets.storageAccessKeyId` | Object storage access key ID | `""` |
-| `secrets.storageSecretAccessKey` | Object storage secret access key | `""` |
+| `secrets.storageAccessKeyId` | External S3 access key ID — only used when `rustfs.enabled: false`; the bundled RustFS uses `rustfs.secret.rustfs.access_key` instead | `""` |
+| `secrets.storageSecretAccessKey` | External S3 secret access key — same condition as above | `""` |
 
 ### PostgreSQL (bundled)
 
@@ -84,16 +86,50 @@ Generate strong values yourself, e.g. `openssl rand -hex 32`.
 
 ### Object storage
 
+`rustfs` is the upstream [rustfs/rustfs](https://artifacthub.io/packages/helm/rustfs/rustfs)
+chart pulled in as a real dependency, not a template of this chart's own —
+every `rustfs.*` key below is that chart's own schema passed straight
+through (run `helm dependency update` then
+`helm show values charts/rustfs-*.tgz` for the full set this table doesn't
+surface, e.g. `rustfs.mtls`/`rustfs.pools`).
+
 | Key | Description | Default |
 |---|---|---|
-| `minio.enabled` | Deploy bundled MinIO. Set `false`, `storage.provider: s3`, and real AWS credentials to use S3 instead. | `true` |
-| `minio.image.repository` / `.tag` | | `minio/minio` / `latest` |
-| `minio.persistence.enabled` / `.size` / `.storageClassName` | | `true` / `20Gi` / `""` |
-| `minio.resources` | Requests/limits for the MinIO Pod | see `values.yaml` |
-| `storage.provider` | `minio` or `s3` | `minio` |
-| `storage.endpoint` | Empty defaults to the bundled MinIO's in-cluster Service address | `""` |
+| `rustfs.enabled` | Deploy bundled RustFS. Set `false`, `storage.provider: s3`, and real AWS credentials to use S3 instead. | `true` |
+| `rustfs.image.rustfs.repository` / `.tag` | Tag left empty on purpose — inherits the dependency's pinned `appVersion` (see `Chart.yaml`) | `rustfs/rustfs` / `""` |
+| `rustfs.secret.rustfs.access_key` / `.secret_key` | Credentials for the bundled instance (unrelated to `secrets.storageAccessKeyId` above, which is only for external S3) | `""` / `""` |
+| `rustfs.secret.existingSecret` | Name of a Secret you manage yourself instead of the two fields above (keys `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY`) | `""` |
+| `rustfs.storageclass.name` / `.dataStorageSize` | | `""` / `20Gi` |
+| `rustfs.resources` | Requests/limits for the RustFS Pod | see `values.yaml` |
+| `storage.provider` | `rustfs` or `s3` | `rustfs` |
+| `storage.endpoint` | Empty defaults to the bundled RustFS's in-cluster Service address | `""` |
 | `storage.publicUrl` | Empty defaults to `<publicUrl>/storage` | `""` |
 | `storage.region` / `.bucket` / `.useSSL` | | `us-east-1` / `paca` / `false` |
+
+**Upgrading a release still running the bundled MinIO?** Unlike the Docker Compose install path, `helm upgrade` has no automatic guard against this — see [docs/deployment/README.md](https://github.com/Paca-AI/paca/blob/master/docs/deployment/README.md#helm-users)'s "Helm users" section before upgrading, or your attachment data will be orphaned on the old release's PVC with no warning.
+
+### NFS provisioner (optional)
+
+Off by default — gives `api.plugins.persistence` below (not object storage
+above) a `ReadWriteMany` StorageClass on clusters whose default one is
+block storage only, e.g. most single-node/bare-metal clusters including
+k3s's own bundled `local-path-provisioner`. Skip this if your cluster
+already has a real RWX class (`efs-csi`, `filestore-csi`, `azurefile`,
+`longhorn`, `rook-ceph`, ...). Same real-dependency passthrough convention
+as `rustfs.*` above — upstream:
+[kvaps/nfs-server-provisioner](https://artifacthub.io/packages/helm/kvaps/nfs-server-provisioner).
+
+Creates a cluster-scoped `StorageClass` and `ClusterRole` (needs
+cluster-level RBAC to install, not just namespace-scoped access), and its
+Pod runs with the `DAC_READ_SEARCH`/`SYS_RESOURCE` Linux capabilities
+added.
+
+| Key | Description | Default |
+|---|---|---|
+| `nfsProvisioner.enabled` | Deploy the bundled NFS provisioner | `false` |
+| `nfsProvisioner.persistence.storageClass` | The ordinary `ReadWriteOnce` StorageClass backing this NFS server's own data volume. Empty uses the cluster's default. | `""` |
+| `nfsProvisioner.persistence.size` | | `1Gi` |
+| `nfsProvisioner.storageClass.name` | Name of the `ReadWriteMany` StorageClass this creates. Cluster-scoped like every StorageClass — give releases sharing a cluster distinct names, or the second `helm install` fails on an already-existing one. `api.plugins.persistence.storageClassName` falls back to this automatically when that's empty and this is enabled. | `nfs` |
 
 ### API (Go backend)
 
@@ -106,7 +142,7 @@ Generate strong values yourself, e.g. `openssl rand -hex 32`.
 | `api.jwt.accessTtl` / `.refreshTtl` / `.refreshSessionTtl` | | `15m` / `168h` / `24h` |
 | `api.cookieSecure` | Set `false` only when TLS isn't terminated anywhere in front of this deployment — otherwise browsers silently drop the auth cookie and login never sticks | `true` |
 | `api.plugins.persistence.enabled` | Shared storage for installed plugins (backend WASM, frontend/MCP/skills bundles) — needs a `ReadWriteMany` StorageClass; set `false` to fall back to a per-Pod `emptyDir` (installed plugins then won't survive a restart or be visible to the gateway) | `true` |
-| `api.plugins.persistence.accessMode` / `.storageClassName` / `.size` | | `ReadWriteMany` / `""` / `5Gi` |
+| `api.plugins.persistence.accessMode` / `.storageClassName` / `.size` | `.storageClassName` empty auto-falls back to `nfsProvisioner`'s StorageClass when that's enabled (see "NFS provisioner" above), else the cluster default | `ReadWriteMany` / `""` / `5Gi` |
 
 ### Web (React SPA via Caddy)
 

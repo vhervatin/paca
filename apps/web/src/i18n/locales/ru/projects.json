@@ -10,23 +10,31 @@
 				"taskStatuses": "Статусы задач",
 				"taskTypes": "Типы задач",
 				"customFields": "Пользовательские поля",
+				"jev": "Jev ИИ",
 				"dangerZone": "Опасная зона",
 				"plugins": "Плагины"
+			},
+			"pluginTab": {
+				"noPermission": {
+					"title": "У вас нет прав для просмотра этой вкладки",
+					"description": "Попросите владельца или администратора проекта предоставить вам доступ к {{pluginName}}."
+				}
 			}
 		}
 	},
 	"agents": {
 		"createDialog": {
 			"title": "Создать AI-агента",
-			"step1Description": "Настройте личность и роль агента",
+			"step1Description": "Настройте личность агента",
 			"step2Description": "Настройте AI-модель, на которой работает агент",
-			"stepIndicator": "{{step}} / 2",
+			"step3DescriptionGlobal": "Агент {{name}} создан с глобальной ролью по умолчанию. Оставьте её, выберите другую или уберите.",
+			"step3DescriptionProject": "Выберите роль агента в этом проекте",
+			"stepIndicator": "{{step}} / {{total}}",
 			"startFromPreset": "Начать с пресета",
 			"nameLabel": "Имя",
 			"handleLabel": "Handle",
 			"handleHint": "Автоматически создаётся из имени. Используется для @упоминаний в комментариях.",
 			"projectRoleLabel": "Роль в проекте",
-			"projectRolePlaceholder": "Выберите роль проекта…",
 			"projectRoleHint": "Определяет, что агент может читать и изменять в этом проекте.",
 			"agentTypeLabel": "Тип агента",
 			"agentTypeLLM": "LLM (API-ключ)",
@@ -77,21 +85,23 @@
 			"optional": "(необязательно)",
 			"charsCount": "{{count}} символов",
 			"createFailed": "Не удалось создать агента. Попробуйте ещё раз.",
+			"handleTaken": "Этот handle уже занят. Вернитесь назад и выберите другой.",
+			"defaultEnvironmentInvalid": "Это окружение больше недоступно. Вернитесь назад и выберите другое.",
+			"defaultFolderInvalid": "Эта папка больше недоступна. Вернитесь назад и выберите другую.",
 			"cancel": "Отмена",
 			"continue": "Продолжить",
 			"back": "Назад",
 			"creating": "Создание…",
 			"createAgent": "Создать агента",
+			"finish": "Завершить",
 			"namePlaceholder": "Dev Bot",
-			"systemPromptPlaceholder": "Вы — senior software engineer…",
-			"globalRoleLabel": "Глобальная роль",
-			"globalRolePlaceholder": "Выберите глобальную роль…",
-			"globalRoleHint": "Определяет, что агент может делать в глобальной области (например, в чате на главной странице или в админке). Необязательно — роль, назначенная позже, после приглашения в проект, отдельна.",
-			"noGlobalRoleOption": "Без роли"
+			"systemPromptPlaceholder": "Вы — senior software engineer…"
 		},
 		"card": {
 			"configure": "Настроить",
 			"delete": "Удалить",
+			"restricted": "Restricted",
+			"restrictedTooltip": "This agent is restricted — ask a project admin to grant you access before you can chat with it.",
 			"acpStatusConnected": "В сети",
 			"acpStatusDisconnected": "Не в сети",
 			"deleteDialog": {
@@ -111,6 +121,10 @@
 				"title": "Агентов пока нет",
 				"description": "Добавьте AI-агента, чтобы автоматизировать задачи, ревью кода, написание документации и другое.",
 				"createFirstAgent": "Создать первого агента"
+			},
+			"noPermission": {
+				"title": "You don't have permission to view agents",
+				"description": "Ask a project admin to grant you the agents.read permission."
 			}
 		},
 		"acpSetup": {
@@ -157,7 +171,30 @@
 				"mcpServers": "MCP-серверы",
 				"skills": "Навыки",
 				"envVars": "Окружение",
+				"globalRole": "Глобальная роль",
+				"access": "Access",
 				"activity": "Активность"
+			},
+			"globalRole": {
+				"title": "Глобальная роль",
+				"description": "Что этот агент может делать на глобальном уровне, например из чата на главной странице и в разделе администрирования. Что он может делать внутри проекта, определяется его ролью в этом проекте.",
+				"none": "Без глобальной роли",
+				"noneHint": "У этого агента нет глобальных разрешений.",
+				"assign": "Назначить роль",
+				"change": "Изменить роль",
+				"assigning": "Назначение…",
+				"remove": "Убрать роль",
+				"removing": "Удаление…",
+				"removeConfirm": "Убрать глобальную роль у этого агента? Он потеряет разрешения, которые давала эта роль.",
+				"cancel": "Отмена",
+				"readOnly": "Вы можете видеть глобальную роль этого агента, но у вас нет прав её менять.",
+				"unknownRole": "Глобальная роль назначена. У вас нет прав на просмотр ролей, поэтому её название не показано.",
+				"fullAccessWarning": "У этой роли полный доступ. Агент сможет делать всё, включая управление пользователями и ролями.",
+				"errors": {
+					"generic": "Не удалось обновить роль. Повторите попытку.",
+					"forbidden": "У вас нет прав на изменение глобальных ролей.",
+					"roleNotFound": "Эта роль больше не существует. Обновите страницу и повторите попытку."
+				}
 			},
 			"avatar": {
 				"change": "Изменить аватар",
@@ -194,6 +231,8 @@
 				"noDefaultEnvironment": "Временное окружение",
 				"defaultFolderLabel": "Папка по умолчанию",
 				"defaultFolderHint": "Папка внутри окружения по умолчанию, в которой будут работать разговоры этого агента.",
+				"defaultEnvironmentInvalid": "Это окружение больше недоступно. Выберите другое.",
+				"defaultFolderInvalid": "Эта папка больше недоступна. Выберите другую.",
 				"noDefaultFolder": "Без папки по умолчанию",
 				"saveChanges": "Сохранить изменения",
 				"saved": "Сохранено",
@@ -226,7 +265,10 @@
 				"cliLoginNotAuthenticated": "Пока не аутентифицировано — войдите через терминал, затем проверьте снова.",
 				"cliLoginVerifyFailed": "Не удалось проверить статус входа. Попробуйте ещё раз.",
 				"cliLoginLastVerified": "Последняя проверка: {{date}}.",
-				"cliLoginNoEnvironment": "У этого агента не задано окружение — сначала выберите его выше."
+				"cliLoginNoEnvironment": "У этого агента не задано окружение — сначала выберите его выше.",
+				"descriptionLabel": "Описание",
+				"descriptionPlaceholder": "Для чего предназначен этот агент?",
+				"descriptionHint": "Отображается для Jev при выборе агента для обработки чата или назначения задачи в режиме Авто. Провайдер и модель добавляются автоматически."
 			},
 			"mcp": {
 				"serverCount_one": "{{count}} сервер настроен",
@@ -269,7 +311,10 @@
 					"keyHint": "(буквы, цифры, подчёркивания — должно начинаться с буквы или подчёркивания)",
 					"valueLabel": "Значение",
 					"cancel": "Отмена",
-					"addVariable": "Добавить переменную"
+					"addVariable": "Добавить переменную",
+					"keyTaken": "У этого агента уже есть переменная окружения с таким ключом.",
+					"keyReserved": "Этот ключ зарезервирован для самой песочницы. Выберите другой.",
+					"addFailed": "Не удалось добавить переменную окружения. Попробуйте ещё раз."
 				}
 			},
 			"skills": {
@@ -293,8 +338,20 @@
 					"skillContentLabel": "Содержимое навыка (Markdown)",
 					"urlLabel": "URL",
 					"cancel": "Отмена",
-					"addSkill": "Добавить навык"
+					"addSkill": "Добавить навык",
+					"nameReserved": "Это имя зарезервировано для внутренней структуры Paca. Выберите другое.",
+					"nameInvalid": "Имя навыка не может быть «.», «..» или содержать косую черту.",
+					"addFailed": "Не удалось добавить навык. Попробуйте ещё раз."
 				}
+			},
+			"access": {
+				"restrictLabel": "Restrict access",
+				"restrictDescription": "When on, only members granted access below may chat with this agent. Everyone who can manage agents can still see and configure it.",
+				"pickMember": "Select a member…",
+				"grantAccess": "Grant access",
+				"alreadyGranted": "This member already has access.",
+				"grantFailed": "Failed to grant access. Please try again.",
+				"empty": "No members have been granted access yet."
 			},
 			"activity": {
 				"commented": "оставил комментарий",
@@ -324,12 +381,19 @@
 		"conversationView": {
 			"stop": "Остановить",
 			"notFound": "Диалог не найден",
+			"noPermission": {
+				"title": "You don't have permission to view this conversation",
+				"description": "Ask a project admin to grant you the conversations.read permission."
+			},
 			"chatSession": "Чат-сессия",
 			"taskSession": "Сессия задачи",
 			"pr": "PR",
 			"connect": "Подключиться",
 			"conversationEnded": "Этот диалог завершён.",
 			"textOnlyMessage": "Поддерживаются только текстовые сообщения.",
+			"agentAccessRestricted": "Этот агент имеет ограниченный доступ. Попросите администратора проекта предоставить вам доступ, прежде чем вы сможете общаться с ним.",
+			"environmentAccessRestricted": "Окружение этого диалога имеет ограниченный доступ. Попросите администратора проекта предоставить вам доступ, прежде чем вы сможете общаться с этим агентом.",
+			"chatNoPermission": "У вас нет разрешения отправлять сообщения в этом диалоге.",
 			"failed": "Диалог завершился с ошибкой",
 			"noOutput": "Агент не выдал результат.",
 			"loadingOlder": "Загрузка…",
@@ -428,10 +492,16 @@
 			"title": "Окружения",
 			"subtitle": "Именованные, долгоживущие песочницы, к которым ваши агенты могут подключаться между разговорами",
 			"newEnvironment": "Новое окружение",
+			"restricted": "Restricted",
+			"restrictedTooltip": "This environment is restricted — ask a project admin to grant you access before you can use it.",
 			"empty": {
 				"title": "Пока нет окружений",
 				"description": "Создайте статическое окружение, чтобы файлы и фоновые процессы сохранялись между разговорами, вместо одноразовой песочницы каждый раз.",
 				"createFirstEnvironment": "Создать первое окружение"
+			},
+			"noPermission": {
+				"title": "You don't have permission to view environments",
+				"description": "Ask a project admin to grant you the environments.read permission."
 			}
 		},
 		"createDialog": {
@@ -449,6 +519,7 @@
 			"cpuLimitInvalid": "Значение CPU должно быть не менее 0,1 (100m).",
 			"memoryLimitInvalid": "Объём памяти должен быть не менее 256Mi.",
 			"diskLimitInvalid": "Диск должен быть положительным целым числом гигабайт.",
+			"nameRequired": "Укажите имя окружения.",
 			"createFailed": "Не удалось создать окружение. Попробуйте снова.",
 			"cancel": "Отмена",
 			"creating": "Создание…",
@@ -465,8 +536,11 @@
 			"tabs": {
 				"overview": "Обзор",
 				"folders": "Папки",
-				"portForwards": "Проброс портов"
+				"portForwards": "Проброс портов",
+				"access": "Access"
 			},
+			"busy": "Это окружение уже запускается, останавливается или перезапускается. Повторите попытку через некоторое время.",
+			"actionFailed": "Не удалось выполнить действие. Попробуйте ещё раз.",
 			"overview": {
 				"connect": "Подключиться",
 				"start": "Запустить",
@@ -497,6 +571,7 @@
 				"portsPendingRestartLink": "Просмотреть проброс портов",
 				"saveChanges": "Сохранить изменения",
 				"saved": "Сохранено",
+				"nameRequired": "Укажите имя окружения.",
 				"saveFailed": "Не удалось сохранить. Попробуйте снова.",
 				"deleteDialog": {
 					"title": "Удалить {{name}}?",
@@ -510,6 +585,10 @@
 				"count_one": "Настроена {{count}} папка",
 				"count_other": "Настроено {{count}} папок",
 				"addFolder": "Добавить папку",
+				"noPermission": {
+					"title": "You don't have access to this environment",
+					"description": "Ask a project admin to grant you access before you can view its folders."
+				},
 				"deleteFailed": "Не удалось удалить папку. Попробуйте снова.",
 				"empty": {
 					"title": "Папки не добавлены",
@@ -526,6 +605,8 @@
 						"empty": "Эта папка пуста",
 						"notRunning": "Запустите окружение, чтобы просмотреть его файлы."
 					},
+					"pathTaken": "Папка с этим путём уже существует в этом окружении.",
+					"pathInvalid": "Путь должен быть абсолютным (начинаться с /).",
 					"addFailed": "Не удалось добавить папку. Попробуйте снова.",
 					"cancel": "Отмена",
 					"addFolder": "Добавить папку"
@@ -536,6 +617,10 @@
 				"count_one": "{{count}} проброс порта",
 				"count_other": "{{count}} пробросов портов",
 				"add": "Добавить проброс порта",
+				"noPermission": {
+					"title": "You don't have access to this environment",
+					"description": "Ask a project admin to grant you access before you can view its port forwards."
+				},
 				"deleteFailed": "Не удалось удалить проброс порта. Попробуйте снова.",
 				"containerPort": "Порт контейнера {{port}}",
 				"unassigned": "Ещё не назначен",
@@ -556,14 +641,26 @@
 					"labelPlaceholder": "Сервер разработки",
 					"cancel": "Отмена",
 					"add": "Добавить",
+					"portTaken": "Этот порт контейнера уже перенаправлен в этом окружении.",
+					"portOutOfRange": "Порт должен быть в диапазоне от 1 до 65535.",
 					"addFailed": "Не удалось добавить проброс порта. Попробуйте снова."
 				},
 				"restartDialog": {
 					"title": "Перезапустить окружение?",
 					"description": "Это перезапустит контейнер окружения, чтобы применить обновлённые пробросы портов. Любой выполняющийся внутри процесс будет прерван; ваши файлы в безопасности — они хранятся на отдельном томе.",
 					"cancel": "Отмена",
-					"confirm": "Перезапустить"
+					"confirm": "Перезапустить",
+					"restartFailed": "Не удалось перезапустить окружение. Попробуйте ещё раз."
 				}
+			},
+			"access": {
+				"restrictLabel": "Restrict access",
+				"restrictDescription": "When on, only members granted access below may browse, SSH into, forward ports on, or open a terminal in this environment. Everyone who can manage environments can still see and configure it.",
+				"pickMember": "Select a member…",
+				"grantAccess": "Grant access",
+				"alreadyGranted": "This member already has access.",
+				"grantFailed": "Failed to grant access. Please try again.",
+				"empty": "No members have been granted access yet."
 			},
 			"sshKeys": {
 				"connectHint": "Замените <bastion-host> адресом SSH-бастиона, настроенным в этом развёртывании.",
@@ -586,6 +683,8 @@
 					"publicKeyLabel": "Открытый ключ",
 					"cancel": "Отмена",
 					"addKey": "Добавить ключ",
+					"keyTaken": "Этот ключ уже зарегистрирован в этом окружении.",
+					"keyInvalid": "Это не похоже на действительный открытый ключ SSH.",
 					"addFailed": "Не удалось добавить SSH-ключ. Попробуйте снова."
 				}
 			},
@@ -612,6 +711,7 @@
 				"connect": "Подключиться",
 				"notRunning": "Запустите окружение перед подключением.",
 				"readOnly": "У вас нет прав на открытие терминала в этом окружении.",
+				"restricted": "This environment is restricted — ask a project admin to grant you access before you can open a terminal.",
 				"hint": "Откроется в новой полноэкранной вкладке.",
 				"pageTitle": "{{name}} — Терминал",
 				"pageTitleLoading": "Терминал",
@@ -622,7 +722,8 @@
 				"step1Description": "Зарегистрируйте открытый ключ пары SSH-ключей, с которой хотите подключаться.",
 				"step2Title": "Подключитесь из терминала",
 				"step2Description": "Выполните эту команду в терминале:",
-				"notRunning": "Запустите окружение перед подключением."
+				"notRunning": "Запустите окружение перед подключением.",
+				"restricted": "This environment is restricted — ask a project admin to grant you access before you can connect via SSH."
 			}
 		}
 	},
@@ -631,6 +732,10 @@
 			"notFound": {
 				"title": "Документ не найден",
 				"description": "Возможно, документ был удалён или ссылка недействительна."
+			},
+			"noPermission": {
+				"title": "You don't have permission to view this document",
+				"description": "Ask a project admin to grant you the docs.read permission."
 			},
 			"unsaved": "Не сохранено",
 			"saving": "Сохранение…",
@@ -669,6 +774,8 @@
 			"roleNameLabel": "Название роли",
 			"roleNamePlaceholder": "например, PROJECT_REVIEWER",
 			"permissionsLabel": "Разрешения",
+			"fullAccessBadge": "Полный доступ",
+			"fullAccessDescription": "Эта роль автоматически включает все разрешения, в том числе те, что будут добавлены в будущем. Изменение любого переключателя ниже преобразует её в фиксированный набор текущих разрешений.",
 			"enabledCount_one": "{{count}} включено",
 			"enabledCount_few": "{{count}} включено",
 			"enabledCount_many": "{{count}} включено",
@@ -686,10 +793,6 @@
 			}
 		},
 		"permissions": {
-			"projectsRead": {
-				"label": "Читать проект",
-				"description": "Просматривать данные и настройки проекта"
-			},
 			"projectsWrite": {
 				"label": "Редактировать проект",
 				"description": "Обновлять название, описание и настройки проекта"
@@ -714,6 +817,18 @@
 				"label": "Управлять ролями",
 				"description": "Создавать, редактировать и удалять роли проекта"
 			},
+			"settingsTaskTypesWrite": {
+				"label": "Manage Task Types",
+				"description": "Create, edit, delete, and set the default task type"
+			},
+			"settingsTaskStatusesWrite": {
+				"label": "Manage Task Statuses",
+				"description": "Create, edit, delete, reorder, and set the default task status"
+			},
+			"settingsCustomFieldsWrite": {
+				"label": "Manage Custom Fields",
+				"description": "Create, edit, and delete custom field definitions"
+			},
 			"tasksRead": {
 				"label": "Просматривать задачи",
 				"description": "Открывать и читать задачи в проекте"
@@ -729,6 +844,14 @@
 			"sprintsWrite": {
 				"label": "Управлять спринтами",
 				"description": "Создавать, обновлять и закрывать спринты"
+			},
+			"viewsRead": {
+				"label": "View Boards",
+				"description": "Browse saved board and list views"
+			},
+			"viewsWrite": {
+				"label": "Manage Boards",
+				"description": "Create, edit, delete, and reorder board and list views"
 			},
 			"docsRead": {
 				"label": "Просматривать документы",
@@ -766,6 +889,18 @@
 				"label": "Подключаться к окружениям",
 				"description": "Открывать интерактивный сеанс терминала внутри запущенного окружения"
 			},
+			"annotationsRead": {
+				"label": "View Annotations",
+				"description": "View page comments pinned via the browser extension"
+			},
+			"annotationsWrite": {
+				"label": "Manage Annotations",
+				"description": "Create, edit, and delete page annotations"
+			},
+			"annotationsResolve": {
+				"label": "Resolve Annotations",
+				"description": "Mark a page annotation resolved or reopen it, without authoring or deleting one"
+			},
 			"workflowsRead": {
 				"label": "Просмотр автоматизации",
 				"description": "Просмотр автоматизаций и их настроек"
@@ -773,18 +908,24 @@
 			"workflowsWrite": {
 				"label": "Управление автоматизацией",
 				"description": "Создание, редактирование, активация и удаление автоматизаций"
+			},
+			"activitiesRead": {
+				"label": "Просмотр журнала активности",
+				"description": "Просмотр всей активности, записанной в этом проекте"
 			}
 		},
 		"permissionGroups": {
 			"project": "Проект",
 			"members": "Участники",
-			"roles": "Роли",
+			"settings": "Settings",
 			"tasks": "Задачи",
 			"sprints": "Спринты",
+			"views": "Views",
 			"documents": "Документы",
 			"aiAgents": "AI-агенты",
 			"conversations": "Беседы",
 			"environments": "Окружения",
+			"annotations": "Annotations",
 			"workflows": "Автоматизация",
 			"plugins": "Плагины"
 		}
@@ -845,13 +986,18 @@
 				"permissions": "Разрешения",
 				"created": "Создана"
 			},
-			"systemRolesNote": "Системные роли являются общими шаблонами, их нельзя редактировать или удалять."
+			"systemRolesNote": "Системные роли являются общими шаблонами, их нельзя редактировать или удалять.",
+			"noPermission": {
+				"title": "You don't have permission to view roles",
+				"description": "Ask a project admin to grant you the project.roles.read permission."
+			}
 		},
 		"taskStatuses": {
 			"title": "Статусы задач",
 			"description": "Определите workflow-статусы, через которые проходят задачи в этом проекте.",
 			"newStatus": "Новый статус",
 			"reorderFailed": "Не удалось сохранить новый порядок. Попробуйте ещё раз.",
+			"reorderInvalid": "Список статусов был изменён в другом месте. Обновите страницу и попробуйте снова.",
 			"empty": {
 				"title": "Статусы не определены",
 				"description": "Создайте статусы, чтобы задать workflow задач в этом проекте.",
@@ -865,7 +1011,12 @@
 			"default": "По умолчанию",
 			"setAsDefault": "Сделать статусом по умолчанию",
 			"editStatus": "Редактировать статус",
-			"deleteStatus": "Удалить статус"
+			"deleteStatus": "Удалить статус",
+			"deleteDefaultDisabled": "Статус по умолчанию нельзя удалить. Сначала сделайте статусом по умолчанию другой.",
+			"noPermission": {
+				"title": "You don't have permission to view task statuses",
+				"description": "Ask a project admin to grant you the project.settings.task_statuses.read permission."
+			}
 		},
 		"taskTypes": {
 			"title": "Типы задач",
@@ -885,7 +1036,12 @@
 			"default": "По умолчанию",
 			"setAsDefault": "Сделать типом по умолчанию",
 			"editType": "Редактировать тип",
-			"deleteType": "Удалить тип"
+			"deleteType": "Удалить тип",
+			"deleteDefaultDisabled": "Тип по умолчанию нельзя удалить. Сначала сделайте типом по умолчанию другой.",
+			"noPermission": {
+				"title": "You don't have permission to view task types",
+				"description": "Ask a project admin to grant you the project.settings.task_types.read permission."
+			}
 		},
 		"customFields": {
 			"title": "Пользовательские поля",
@@ -956,6 +1112,63 @@
 				"confirmTextSuffix": "? Данные задач, сохранённые в этом поле, будут потеряны. Это действие нельзя отменить.",
 				"deleteFailed": "Не удалось удалить поле. Попробуйте ещё раз.",
 				"deleteField": "Удалить поле"
+			},
+			"noPermission": {
+				"title": "You don't have permission to view custom fields",
+				"description": "Ask a project admin to grant you the project.settings.custom_fields.read permission."
+			}
+		},
+		"jev": {
+			"title": "Jev ИИ",
+			"description": "Настройте, как Jev, движок принятия решений на основе ИИ, помогает этому проекту.",
+			"credentials": {
+				"title": "Учётные данные провайдера",
+				"description": "Подключите собственного Jev-совместимого провайдера — TypeSafe (по умолчанию), OpenJev или другой хост с той же API — чтобы включить функции ниже.",
+				"configuredBadge": "Настроено",
+				"notConfiguredBadge": "Не настроено",
+				"apiKeyLabel": "API-ключ",
+				"apiKeyPlaceholder": "Введите API-ключ",
+				"apiKeyConfiguredPlaceholder": "Оставьте пустым, чтобы сохранить текущий ключ",
+				"baseUrlLabel": "Хост (необязательно)",
+				"baseUrlPlaceholder": "https://api.typesafe.ai (по умолчанию)",
+				"modelLabel": "Модель (необязательно)",
+				"modelPlaceholder": "jev-latest (по умолчанию)",
+				"saveButton": "Сохранить учётные данные",
+				"testButton": "Проверить соединение",
+				"advancedLabel": "Дополнительно",
+				"testSuccess": "Соединение успешно установлено",
+				"testFailed": "Не удалось подключиться. Проверьте учётные данные и попробуйте снова."
+			},
+			"autofill": {
+				"title": "Автозаполнение задач",
+				"description": "При создании задачи Jev заполняет поля ниже, которые создатель оставил пустыми.",
+				"enabledLabel": "Включить автозаполнение",
+				"enabledHint": "Jev предлагает значения для пустых полей вскоре после создания задачи.",
+				"excludedFieldsLabel": "Поля, которые может задавать Jev",
+				"excludedFieldsHint": "Отключите поле, чтобы Jev никогда не устанавливал его автоматически.",
+				"fieldImportance": "Важность",
+				"fieldTaskType": "Тип задачи",
+				"fieldStoryPoints": "Story Points",
+				"fieldTags": "Теги",
+				"fieldEpic": "Эпик"
+			},
+			"autoAssign": {
+				"title": "Автоназначение задач",
+				"description": "Позвольте Jev выбирать исполнителя для задач с автоматическим назначением.",
+				"scopeLabel": "Кому Jev может назначать",
+				"scopeAll": "Все участники",
+				"scopeHuman": "Только участники-люди",
+				"scopeHumanHint": "Исключает ИИ-агентов."
+			},
+			"saveChanges": "Сохранить изменения",
+			"saved": "Сохранено ✓",
+			"noPermission": "У вас нет прав на редактирование этого проекта.",
+			"errors": {
+				"updateFailed": "Не удалось обновить настройки. Попробуйте ещё раз."
+			},
+			"notConfigured": {
+				"title": "Jev ещё не настроен",
+				"description": "Добавьте учётные данные провайдера выше, чтобы включить автозаполнение задач и автоназначение."
 			}
 		},
 		"dangerZone": {
@@ -981,6 +1194,8 @@
 			"confirmTextPrefix": "Удалить",
 			"confirmTextSuffix": "? Задачи с этим статусом потеряют статус. Это действие нельзя отменить.",
 			"deleteFailed": "Не удалось удалить статус. Попробуйте ещё раз.",
+			"isDefault": "Статус по умолчанию нельзя удалить. Сначала сделайте статусом по умолчанию другой.",
+			"inUseByAutomation": "Этот статус используется в правиле автоматизации. Сначала измените или удалите это правило.",
 			"cancel": "Отмена",
 			"deleteStatus": "Удалить статус"
 		},
@@ -1031,7 +1246,9 @@
 			"cancel": "Отмена",
 			"addMember": "Добавить участника",
 			"errors": {
-				"addFailed": "Не удалось добавить участника. Попробуйте ещё раз."
+				"addFailed": "Не удалось добавить участника. Попробуйте ещё раз.",
+				"alreadyAdded": "Этот пользователь или агент уже является участником проекта.",
+				"roleNotFound": "Этой роли больше не существует. Выберите другую роль."
 			},
 			"modeUser": "Пользователь",
 			"modeAgent": "ИИ-агент",
@@ -1040,7 +1257,11 @@
 		},
 		"roleChip": {
 			"changeRole": "Изменить роль",
-			"changeFailed": "Не удалось изменить роль."
+			"errors": {
+				"memberNotFound": "Этот участник больше не состоит в проекте.",
+				"roleNotFound": "Этой роли больше не существует.",
+				"changeFailed": "Не удалось изменить роль."
+			}
 		},
 		"memberRow": {
 			"removeMember": "Удалить участника"
@@ -1053,6 +1274,18 @@
 			"removeFailed": "Не удалось удалить участника. Попробуйте ещё раз.",
 			"cancel": "Отмена",
 			"remove": "Удалить"
+		},
+		"noPermission": {
+			"title": "You don't have permission to view members",
+			"description": "Ask a project admin to grant you the project.members.read permission."
+		},
+		"descriptionChip": {
+			"edit": "Изменить описание",
+			"title": "Описание",
+			"hint": "Отображается для Jev при решении, назначать ли этому человеку задачу в режиме Авто.",
+			"placeholder": "Чем занимается этот человек?",
+			"save": "Сохранить",
+			"saveFailed": "Не удалось сохранить описание."
 		}
 	},
 	"aiChat": {
@@ -1061,7 +1294,9 @@
 		"agentLabel": "Агент",
 		"selectAgentPlaceholder": "Выберите агента…",
 		"selectAgentFirst": "Сначала выберите агента.",
-		"noAgentsAvailable": "Пока нет доступных агентов."
+		"noAgentsAvailable": "Пока нет доступных агентов.",
+		"autoAgent": "Авто",
+		"resolvingAgent": "Выбор агента…"
 	},
 	"taskTypes": {
 		"deleteDialog": {
@@ -1069,6 +1304,8 @@
 			"confirmTextPrefix": "Удалить",
 			"confirmTextSuffix": "? Задачи с этим типом потеряют назначенный тип. Это действие нельзя отменить.",
 			"deleteFailed": "Не удалось удалить тип задачи. Попробуйте ещё раз.",
+			"isDefault": "Тип по умолчанию нельзя удалить. Сначала сделайте типом по умолчанию другой.",
+			"isSystem": "Системные типы нельзя удалить.",
 			"cancel": "Отмена",
 			"deleteType": "Удалить тип"
 		},
@@ -1091,7 +1328,9 @@
 			"createType": "Создать тип",
 			"errors": {
 				"nameInvalid": "Название типа пустое или некорректное.",
-				"saveFailed": "Не удалось сохранить тип задачи. Попробуйте ещё раз."
+				"nameReserved": "Это имя зарезервировано для встроенного типа.",
+				"saveFailed": "Не удалось сохранить тип задачи. Попробуйте ещё раз.",
+				"isSystem": "Системные типы нельзя редактировать."
 			}
 		}
 	},
@@ -1107,6 +1346,10 @@
 			"ariaLabel": "Детали задачи",
 			"backToProject": "Назад к проекту",
 			"projectFallback": "Проект"
+		},
+		"noPermission": {
+			"title": "You don't have permission to view this task",
+			"description": "Ask a project admin to grant you the tasks.read permission."
 		},
 		"header": {
 			"created": "Создана {{date}}",
@@ -1142,7 +1385,8 @@
 			"parent": "Родительская",
 			"viewParent": "Открыть родительскую",
 			"removeParent": "Убрать родительскую",
-			"addFields": "Добавить поля"
+			"addFields": "Добавить поля",
+			"autoAssign": "Авто"
 		},
 		"description": {
 			"title": "Описание",
@@ -1160,14 +1404,24 @@
 			"title": "Подзадачи",
 			"addButton": "Добавить подзадачу",
 			"titlePlaceholder": "Название подзадачи…",
-			"empty": "Подзадач пока нет"
+			"empty": "Подзадач пока нет",
+			"loadMore": "Загрузить ещё подзадачи",
+			"loadingMore": "Загрузка…"
 		},
 		"links": {
 			"title": "Связанные задачи",
 			"addButton": "Добавить связь",
 			"openTask": "Открыть задачу",
 			"removeLink": "Удалить связь",
-			"empty": "Связанных задач нет"
+			"empty": "Связанных задач нет",
+			"errors": {
+				"alreadyExists": "Эта связь уже существует.",
+				"cannotLinkSelf": "Нельзя связать задачу саму с собой.",
+				"crossProject": "Связывать можно только задачи в пределах одного проекта.",
+				"createFailed": "Не удалось добавить связь. Попробуйте еще раз.",
+				"notFound": "Эта связь уже была удалена.",
+				"deleteFailed": "Не удалось удалить связь. Попробуйте еще раз."
+			}
 		},
 		"attachments": {
 			"title": "Вложения",
@@ -1182,7 +1436,13 @@
 			"unitBytes_many": "{{count}} Б",
 			"unitBytes_other": "{{count}} Б",
 			"unitKilobytes": "{{value}} КБ",
-			"unitMegabytes": "{{value}} МБ"
+			"unitMegabytes": "{{value}} МБ",
+			"errors": {
+				"invalid": "Этот файл нельзя загрузить. Выберите другой файл.",
+				"uploadFailed": "Не удалось загрузить файл. Попробуйте еще раз.",
+				"notFound": "Это вложение уже удалено.",
+				"deleteFailed": "Не удалось удалить вложение. Попробуйте еще раз."
+			}
 		},
 		"addFieldDialog": {
 			"title": "Создать пользовательское поле",
@@ -1306,7 +1566,9 @@
 			"startedAiSession": "запустил(а) AI-сессию",
 			"watchSession": "Смотреть сессию",
 			"madeChange": "внёс(ла) изменение",
-			"descriptionChangeDiff": "Diff изменения описания"
+			"descriptionChangeDiff": "Diff изменения описания",
+			"autoAssignSkippedLowConfidence": "не смог уверенно выбрать исполнителя (уверенность {{confidence}}%) — задача осталась без назначения",
+			"autoAssignSkipped": "пропустил автоназначение — задача осталась без назначения"
 		}
 	},
 	"portForwardDetail": {
@@ -1315,6 +1577,10 @@
 			"description": "Возможно, эта переадресация порта была удалена, или ссылка недействительна.",
 			"ariaLabel": "Сведения о переадресации порта",
 			"backToEnvironment": "Назад к среде"
+		},
+		"noPermission": {
+			"title": "You don't have access to this environment",
+			"description": "Ask a project admin to grant you access before you can view this port forward."
 		},
 		"tabs": {
 			"overview": "Обзор",
@@ -1346,7 +1612,12 @@
 			"resolve": "Решить",
 			"reopen": "Переоткрыть",
 			"createTask": "Создать задачу",
-			"taskCreated": "Задача создана"
+			"taskCreated": "Задача создана",
+			"errors": {
+				"alreadyHasTask": "Для этого комментария уже создана задача.",
+				"creationInProgress": "Создание задачи для этого комментария уже выполняется.",
+				"createTaskFailed": "Не удалось создать задачу. Попробуйте еще раз."
+			}
 		}
 	},
 	"commentDetail": {
@@ -1355,6 +1626,10 @@
 			"description": "Возможно, этот комментарий был удалён, или ссылка недействительна.",
 			"ariaLabel": "Сведения о комментарии",
 			"backToPortForward": "Назад к переадресации порта"
+		},
+		"noPermission": {
+			"title": "You don't have permission to view this comment",
+			"description": "Ask a project admin to grant you the annotations.read permission."
 		},
 		"header": {
 			"createdAt": "Прокомментировано {{date}}"
@@ -1371,7 +1646,11 @@
 		},
 		"thread": {
 			"replyPlaceholder": "Написать ответ…",
-			"reply": "Ответить"
+			"reply": "Ответить",
+			"errors": {
+				"bodyEmpty": "Ответ не может быть пустым.",
+				"replyFailed": "Не удалось отправить ответ. Попробуйте еще раз."
+			}
 		},
 		"actions": {
 			"create": "Создать",
@@ -1403,7 +1682,9 @@
 			"reporterTitle": "Автор",
 			"epicLabel": "Эпик",
 			"noEpic": "Без эпика",
-			"storyPointsTitle": "Story Points"
+			"storyPointsTitle": "Story Points",
+			"moveLeft": "Переместить в предыдущий столбец",
+			"moveRight": "Переместить в следующий столбец"
 		},
 		"taskContextMenu": {
 			"open": "Открыть задачу",
@@ -1462,6 +1743,7 @@
 		}
 	},
 	"conversationsPage": {
+		"back": "Назад",
 		"title": "Диалоги",
 		"triggerChat": "Чат",
 		"triggerWriteDescription": "Написать описание",
@@ -1469,6 +1751,24 @@
 		"triggerAutomation": "Автоматизация",
 		"usageTitle": "{{tokens}} токенов · {{cost}}",
 		"prOpened": "PR открыт",
+		"moreActions": "Дополнительные действия",
+		"rename": {
+			"menuLabel": "Переименовать",
+			"dialogTitle": "Переименовать разговор",
+			"placeholder": "Название разговора",
+			"cancel": "Отмена",
+			"confirm": "Переименовать",
+			"renaming": "Переименование…",
+			"error": "Не удалось переименовать разговор. Повторите попытку."
+		},
+		"delete": {
+			"menuLabel": "Удалить",
+			"dialogTitle": "Удалить разговор?",
+			"dialogDescription": "Это навсегда удалит «{{title}}» и его историю. Это действие нельзя отменить.",
+			"cancel": "Отмена",
+			"confirm": "Удалить",
+			"error": "Не удалось удалить разговор. Повторите попытку."
+		},
 		"filters": {
 			"title": "Фильтры",
 			"agent": "Агент",
@@ -1481,6 +1781,10 @@
 			"clearAll": "Сбросить фильтры"
 		},
 		"list": {
+			"noPermission": {
+				"title": "You don't have permission to view conversations",
+				"description": "Ask a project admin to grant you the conversations.read permission."
+			},
 			"empty": {
 				"title": "Диалогов пока нет",
 				"description": "Диалоги начинаются, когда задача назначена агенту или кто-то пишет ему сообщение."
@@ -1504,11 +1808,18 @@
 			"renameView": "Переименовать представление",
 			"deleteView": "Удалить представление",
 			"searchTasksPlaceholder": "Поиск задач…",
-			"pluginNotAvailable": "Плагин недоступен"
+			"pluginNotAvailable": "Плагин недоступен",
+			"viewErrors": {
+				"isLastView": "Это последнее представление, его нельзя удалить.",
+				"deleteFailed": "Не удалось удалить представление. Попробуйте еще раз.",
+				"reorderInvalid": "Список представлений изменился в другом месте. Обновите страницу и повторите попытку.",
+				"reorderFailed": "Не удалось изменить порядок представлений. Попробуйте еще раз."
+			}
 		},
 		"viewSettings": {
 			"viewSettingsAriaLabel": "Настройки представления",
 			"title": "Настройки представления",
+			"onlyVisibleToYou": "Видно только вам",
 			"chooseFields": "Выбрать поля",
 			"back": "← Назад",
 			"clearFilters": "Очистить фильтры",
@@ -1535,6 +1846,8 @@
 			"reset": "Сбросить",
 			"saving": "Сохранение…",
 			"save": "Сохранить",
+			"saveOnlyForMe": "Сохранить только для меня",
+			"saveForEveryone": "Сохранить для всех",
 			"sprintFilter": {
 				"noSprints": "Нет спринтов",
 				"allSprints": "Все спринты"
@@ -1658,7 +1971,9 @@
 				"unassignedHint": "Задачи будут отвязаны от любого спринта",
 				"cancel": "Отмена",
 				"completing": "Завершение…",
-				"completeSprint": "Завершить спринт"
+				"completeSprint": "Завершить спринт",
+				"alreadyComplete": "Этот спринт уже завершён.",
+				"completeFailed": "Не удалось завершить спринт. Попробуйте ещё раз."
 			},
 			"deleteSprintModal": {
 				"title": "Удалить спринт?",
@@ -1741,7 +2056,11 @@
 				"createFirst": "Создать первую автоматизацию"
 			},
 			"noDescription": "Нет описания",
-			"updated": "Обновлено {{time}}"
+			"updated": "Обновлено {{time}}",
+			"noPermission": {
+				"title": "You don't have permission to view automations",
+				"description": "Ask a project admin to grant you the workflows.read permission."
+			}
 		},
 		"status": {
 			"active": "Активна",
@@ -1981,7 +2300,33 @@
 				"branchFallback": "Ветвь {{n}}",
 				"cronSchedule": "Выполняется {{expression}}",
 				"webhookReady": "Webhook настроен",
-				"callApiSummary": "{{method}} {{host}}"
+				"callApiSummary": "{{method}} {{host}}",
+				"jevNoulTrue": "Да"
+			},
+			"jev": {
+				"answerTypeLabel": "Тип ответа",
+				"answerTypes": {
+					"choice": "Выбор — один из нескольких вариантов",
+					"score": "Оценка — по шкале",
+					"noul": "Да / Нет"
+				},
+				"answerTypeChangeHint": "Ветки, подключённые для прежнего типа ответа, больше не будут использоваться — подключите их заново после сохранения.",
+				"instructionsLabel": "Вопрос для Jev",
+				"instructionsPlaceholder": {
+					"choice": "например, какая команда должна этим заниматься?",
+					"score": "например, насколько серьёзной кажется эта проблема?",
+					"noul": "например, клиент просит возврат средств."
+				},
+				"optionsTitle": "Варианты",
+				"optionKeyPlaceholder": "ключ",
+				"optionDescriptionPlaceholder": "Когда выбирать этот вариант",
+				"addOption": "Добавить вариант",
+				"levelsTitle": "Уровни (от низшего к высшему)",
+				"levelPlaceholder": "Опишите этот уровень",
+				"addLevel": "Добавить уровень",
+				"confidenceThresholdLabel": "Порог уверенности",
+				"trueThresholdLabel": "Порог «истина»",
+				"thresholdHint": "Ниже этого значения рабочий процесс идёт по ветке Else, а не доверяет ответу."
 			}
 		},
 		"runHistory": {
@@ -2005,6 +2350,132 @@
 			"subtitle": "Доступный только для чтения обзор всех автоматизаций, ожидающих завершения других задач",
 			"empty": "Зависимости от предшествующих задач пока не настроены",
 			"watchedTasks": "Ожидание {{count}} задач(и)"
+		},
+		"conditionTypes": {
+			"jev_condition": "Условие Jev"
+		}
+	},
+	"activityLog": {
+		"title": "Активность",
+		"subtitle": "Всё, что происходило в этом проекте",
+		"today": "Сегодня",
+		"yesterday": "Вчера",
+		"deletedEntity": "Этот элемент удалён",
+		"noPermission": {
+			"title": "Вы не можете просматривать журнал активности",
+			"description": "Попросите менеджера проекта выдать право «Просмотр журнала активности»."
+		},
+		"empty": {
+			"title": "Активности пока нет",
+			"description": "Изменения в этом проекте появятся здесь."
+		},
+		"emptyFiltered": {
+			"title": "Ничего не найдено",
+			"description": "Попробуйте убрать фильтры или изменить запрос."
+		},
+		"filters": {
+			"title": "Фильтры",
+			"searchPlaceholder": "Поиск по активности…",
+			"type": "Тип",
+			"people": "Люди",
+			"source": "Источник",
+			"dateRange": "Период",
+			"dateFrom": "С",
+			"dateTo": "По",
+			"clearAll": "Сбросить всё"
+		},
+		"entityTypes": {
+			"task": "Задачи",
+			"doc": "Документы",
+			"sprint": "Спринты",
+			"view": "Представления",
+			"automation": "Автоматизации",
+			"environment": "Окружения",
+			"member": "Участники",
+			"role": "Роли",
+			"agent": "Агенты",
+			"project": "Проект"
+		},
+		"origins": {
+			"user": "Пользователь",
+			"agent": "Агент",
+			"automation": "Автоматизация",
+			"jev": "Jev",
+			"annotation": "Аннотация",
+			"system": "Система"
+		},
+		"detail": {
+			"asRole": "с ролью {{role}}",
+			"roleChange": "{{from}} → {{to}}",
+			"renamedFrom": "ранее «{{name}}»",
+			"member": "для {{name}}"
+		},
+		"projectFields": {
+			"name": "Название",
+			"description": "Описание",
+			"task_id_prefix": "Префикс ID задач",
+			"is_public": "Видимость",
+			"settings": "Настройки",
+			"jev_config": "Настройки Jev"
+		},
+		"types": {
+			"sprint_created": "создал(а) спринт",
+			"sprint_updated": "обновил(а) спринт",
+			"sprint_deleted": "удалил(а) спринт",
+			"sprint_completed": "завершил(а) спринт",
+			"view_created": "создал(а) представление",
+			"view_updated": "обновил(а) представление",
+			"view_deleted": "удалил(а) представление",
+			"automation_created": "создал(а) автоматизацию",
+			"automation_updated": "обновил(а) автоматизацию",
+			"automation_deleted": "удалил(а) автоматизацию",
+			"automation_activated": "включил(а) автоматизацию",
+			"automation_deactivated": "отключил(а) автоматизацию",
+			"automation_node_added": "добавил(а) шаг в",
+			"automation_node_removed": "удалил(а) шаг из",
+			"automation_edge_added": "соединил(а) шаги в",
+			"automation_edge_removed": "разъединил(а) шаги в",
+			"environment_created": "создал(а) окружение",
+			"environment_updated": "обновил(а) окружение",
+			"environment_deleted": "удалил(а) окружение",
+			"environment_started": "запустил(а) окружение",
+			"environment_stopped": "остановил(а) окружение",
+			"environment_restarted": "перезапустил(а) окружение",
+			"environment_ssh_key_added": "добавил(а) SSH-ключ «{{label}}» в",
+			"environment_ssh_key_removed": "удалил(а) SSH-ключ «{{label}}» из",
+			"environment_access_granted": "выдал(а) доступ к",
+			"environment_access_revoked": "отозвал(а) доступ к",
+			"environment_port_forward_added": "пробросил(а) порт {{port}} в",
+			"environment_port_forward_removed": "отключил(а) проброс порта {{port}} в",
+			"annotation_created": "добавил(а) аннотацию в",
+			"annotation_resolved": "решил(а) аннотацию в",
+			"annotation_reopened": "переоткрыл(а) аннотацию в",
+			"annotation_commented": "ответил(а) на аннотацию в",
+			"member_added": "добавил(а) участника",
+			"member_role_changed": "изменил(а) роль участника",
+			"member_updated": "обновил(а) участника",
+			"member_removed": "удалил(а) участника",
+			"role_created": "создал(а) роль",
+			"role_updated": "обновил(а) роль",
+			"role_deleted": "удалил(а) роль",
+			"project_updated": "обновил(а) настройки проекта",
+			"project_task_type_created": "создал(а) тип задачи «{{name}}» в",
+			"project_task_type_updated": "обновил(а) тип задачи «{{name}}» в",
+			"project_task_type_deleted": "удалил(а) тип задачи «{{name}}» в",
+			"project_task_type_default_set": "сделал(а) «{{name}}» типом задачи по умолчанию в",
+			"project_task_status_created": "создал(а) статус «{{name}}» в",
+			"project_task_status_updated": "обновил(а) статус «{{name}}» в",
+			"project_task_status_deleted": "удалил(а) статус «{{name}}» в",
+			"project_task_status_default_set": "сделал(а) «{{name}}» статусом по умолчанию в",
+			"project_task_status_reordered": "изменил(а) порядок статусов в",
+			"project_custom_field_created": "создал(а) поле «{{name}}» в",
+			"project_custom_field_updated": "обновил(а) поле «{{name}}» в",
+			"project_custom_field_deleted": "удалил(а) поле «{{name}}» в",
+			"project_agent_created": "добавил(а) агента",
+			"project_agent_updated": "обновил(а) агента",
+			"project_agent_deleted": "удалил(а) агента",
+			"comment": "прокомментировал(а)",
+			"fallback": "выполнил(а) {{type}} для"
 		}
 	}
 }

@@ -68,6 +68,14 @@ func (s *Service) Login(ctx context.Context, username, password string, remember
 		return nil, domainauth.ErrInvalidCredentials
 	}
 
+	return s.IssueSession(u, rememberMe)
+}
+
+// IssueSession starts a new session for an already-authenticated user: a
+// fresh token family with the same token pairs Login returns. Login calls it
+// after checking the password; SSO sign-in calls it after the identity
+// provider has vouched for the user, so both paths yield identical sessions.
+func (s *Service) IssueSession(u *userdom.User, rememberMe bool) (*domainauth.TokenPair, error) {
 	familyID := uuid.NewString()
 	sub := u.ID.String()
 
@@ -214,19 +222,27 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*domainauth
 		refreshTTL = s.refreshSessionTTL
 	}
 
-	access, err := s.tokens.IssueAccess(claims.Subject, claims.Username, claims.Role, claims.FamilyID, u.MustChangePassword)
+	// u.Role (freshly reloaded above in rotateRefreshToken), not claims.Role
+	// (the presented token's own, possibly stale claim) — otherwise a role
+	// change never shows up in an already-issued refresh token's claims until
+	// the user explicitly logs out. The role claim is informational (what the
+	// UI and plugins display): what a caller may do is decided per request
+	// from the permissions their role row stores, never from this name.
+	// Mirrors why MustChangePassword is read from the freshly-reloaded u just
+	// above.
+	access, err := s.tokens.IssueAccess(claims.Subject, claims.Username, u.Role, claims.FamilyID, u.MustChangePassword)
 	if err != nil {
 		return nil, err
 	}
-	refresh, err := s.tokens.IssueRefreshWithTTL(claims.Subject, claims.Username, claims.Role, claims.FamilyID, claims.RememberMe, refreshTTL)
+	refresh, err := s.tokens.IssueRefreshWithTTL(claims.Subject, claims.Username, u.Role, claims.FamilyID, claims.RememberMe, refreshTTL)
 	if err != nil {
 		return nil, err
 	}
-	annotationAccess, err := s.tokens.IssueAnnotationAccess(claims.Subject, claims.Username, claims.Role, claims.FamilyID, u.MustChangePassword)
+	annotationAccess, err := s.tokens.IssueAnnotationAccess(claims.Subject, claims.Username, u.Role, claims.FamilyID, u.MustChangePassword)
 	if err != nil {
 		return nil, err
 	}
-	annotationRefresh, err := s.tokens.IssueAnnotationRefreshWithTTL(claims.Subject, claims.Username, claims.Role, claims.FamilyID, claims.RememberMe, refreshTTL)
+	annotationRefresh, err := s.tokens.IssueAnnotationRefreshWithTTL(claims.Subject, claims.Username, u.Role, claims.FamilyID, claims.RememberMe, refreshTTL)
 	if err != nil {
 		return nil, err
 	}
@@ -264,11 +280,12 @@ func (s *Service) RefreshAnnotation(ctx context.Context, annotationRefreshToken 
 		refreshTTL = s.refreshSessionTTL
 	}
 
-	access, err := s.tokens.IssueAnnotationAccess(claims.Subject, claims.Username, claims.Role, claims.FamilyID, u.MustChangePassword)
+	// u.Role, not claims.Role — see the identical comment in Refresh above.
+	access, err := s.tokens.IssueAnnotationAccess(claims.Subject, claims.Username, u.Role, claims.FamilyID, u.MustChangePassword)
 	if err != nil {
 		return nil, err
 	}
-	refresh, err := s.tokens.IssueAnnotationRefreshWithTTL(claims.Subject, claims.Username, claims.Role, claims.FamilyID, claims.RememberMe, refreshTTL)
+	refresh, err := s.tokens.IssueAnnotationRefreshWithTTL(claims.Subject, claims.Username, u.Role, claims.FamilyID, claims.RememberMe, refreshTTL)
 	if err != nil {
 		return nil, err
 	}

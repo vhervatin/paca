@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ import (
 	sprintdom "github.com/Paca-AI/api/internal/domain/sprint"
 	taskdom "github.com/Paca-AI/api/internal/domain/task"
 	"github.com/Paca-AI/api/internal/platform/authz"
+	"github.com/Paca-AI/api/internal/platform/jev"
 	"github.com/Paca-AI/api/internal/transport/http/dto"
 	"github.com/Paca-AI/api/internal/transport/http/handler"
 	httpmw "github.com/Paca-AI/api/internal/transport/http/middleware"
@@ -44,11 +46,13 @@ type mockProjectSvc struct {
 	updateMember            func(ctx context.Context, projectID, userID uuid.UUID, in projectdom.UpdateMemberRoleInput) (*projectdom.ProjectMember, error)
 	removeMember            func(ctx context.Context, projectID, userID uuid.UUID) error
 	updateMemberByMemberID  func(ctx context.Context, projectID, memberID uuid.UUID, in projectdom.UpdateMemberRoleInput) (*projectdom.ProjectMember, error)
+	updateMemberDescription func(ctx context.Context, projectID, memberID uuid.UUID, description string) (*projectdom.ProjectMember, error)
 	removeMemberByMemberID  func(ctx context.Context, projectID, memberID uuid.UUID) error
 	listRoles               func(ctx context.Context, projectID uuid.UUID) ([]*projectdom.ProjectRole, error)
 	createRole              func(ctx context.Context, projectID uuid.UUID, in projectdom.CreateRoleInput) (*projectdom.ProjectRole, error)
 	updateRole              func(ctx context.Context, projectID, roleID uuid.UUID, in projectdom.UpdateRoleInput) (*projectdom.ProjectRole, error)
 	deleteRole              func(ctx context.Context, projectID, roleID uuid.UUID) error
+	findRoleByID            func(ctx context.Context, id uuid.UUID) (*projectdom.ProjectRole, error)
 	getMyProjectPermissions func(ctx context.Context, projectID, userID uuid.UUID, agentID *uuid.UUID) (map[string]any, error)
 }
 
@@ -174,6 +178,13 @@ func (m *mockProjectSvc) DeleteRole(ctx context.Context, projectID, roleID uuid.
 	return nil
 }
 
+func (m *mockProjectSvc) FindRoleByID(ctx context.Context, id uuid.UUID) (*projectdom.ProjectRole, error) {
+	if m.findRoleByID != nil {
+		return m.findRoleByID(ctx, id)
+	}
+	return nil, projectdom.ErrRoleNotFound
+}
+
 func (m *mockProjectSvc) GetMyProjectPermissions(ctx context.Context, projectID, userID uuid.UUID, agentID *uuid.UUID) (map[string]any, error) {
 	if m.getMyProjectPermissions != nil {
 		return m.getMyProjectPermissions(ctx, projectID, userID, agentID)
@@ -186,6 +197,12 @@ func (m *mockProjectSvc) RemoveAgentMember(_ context.Context, _, _ uuid.UUID) er
 func (m *mockProjectSvc) UpdateMemberRoleByMemberID(_ context.Context, projectID, memberID uuid.UUID, in projectdom.UpdateMemberRoleInput) (*projectdom.ProjectMember, error) {
 	if m.updateMemberByMemberID != nil {
 		return m.updateMemberByMemberID(context.Background(), projectID, memberID, in)
+	}
+	return nil, projectdom.ErrNotFound
+}
+func (m *mockProjectSvc) UpdateMemberDescription(_ context.Context, projectID, memberID uuid.UUID, description string) (*projectdom.ProjectMember, error) {
+	if m.updateMemberDescription != nil {
+		return m.updateMemberDescription(context.Background(), projectID, memberID, description)
 	}
 	return nil, projectdom.ErrNotFound
 }
@@ -203,8 +220,10 @@ var _ projectdom.Service = (*mockProjectSvc)(nil)
 // router helper
 // ---------------------------------------------------------------------------
 
-// adminClaimsMiddleware injects a synthetic ADMIN claims into the request context so
-// unit tests can exercise the handler without a real JWT stack.
+// adminClaimsMiddleware injects synthetic claims into the request context so
+// unit tests can exercise the handler without a real JWT stack. The role name
+// is informational only — what the caller may do comes from the Authorizer's
+// store (see adminAuthorizer).
 func adminClaimsMiddleware() func(http.Handler) http.Handler {
 	claims := &domainauth.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -221,13 +240,23 @@ func adminClaimsMiddleware() func(http.Handler) http.Handler {
 	}
 }
 
+// adminAuthorizer returns a real Authorizer whose store answers as an admin's
+// role row would for these tests: it stores a global projects.read. That —
+// not the "ADMIN" name on the synthetic claims above — is what makes
+// ListProjects/GetWorkspaceStats return every project.
+func adminAuthorizer() *authz.Authorizer {
+	return authz.NewAuthorizer(&fakeGlobalPermStore{globalPerms: []authz.Permission{authz.PermissionProjectsRead}})
+}
+
 func newProjectRouter(svc projectdom.Service) chi.Router {
-	// Use a real Authorizer with nil store — legacy ADMIN role grants everything
-	// without any database calls.
-	authorizer := authz.NewAuthorizer(nil)
+	authorizer := adminAuthorizer()
 	r := chi.NewRouter()
 	r.Use(adminClaimsMiddleware())
-	h := handler.NewProjectHandler(svc, authorizer)
+	// h also gets a plain transport for its Jev client: the default is
+	// SSRF-safe (netguard) and rejects the loopback httptest.Servers these
+	// tests point jev_base_url at — see WithProjectJevHTTPClient.
+	h := handler.NewProjectHandler(svc, authorizer,
+		handler.WithProjectJevHTTPClient(&http.Client{Timeout: 5 * time.Second}))
 	// Admin project CRUD
 	r.Get("/admin/projects", h.ListProjects)
 	r.Post("/admin/projects", h.CreateProject)
@@ -244,6 +273,10 @@ func newProjectRouter(svc projectdom.Service) chi.Router {
 	r.Post("/projects/{projectId}/roles", h.CreateRole)
 	r.Patch("/projects/{projectId}/roles/{roleId}", h.UpdateRole)
 	r.Delete("/projects/{projectId}/roles/{roleId}", h.DeleteRole)
+	// Jev config test route — encryptor is nil here (matches an instance
+	// with no ENCRYPTION_KEY configured; jev.ClientForProject treats stored
+	// keys as plaintext in that case, see its doc comment).
+	r.Post("/projects/{projectId}/jev-config/test", h.TestJevConfig)
 	return r
 }
 
@@ -374,6 +407,88 @@ func TestGetProject_NotFound(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// TestJevConfig
+// ---------------------------------------------------------------------------
+
+func TestTestJevConfig_NotConfigured(t *testing.T) {
+	id := uuid.New()
+	r := newProjectRouter(&mockProjectSvc{
+		getByID: func(_ context.Context, _ uuid.UUID) (*projectdom.Project, error) {
+			return &projectdom.Project{ID: id}, nil // JevAPIKeySecret is empty
+		},
+	})
+
+	w := do(t, r, http.MethodPost, fmt.Sprintf("/projects/%s/jev-config/test", id), nil)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestTestJevConfig_ProjectNotFound(t *testing.T) {
+	id := uuid.New()
+	r := newProjectRouter(&mockProjectSvc{
+		getByID: func(_ context.Context, _ uuid.UUID) (*projectdom.Project, error) {
+			return nil, projectdom.ErrNotFound
+		},
+	})
+
+	w := do(t, r, http.MethodPost, fmt.Sprintf("/projects/%s/jev-config/test", id), nil)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestTestJevConfig_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(jev.Response{
+			Answers: map[string]jev.Answer{"connectivity": {Type: jev.TypeNoul, Noul: 1}},
+		})
+	}))
+	defer srv.Close()
+
+	id := uuid.New()
+	r := newProjectRouter(&mockProjectSvc{
+		getByID: func(_ context.Context, _ uuid.UUID) (*projectdom.Project, error) {
+			return &projectdom.Project{ID: id, JevAPIKeySecret: "test-key", JevBaseURL: srv.URL}, nil
+		},
+	})
+
+	w := do(t, r, http.MethodPost, fmt.Sprintf("/projects/%s/jev-config/test", id), nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var envelope struct {
+		Data dto.TestJevConfigResponse `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !envelope.Data.Success {
+		t.Fatalf("expected success=true, got %+v", envelope.Data)
+	}
+}
+
+func TestTestJevConfig_CallFails(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"bad key"}`))
+	}))
+	defer srv.Close()
+
+	id := uuid.New()
+	r := newProjectRouter(&mockProjectSvc{
+		getByID: func(_ context.Context, _ uuid.UUID) (*projectdom.Project, error) {
+			return &projectdom.Project{ID: id, JevAPIKeySecret: "test-key", JevBaseURL: srv.URL}, nil
+		},
+	})
+
+	w := do(t, r, http.MethodPost, fmt.Sprintf("/projects/%s/jev-config/test", id), nil)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestCreateProject_Success(t *testing.T) {
 	projID := uuid.New()
 	r := newProjectRouter(&mockProjectSvc{
@@ -404,7 +519,7 @@ func TestCreateProject_SeedsDefaultViews(t *testing.T) {
 		},
 	}
 
-	authorizer := authz.NewAuthorizer(nil)
+	authorizer := adminAuthorizer()
 	r := chi.NewRouter()
 	r.Use(adminClaimsMiddleware())
 	h := handler.NewProjectHandler(projectSvc, authorizer, handler.WithProjectDefaultViews(viewSvc, taskTypeSvc))
@@ -1185,7 +1300,7 @@ func TestGetWorkspaceStats_SingleAggregateQueryPerCounter(t *testing.T) {
 		},
 	}
 
-	authorizer := authz.NewAuthorizer(nil)
+	authorizer := adminAuthorizer()
 	r := chi.NewRouter()
 	r.Use(adminClaimsMiddleware())
 	h := handler.NewProjectHandler(projectSvc, authorizer, handler.WithProjectStatsServices(taskSvc, userSvc))

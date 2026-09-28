@@ -4,22 +4,25 @@ import "errors"
 
 // Sentinel domain errors for the task aggregate.
 var (
-	ErrTaskNotFound            = errors.New("task: not found")
-	ErrTaskTitleInvalid        = errors.New("task: title is empty or invalid")
-	ErrEpicCannotHaveParent    = errors.New("task: epic tasks cannot have a parent task")
-	ErrTaskCannotBeOwnParent   = errors.New("task: a task cannot be its own parent")
-	ErrTaskParentCycleDetected = errors.New("task: setting this parent would create a cycle")
+	ErrTaskNotFound              = errors.New("task: not found")
+	ErrTaskTitleInvalid          = errors.New("task: title is empty or invalid")
+	ErrEpicCannotHaveParent      = errors.New("task: epic tasks cannot have a parent task")
+	ErrTaskCannotBeOwnParent     = errors.New("task: a task cannot be its own parent")
+	ErrTaskParentCycleDetected   = errors.New("task: setting this parent would create a cycle")
+	ErrTaskAssignmentModeInvalid = errors.New("task: assignment_mode must be \"manual\" or \"auto\"")
 
 	ErrTypeNotFound     = errors.New("task type: not found")
 	ErrTypeNameInvalid  = errors.New("task type: name is empty or invalid")
 	ErrTypeIsSystem     = errors.New("task type: system types cannot be modified")
 	ErrTypeNameReserved = errors.New("task type: name is reserved for system types")
+	ErrTypeIsDefault    = errors.New("task type: the default type cannot be deleted")
 
 	ErrStatusNotFound          = errors.New("task status: not found")
 	ErrStatusNameInvalid       = errors.New("task status: name is empty or invalid")
 	ErrStatusCategoryInvalid   = errors.New("task status: invalid category value")
 	ErrStatusReorderInvalid    = errors.New("task status: provided status IDs do not match the project's statuses")
 	ErrStatusInUseByAutomation = errors.New("task status: still referenced by an automation")
+	ErrStatusIsDefault         = errors.New("task status: the default status cannot be deleted")
 
 	ErrCustomFieldNotFound    = errors.New("custom field: not found")
 	ErrCustomFieldKeyInvalid  = errors.New("custom field: key is empty or invalid")

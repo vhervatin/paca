@@ -38,6 +38,7 @@ import (
 	jwttoken "github.com/Paca-AI/api/internal/platform/token"
 	pgRepo "github.com/Paca-AI/api/internal/repository/postgres"
 	redisRepo "github.com/Paca-AI/api/internal/repository/redis"
+	activitysvc "github.com/Paca-AI/api/internal/service/activity"
 	agentsvc "github.com/Paca-AI/api/internal/service/agent"
 	apikeysvc "github.com/Paca-AI/api/internal/service/apikey"
 	attachmentsvc "github.com/Paca-AI/api/internal/service/attachment"
@@ -46,6 +47,7 @@ import (
 	globalrolesvc "github.com/Paca-AI/api/internal/service/globalrole"
 	projectsvc "github.com/Paca-AI/api/internal/service/project"
 	sprintsvc "github.com/Paca-AI/api/internal/service/sprint"
+	ssosvc "github.com/Paca-AI/api/internal/service/sso"
 	tasksvc "github.com/Paca-AI/api/internal/service/task"
 	usersvc "github.com/Paca-AI/api/internal/service/user"
 	"github.com/Paca-AI/api/internal/transport/http/handler"
@@ -55,8 +57,14 @@ import (
 // noopMemberCacheInvalidator satisfies agentsvc's projectMemberWriter
 // dependency without wiring a real members cache into the e2e harness — the
 // e2e suite doesn't exercise cache invalidation, only the agent CRUD /
-// ACP-bridge HTTP surface.
-type noopMemberCacheInvalidator struct{}
+// ACP-bridge HTTP surface. It embeds the real *projectsvc.Service (not the
+// caching decorator) so FindRoleByID — CreateAgent's project_role_id
+// ownership check, see GHSA-xxc8-ggm7-vmxp — still validates against real
+// project_roles rows; only InvalidateMembersCache, which the base Service
+// doesn't implement, is stubbed out.
+type noopMemberCacheInvalidator struct {
+	*projectsvc.Service
+}
 
 func (noopMemberCacheInvalidator) InvalidateMembersCache(context.Context, uuid.UUID) error {
 	return nil
@@ -69,12 +77,12 @@ const (
 	e2eRefreshSessionTTL = 24 * time.Hour
 )
 
-// sharedPGDSN, sharedRedisURL, and sharedMinIOEndpoint are populated once by
+// sharedPGDSN, sharedRedisURL, and sharedStorageEndpoint are populated once by
 // TestMain so that every newE2EEnv call reuses the same containers.
 var (
-	sharedPGDSN         string
-	sharedRedisURL      string
-	sharedMinIOEndpoint string // host:port reachable from the test process
+	sharedPGDSN           string
+	sharedRedisURL        string
+	sharedStorageEndpoint string // host:port reachable from the test process
 
 	// testDBSeq is incremented for each newE2EEnv call to generate a unique
 	// per-test Postgres database name. This ensures seed data (e.g. users)
@@ -197,6 +205,7 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 	tm := jwttoken.New(e2eJWTSecret, e2eAccessTTL, e2eRefreshTTL)
 	userRepo := pgRepo.NewUserRepository(db)
 	roleRepo := pgRepo.NewGlobalRoleRepository(db)
+	syncBuiltinGlobalRoles(t, roleRepo)
 	authzStore := pgRepo.NewAuthzPermissionStore(db)
 	refreshStore := redisRepo.NewRefreshTokenStore(redisClient)
 	authService := authsvc.New(userRepo, tm, refreshStore, e2eRefreshTTL, e2eRefreshSessionTTL)
@@ -208,7 +217,7 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 	projectService := projectsvc.New(projectRepo, taskRepo, agentRepo)
 	taskService := tasksvc.New(taskRepo)
 	// A real (non-nil) publisher is required so that task.updated activity
-	// events actually reach StreamTaskActivities — otherwise a per-test
+	// events actually reach StreamActivities — otherwise a per-test
 	// worker.AutomationConsumer would never observe task status changes made
 	// through the HTTP API. Declared before sprintService below for the same
 	// reason: a sprint reaching sprint_started/etc. must durably reach
@@ -225,20 +234,21 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 	attachmentRepo := pgRepo.NewAttachmentRepository(db)
 	apiKeyRepo := pgRepo.NewAPIKeyRepository(db)
 	apiKeyService := apikeysvc.New(apiKeyRepo)
-	activityRepo := pgRepo.NewTaskActivityRepository(db)
-	activityService := tasksvc.NewActivityService(activityRepo, taskRepo, projectRepo, publisher)
+	activityLog := activitysvc.New(pgRepo.NewActivityRepository(db), projectRepo, activitysvc.NewRecorder(publisher))
+	activityService := tasksvc.NewActivityService(activityLog, taskRepo, projectRepo)
 	automationRepo := pgRepo.NewAutomationRepository(db)
 	automationService := automationsvc.New(automationRepo, taskRepo, projectRepo, publisher)
 	pluginRepoForAgent := pgRepo.NewPluginRepository(db)
-	agentService := agentsvc.New(agentRepo, noopMemberCacheInvalidator{}, publisher, pluginRepoForAgent)
+	agentService := agentsvc.New(agentRepo, noopMemberCacheInvalidator{Service: projectService}, publisher, pluginRepoForAgent).
+		WithGlobalRoleService(globalRoleService)
 	var attachmentService *attachmentsvc.Service
-	if sharedMinIOEndpoint != "" {
-		minIOEndpoint := sharedMinIOEndpoint
+	if sharedStorageEndpoint != "" {
+		storageEndpoint := sharedStorageEndpoint
 		storageClient, storageErr := storage.NewS3Client(ctx, storage.S3Config{
-			Endpoint:        "http://" + minIOEndpoint,
+			Endpoint:        "http://" + storageEndpoint,
 			Region:          "us-east-1",
-			AccessKeyID:     "minioadmin",
-			SecretAccessKey: "minioadmin",
+			AccessKeyID:     "rustfsadmin",
+			SecretAccessKey: "rustfsadmin",
 			ForcePathStyle:  true,
 		})
 		if storageErr != nil {
@@ -258,25 +268,43 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 		RefreshTTL:        e2eRefreshTTL,
 		RefreshSessionTTL: e2eRefreshSessionTTL,
 	}
+	authHandler := handler.NewAuthHandler(authService, cookieCfg)
+	// Empty public URL: the callback URL is derived from the request's
+	// Host, i.e. this test server's own address.
+	ssoHandler := handler.NewSSOHandler(
+		ssosvc.New(pgRepo.NewSSORepository(db), redisRepo.NewSSOStateStore(redisClient, 10*time.Minute),
+			userRepo, userService, authService, log),
+		authHandler, "")
 	engine := router.New(router.Deps{
 		TokenManager:         tm,
 		APIKeyAuth:           apiKeyService,
 		Authorizer:           authz.NewAuthorizer(authzStore),
 		ProjectVisibilitySvc: projectService,
 		Health:               handler.NewHealthHandler(),
-		Auth:                 handler.NewAuthHandler(authService, cookieCfg),
+		Auth:                 authHandler,
+		SSO:                  ssoHandler,
 		User:                 handler.NewUserHandler(userService),
 		GlobalRole:           handler.NewGlobalRoleHandler(globalRoleService),
-		Project:              handler.NewProjectHandler(projectService, authz.NewAuthorizer(authzStore)),
-		Task:                 handler.NewTaskHandler(taskService, viewService, activityService, handler.WithTaskAssignedProjectService(projectService)),
-		Sprint:               handler.NewSprintHandler(sprintService, viewService),
-		View:                 handler.NewViewHandler(viewService),
-		Attachment:           handler.NewAttachmentHandler(attachmentService),
-		APIKey:               handler.NewAPIKeyHandler(apiKeyService),
-		Automation:           handler.NewAutomationHandler(automationService),
-		Agent:                handler.NewAgentHandler(agentService, "", "", "").WithMemberRepo(projectRepo),
-		Conversation:         handler.NewConversationHandler(agentService).WithMemberRepo(projectRepo),
-		Log:                  log,
+		Project: handler.NewProjectHandler(projectService, authz.NewAuthorizer(authzStore),
+			// Same Jev wiring as bootstrap/app.go (nil encryptor: keys are
+			// stored as plaintext, as on an instance without ENCRYPTION_KEY),
+			// plus a plain transport so jev-config/test can reach a test's
+			// local fake Jev server, which the SSRF-safe default would reject.
+			handler.WithProjectJevConfigService(projectService, nil),
+			handler.WithProjectJevHTTPClient(&http.Client{Timeout: 10 * time.Second})),
+		Task: handler.NewTaskHandler(taskService, viewService, activityService,
+			handler.WithTaskAssignedProjectService(projectService),
+			// Records which fields a human explicitly set, so the Jev
+			// autofill consumer never overwrites them — as in bootstrap/app.go.
+			handler.WithTaskAutofillRepository(taskRepo)),
+		Sprint:       handler.NewSprintHandler(sprintService, viewService),
+		View:         handler.NewViewHandler(viewService),
+		Attachment:   handler.NewAttachmentHandler(attachmentService),
+		APIKey:       handler.NewAPIKeyHandler(apiKeyService),
+		Automation:   handler.NewAutomationHandler(automationService),
+		Agent:        handler.NewAgentHandler(agentService, "", "", "").WithMemberRepo(projectRepo).WithActivityLister(activityLog),
+		Conversation: handler.NewConversationHandler(agentService).WithMemberRepo(projectRepo),
+		Log:          log,
 	})
 
 	srv := httptest.NewServer(engine)
@@ -381,38 +409,45 @@ func TestMain(m *testing.M) {
 	}
 	sharedRedisURL = fmt.Sprintf("redis://%s:%s/0", redisHost, redisPort.Port())
 
-	minioC, err := testcontainers.GenericContainer(bgCtx, testcontainers.GenericContainerRequest{
+	// A failure here must never reach for pgC/redisC.Terminate: m.Run() below
+	// runs the ENTIRE suite regardless of this container's fate, not just the
+	// attachment tests the comment below refers to — terminating the shared
+	// Postgres/Valkey containers here previously took down every other test
+	// in the package with a "connection refused" once this container's pull
+	// started failing (MinIO's images were pulled from Docker Hub; see
+	// docs/deployment/README.md), instead of just skipping attachment tests
+	// as intended.
+	rustfsC, err := testcontainers.GenericContainer(bgCtx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image: "minio/minio:latest",
+			Image: "rustfs/rustfs:1.0.0-rc.6",
 			Env: map[string]string{
-				"MINIO_ROOT_USER":     "minioadmin",
-				"MINIO_ROOT_PASSWORD": "minioadmin",
+				"RUSTFS_ACCESS_KEY": "rustfsadmin",
+				"RUSTFS_SECRET_KEY": "rustfsadmin",
+				"RUSTFS_VOLUMES":    "/data/rustfs0",
+				"RUSTFS_ADDRESS":    "0.0.0.0:9000",
 			},
-			Cmd:          []string{"server", "/data"},
 			ExposedPorts: []string{"9000/tcp"},
-			WaitingFor:   wait.ForHTTP("/minio/health/live").WithPort("9000/tcp").WithStartupTimeout(60 * time.Second),
+			WaitingFor:   wait.ForHTTP("/health").WithPort("9000/tcp").WithStartupTimeout(60 * time.Second),
 		},
 		Started: true,
 	})
 	if err != nil {
-		_ = pgC.Terminate(bgCtx)
-		_ = redisC.Terminate(bgCtx)
-		fmt.Fprintf(os.Stderr, "WARN: start minio container: %v – attachment tests will be skipped\n", err)
+		fmt.Fprintf(os.Stderr, "WARN: start rustfs container: %v – attachment tests will be skipped\n", err)
 	} else {
-		minioHost, _ := minioC.Host(bgCtx)
-		minioPort, _ := minioC.MappedPort(bgCtx, "9000/tcp")
-		if minioHost == "localhost" {
-			minioHost = "127.0.0.1"
+		rustfsHost, _ := rustfsC.Host(bgCtx)
+		rustfsPort, _ := rustfsC.MappedPort(bgCtx, "9000/tcp")
+		if rustfsHost == "localhost" {
+			rustfsHost = "127.0.0.1"
 		}
-		sharedMinIOEndpoint = fmt.Sprintf("%s:%s", minioHost, minioPort.Port())
+		sharedStorageEndpoint = fmt.Sprintf("%s:%s", rustfsHost, rustfsPort.Port())
 	}
 
 	code := m.Run()
 
 	_ = pgC.Terminate(bgCtx)
 	_ = redisC.Terminate(bgCtx)
-	if minioC != nil {
-		_ = minioC.Terminate(bgCtx)
+	if rustfsC != nil {
+		_ = rustfsC.Terminate(bgCtx)
 	}
 
 	os.Exit(code)
@@ -464,7 +499,7 @@ func setupDockerEnvForMain() bool {
 // the environment. TestMain's setupDockerEnvForMain already exported
 // DOCKER_HOST/TESTCONTAINERS_RYUK_DISABLED process-wide (via os.Setenv,
 // before any test starts) if Docker was found at all, and no test creates
-// its own containers — Postgres/Valkey/MinIO are shared, started once in
+// its own containers — Postgres/Valkey/RustFS are shared, started once in
 // TestMain — so there is nothing left for an individual test to configure.
 // This also matters for parallel tests specifically: t.Setenv panics if
 // called after t.Parallel(), since env vars are process-global and unsafe

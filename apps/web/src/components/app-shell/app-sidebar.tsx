@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import {
 	Link,
 	useNavigate,
@@ -6,6 +11,7 @@ import {
 	useRouterState,
 } from "@tanstack/react-router";
 import {
+	Activity,
 	ArrowLeft,
 	BookOpen,
 	Bot,
@@ -21,6 +27,7 @@ import {
 	GanttChart,
 	Home,
 	KanbanSquare,
+	Loader2,
 	MessageSquare,
 	Monitor,
 	Moon,
@@ -41,6 +48,7 @@ import {
 	type ComponentType,
 	useCallback,
 	useEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -78,6 +86,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import type { ThemeMode } from "@/hooks/use-theme-mode";
 import { useThemeMode } from "@/hooks/use-theme-mode";
+import { ApiErrorCode, getApiErrorCode } from "@/lib/api-error";
 import { currentUserQueryOptions } from "@/lib/auth-api";
 import {
 	createDocument,
@@ -100,8 +109,9 @@ import { usePluginRegistry } from "@/lib/plugins/registry";
 import {
 	getProjectInitials,
 	projectQueryOptions,
-	projectsQueryOptions,
+	projectsInfiniteQueryOptions,
 } from "@/lib/project-api";
+import { createLoadMoreScrollHandler } from "@/lib/scroll-pagination";
 import { cn } from "@/lib/utils";
 import { UserMenu } from "./user-menu";
 
@@ -171,12 +181,23 @@ function DocsDocRow({
 	const navigate = useNavigate();
 	const qc = useQueryClient();
 	const [renaming, setRenaming] = useState(false);
+	const [renameError, setRenameError] = useState<string | null>(null);
+	// The title last submitted, so a failed attempt reopens the editor with
+	// what the person typed instead of reverting to the original title.
+	const [pendingTitle, setPendingTitle] = useState<string | null>(null);
+	// Bumped on every failed attempt to remount TreeInlineRename — it tracks
+	// "already confirmed" internally to dedupe Enter+blur, so without a fresh
+	// instance a retry after an error couldn't re-confirm.
+	const [renameAttempt, setRenameAttempt] = useState(0);
 
 	const isActive = location === `/projects/${projectId}/docs/${doc.id}`;
 
 	const renameMutation = useMutation({
 		mutationFn: (title: string) => updateDocument(projectId, doc.id, { title }),
 		onSuccess: (updated) => {
+			setRenameError(null);
+			setRenaming(false);
+			setPendingTitle(null);
 			qc.setQueryData(docQueryKeys.detail(projectId, doc.id), updated);
 			qc.invalidateQueries({ queryKey: docQueryKeys.list(projectId) });
 			if (doc.folder_id) {
@@ -184,6 +205,14 @@ function DocsDocRow({
 					queryKey: docQueryKeys.list(projectId, doc.folder_id),
 				});
 			}
+		},
+		onError: (err: unknown) => {
+			setRenameError(
+				getApiErrorCode(err) === ApiErrorCode.DocTitleInvalid
+					? t("docs.errors.titleInvalid")
+					: t("docs.errors.renameFailed"),
+			);
+			setRenameAttempt((n) => n + 1);
 		},
 	});
 
@@ -198,93 +227,109 @@ function DocsDocRow({
 	});
 
 	return (
-		<div
-			className="group relative flex items-center gap-1 pr-1"
-			style={{ paddingLeft: `${8 + depth * 16 + 16}px` }}
-		>
-			<button
-				type="button"
-				className={cn(
-					"flex flex-1 min-w-0 items-center gap-1.5 rounded-md px-2 py-1 cursor-pointer transition-all duration-150 text-sm",
-					isActive
-						? "bg-primary/10 text-primary font-medium"
-						: "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-				)}
-				onClick={() => {
-					if (renaming) return;
-					navigate({
-						to: "/projects/$projectId/docs/$docId",
-						params: { projectId, docId: doc.id },
-					});
-				}}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
+		<>
+			<div
+				className="group relative flex items-center gap-1 pr-1"
+				style={{ paddingLeft: `${8 + depth * 16 + 16}px` }}
+			>
+				<button
+					type="button"
+					className={cn(
+						"flex flex-1 min-w-0 items-center gap-1.5 rounded-md px-2 py-1 cursor-pointer transition-all duration-150 text-sm",
+						isActive
+							? "bg-primary/10 text-primary font-medium"
+							: "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+					)}
+					onClick={() => {
+						if (renaming) return;
 						navigate({
 							to: "/projects/$projectId/docs/$docId",
 							params: { projectId, docId: doc.id },
 						});
-					}
-				}}
-			>
-				<FileText
-					className={cn(
-						"size-3.5 shrink-0 transition-colors",
-						isActive ? "text-primary/70" : "text-sidebar-foreground/40",
-					)}
-				/>
-				{renaming ? (
-					<TreeInlineRename
-						initialValue={doc.title || t("docs.untitled")}
-						onConfirm={(title) => {
-							renameMutation.mutate(title);
-							setRenaming(false);
-						}}
-						onCancel={() => setRenaming(false)}
-					/>
-				) : (
-					<span className="truncate leading-snug">
-						{doc.title || (
-							<span className="italic text-sidebar-foreground/40">
-								{t("docs.untitled")}
-							</span>
+					}}
+					onKeyDown={(e) => {
+						if (e.key === "Enter" || e.key === " ") {
+							navigate({
+								to: "/projects/$projectId/docs/$docId",
+								params: { projectId, docId: doc.id },
+							});
+						}
+					}}
+				>
+					<FileText
+						className={cn(
+							"size-3.5 shrink-0 transition-colors",
+							isActive ? "text-primary/70" : "text-sidebar-foreground/40",
 						)}
-					</span>
-				)}
-			</button>
+					/>
+					{renaming ? (
+						<TreeInlineRename
+							key={renameAttempt}
+							initialValue={pendingTitle ?? (doc.title || t("docs.untitled"))}
+							onConfirm={(title) => {
+								setPendingTitle(title);
+								renameMutation.mutate(title);
+							}}
+							onCancel={() => {
+								setRenaming(false);
+								setRenameError(null);
+								setPendingTitle(null);
+							}}
+						/>
+					) : (
+						<span className="truncate leading-snug">
+							{doc.title || (
+								<span className="italic text-sidebar-foreground/40">
+									{t("docs.untitled")}
+								</span>
+							)}
+						</span>
+					)}
+				</button>
 
-			{canWrite && !renaming && (
-				<DropdownMenu>
-					<DropdownMenuTrigger
-						className="opacity-0 group-hover:opacity-100 flex size-5 shrink-0 items-center justify-center rounded text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-all duration-150"
-						onClick={(e) => e.stopPropagation()}
-					>
-						<MoreHorizontal className="size-3" />
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start" className="w-36">
-						<DropdownMenuItem
-							onClick={(e) => {
-								e.stopPropagation();
-								setRenaming(true);
-							}}
+				{canWrite && !renaming && (
+					<DropdownMenu>
+						<DropdownMenuTrigger
+							className="opacity-0 group-hover:opacity-100 flex size-5 shrink-0 items-center justify-center rounded text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-all duration-150"
+							onClick={(e) => e.stopPropagation()}
 						>
-							<Pencil className="size-3.5 mr-2" />
-							{t("docs.rename")}
-						</DropdownMenuItem>
-						<DropdownMenuSeparator />
-						<DropdownMenuItem
-							className="text-destructive focus:text-destructive"
-							onClick={(e) => {
-								e.stopPropagation();
-								deleteMutation.mutate();
-							}}
-						>
-							<Trash2 className="size-3.5 mr-2" />
-							{t("docs.delete")}
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
+							<MoreHorizontal className="size-3" />
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="start" className="w-36">
+							<DropdownMenuItem
+								onClick={(e) => {
+									e.stopPropagation();
+									setRenameError(null);
+									setRenaming(true);
+								}}
+							>
+								<Pencil className="size-3.5 mr-2" />
+								{t("docs.rename")}
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem
+								className="text-destructive focus:text-destructive"
+								onClick={(e) => {
+									e.stopPropagation();
+									deleteMutation.mutate();
+								}}
+							>
+								<Trash2 className="size-3.5 mr-2" />
+								{t("docs.delete")}
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				)}
+			</div>
+			{renameError && (
+				<p
+					className="text-xs text-destructive px-2 py-0.5"
+					style={{ paddingLeft: `${8 + depth * 16 + 16}px` }}
+				>
+					{renameError}
+				</p>
 			)}
-		</div>
+		</>
 	);
 }
 
@@ -309,6 +354,14 @@ function DocsFolderNode({
 	const { t } = useTranslation("appShell");
 	const qc = useQueryClient();
 	const [renaming, setRenaming] = useState(false);
+	const [renameError, setRenameError] = useState<string | null>(null);
+	// The name last submitted, so a failed attempt reopens the editor with
+	// what the person typed instead of reverting to the original name.
+	const [pendingName, setPendingName] = useState<string | null>(null);
+	// Bumped on every failed attempt to remount TreeInlineRename — it tracks
+	// "already confirmed" internally to dedupe Enter+blur, so without a fresh
+	// instance a retry after an error couldn't re-confirm.
+	const [renameAttempt, setRenameAttempt] = useState(0);
 	const [addingDoc, setAddingDoc] = useState(false);
 	const navigate = useNavigate();
 
@@ -322,8 +375,20 @@ function DocsFolderNode({
 	const childFolders = allFolders.filter((f) => f.parent_id === folder.id);
 	const renameMutation = useMutation({
 		mutationFn: (name: string) => updateFolder(projectId, folder.id, { name }),
-		onSuccess: () =>
-			qc.invalidateQueries({ queryKey: docQueryKeys.folders(projectId) }),
+		onSuccess: () => {
+			setRenameError(null);
+			setRenaming(false);
+			setPendingName(null);
+			qc.invalidateQueries({ queryKey: docQueryKeys.folders(projectId) });
+		},
+		onError: (err: unknown) => {
+			setRenameError(
+				getApiErrorCode(err) === ApiErrorCode.DocFolderNameInvalid
+					? t("docs.errors.folderNameInvalid")
+					: t("docs.errors.renameFailed"),
+			);
+			setRenameAttempt((n) => n + 1);
+		},
 	});
 
 	const deleteMutation = useMutation({
@@ -386,12 +451,17 @@ function DocsFolderNode({
 					)}
 					{renaming ? (
 						<TreeInlineRename
-							initialValue={folder.name}
+							key={renameAttempt}
+							initialValue={pendingName ?? folder.name}
 							onConfirm={(name) => {
+								setPendingName(name);
 								renameMutation.mutate(name);
-								setRenaming(false);
 							}}
-							onCancel={() => setRenaming(false)}
+							onCancel={() => {
+								setRenaming(false);
+								setRenameError(null);
+								setPendingName(null);
+							}}
 						/>
 					) : (
 						<span className="truncate leading-snug font-medium">
@@ -413,6 +483,7 @@ function DocsFolderNode({
 								<DropdownMenuItem
 									onClick={(e) => {
 										e.stopPropagation();
+										setRenameError(null);
 										setRenaming(true);
 									}}
 								>
@@ -435,6 +506,15 @@ function DocsFolderNode({
 					</div>
 				)}
 			</div>
+
+			{renameError && (
+				<p
+					className="text-xs text-destructive px-2 py-0.5"
+					style={{ paddingLeft: `${8 + depth * 16 + 26}px` }}
+				>
+					{renameError}
+				</p>
+			)}
 
 			{/* Children */}
 			{isExpanded && (
@@ -736,13 +816,26 @@ function ProjectSwitcher({
 }) {
 	const { t } = useTranslation("appShell");
 	const [open, setOpen] = useState(false);
-	const { data: projectsResult } = useQuery(projectsQueryOptions());
+	const {
+		data: projectsData,
+		fetchNextPage,
+		hasNextPage,
+		isFetchingNextPage,
+	} = useInfiniteQuery(projectsInfiniteQueryOptions());
 	const { data: currentProject } = useQuery({
 		...projectQueryOptions(currentProjectId ?? ""),
 		enabled: !!currentProjectId,
 	});
 
-	const projects = projectsResult?.items ?? [];
+	const projects = useMemo(
+		() => projectsData?.pages.flatMap((p) => p.items) ?? [],
+		[projectsData],
+	);
+	const handleProjectsScroll = createLoadMoreScrollHandler({
+		hasMore: !!hasNextPage,
+		isLoadingMore: isFetchingNextPage,
+		onLoadMore: () => void fetchNextPage(),
+	});
 	const label = currentProject?.name ?? t("projectSwitcher.projects");
 	const initials = currentProject?.name
 		? getProjectInitials(currentProject.name)
@@ -786,7 +879,12 @@ function ProjectSwitcher({
 					)}
 				/>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent align="start" sideOffset={6} className="w-60">
+			<DropdownMenuContent
+				align="start"
+				sideOffset={6}
+				className="w-60"
+				onScroll={handleProjectsScroll}
+			>
 				<DropdownMenuGroup>
 					<DropdownMenuLabel className="text-xs text-muted-foreground pb-1">
 						{t("projectSwitcher.yourProjects")}
@@ -817,6 +915,12 @@ function ProjectSwitcher({
 								)}
 							</DropdownMenuItem>
 						))}
+						{isFetchingNextPage ? (
+							<div className="flex items-center justify-center gap-1.5 py-2 text-xs text-muted-foreground">
+								<Loader2 className="size-3 animate-spin" />
+								{t("projectSwitcher.loadingMore")}
+							</div>
+						) : null}
 					</DropdownMenuGroup>
 				) : (
 					<div className="flex flex-col items-center gap-1 px-3 py-4">
@@ -898,8 +1002,16 @@ const PROJECT_NAV_ITEMS = [
 	},
 	{ segment: "automation", icon: Workflow, labelKey: "nav.automation" },
 	{ segment: "team", icon: Users, labelKey: "nav.team" },
+	{ segment: "activity", icon: Activity, labelKey: "nav.activity" },
 	{ segment: "settings", icon: Settings, labelKey: "nav.settings" },
 ] as const;
+
+// Unlike the rest of the project nav, the activity log is hidden from members
+// who can't read it: by default only owners/managers/admins can, so showing
+// it to everyone would mostly lead to a no-permission page.
+const PERMISSION_GATED_SEGMENTS: Partial<Record<string, string>> = {
+	activity: "project.activities.read",
+};
 
 function ProjectNav() {
 	const { t } = useTranslation("appShell");
@@ -929,6 +1041,7 @@ const ANON_HIDDEN_SEGMENTS = new Set([
 	"conversations",
 	"automation",
 	"team",
+	"activity",
 	"settings",
 ]);
 
@@ -941,6 +1054,7 @@ function ProjectNavItems({
 }) {
 	const { t } = useTranslation("appShell");
 	const location = useRouterState({ select: (s) => s.location.pathname });
+	const { hasProjectPermission } = useProjectPermissions(projectId);
 
 	const [collapsed, setCollapsed] = useState(() => {
 		try {
@@ -986,9 +1100,12 @@ function ProjectNavItems({
 			{!collapsed && (
 				<SidebarGroupContent>
 					<SidebarMenu>
-						{PROJECT_NAV_ITEMS.filter(
-							(item) => !isAnonymous || !ANON_HIDDEN_SEGMENTS.has(item.segment),
-						).map(({ segment, icon: Icon, labelKey }) => {
+						{PROJECT_NAV_ITEMS.filter((item) => {
+							if (isAnonymous && ANON_HIDDEN_SEGMENTS.has(item.segment))
+								return false;
+							const required = PERMISSION_GATED_SEGMENTS[item.segment];
+							return !required || hasProjectPermission(required);
+						}).map(({ segment, icon: Icon, labelKey }) => {
 							const href = segment
 								? `/projects/${projectId}/${segment}`
 								: `/projects/${projectId}`;
@@ -1030,12 +1147,15 @@ function ProjectNavItems({
 function PluginProjectPages({ projectId }: { projectId: string }) {
 	const { t } = useTranslation("appShell");
 	const { getNavItems } = usePluginRegistry();
-	const { hasProjectPermission } = useProjectPermissions(projectId);
 	const location = useRouterState({ select: (s) => s.location.pathname });
-	const navItems = getNavItems("project").filter(
-		(item) =>
-			!item.requiredPermission || hasProjectPermission(item.requiredPermission),
-	);
+	// A nav item's own requiredPermission no longer hides it from the
+	// sidebar — matching how the built-in project nav (Team, Environments,
+	// etc. in PROJECT_NAV_ITEMS below) is always shown to any project
+	// member regardless of their specific permissions. The page it routes
+	// to renders a no-permission state instead (see ProjectPluginPage),
+	// consistent with how project settings tabs already behave (e.g.
+	// TaskTypesSettings).
+	const navItems = getNavItems("project");
 	if (navItems.length === 0) return null;
 
 	return (
@@ -1076,9 +1196,9 @@ function PluginProjectPages({ projectId }: { projectId: string }) {
  * cross-project time-tracking summary), routed to
  * /admin/plugins/:pluginId/:slug. Rendered inline in the existing
  * "Administration" SidebarMenu, so no extra group wrapper here. `navItems`
- * is pre-filtered by the caller (each item's own `requiredPermission`, if
- * any) so this stays in sync with the `showAdminSection` computation that
- * decides whether the enclosing group renders at all. */
+ * is unfiltered by permission (see AppSidebar's `adminPluginNavItems`) — a
+ * caller who lacks an item's `requiredPermission` still sees the link, and
+ * gets a no-permission state on the page itself. */
 function PluginAdminPages({ navItems }: { navItems: PluginNavRegistration[] }) {
 	return (
 		<>
@@ -1572,33 +1692,43 @@ export function AppSidebar() {
 	const canAccessGlobalAgents =
 		hasPermission("agents.read") || hasPermission("agents.write");
 
-	const canAccessPlugins = hasPermission("users.write");
+	// plugins.write replaced users.write as a rough "is this someone
+	// important" proxy once it got its own dedicated permission — see authz.
+	// PermissionPluginsRead's doc comment on the Go side. This nav-link
+	// check was never updated when that happened.
+	const canAccessPlugins = hasPermission("plugins.write");
 
-	const canAccessSettings = hasPermission("settings.write");
+	const canAccessSettings =
+		hasPermission("settings.write") || hasPermission("settings.sso.write");
 
 	const canCreateProject = hasPermission("projects.create");
 
-	// Plugin admin nav items are gated by their own declared
-	// `requiredPermission` (falling back to open access if the plugin didn't
-	// declare one), never by `canAccessPlugins` — a user shouldn't need
-	// `users.write` just to reach a plugin page whose author scoped it to a
-	// narrower, plugin-specific permission.
-	const adminPluginNavItems = getNavItems("admin").filter(
-		(item) =>
-			!item.requiredPermission || hasPermission(item.requiredPermission),
-	);
+	// A plugin admin nav item's own declared `requiredPermission` no longer
+	// hides it from the sidebar — the page it routes to renders a
+	// no-permission state instead (see AdminPluginPage), matching how core
+	// admin pages (Users, Global Roles) already behave: reachable by anyone
+	// who can already see the Administration section, with the page itself
+	// enforcing the finer-grained check.
+	const adminPluginNavItems = getNavItems("admin");
 
+	// Deliberately does NOT include `adminPluginNavItems.length > 0`: unlike
+	// before, an item's permission can no longer be satisfied just by
+	// hiding it, so a plugin with an admin page must not be able to
+	// single-handedly reveal the "Administration" heading to a user with
+	// zero admin permissions of any kind — that would surface an entire
+	// nav section to people who have no reason to ever open it.
 	const showAdminSection =
 		canAccessGlobalRoles ||
 		canAccessUsers ||
 		canAccessGlobalAgents ||
 		canAccessPlugins ||
-		canAccessSettings ||
-		adminPluginNavItems.length > 0;
+		canAccessSettings;
 	// Plugin-contributed admin pages get their own sidebar section, separate
 	// from core workspace administration — the "Plugins" management link
-	// itself (canAccessPlugins) stays in Administration.
-	const showPluginsSection = adminPluginNavItems.length > 0;
+	// itself (canAccessPlugins) stays in Administration. Gated on
+	// showAdminSection for the same reason as above: only shown to someone
+	// who can already see Administration for another reason.
+	const showPluginsSection = showAdminSection && adminPluginNavItems.length > 0;
 	const isProjectContext = !!projectId;
 	const isAnonymous = !user;
 

@@ -1,13 +1,14 @@
 // spec: features/admin/global-roles.feature
 // seed: tests/seed.spec.ts
 
+import { ensureLoginForm } from '../helpers/e2e-api';
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost';
 const USERNAME = process.env.E2E_USERNAME ?? 'admin';
 const PASSWORD = process.env.E2E_PASSWORD ?? 'e2e-admin-password';
 
-const TEST_ROLE_PREFIX = 'E2E_';
+const TEST_ROLE_PREFIX = 'E2E_GR_';
 
 function permSwitch(page: Page, label: string) {
   return page.getByText(label, { exact: true }).locator('xpath=../following-sibling::*[@role="switch"]');
@@ -31,9 +32,25 @@ async function cleanupTestRoles(request: APIRequestContext): Promise<void> {
   );
 }
 
+async function createTestRole(
+  request: APIRequestContext,
+  name: string,
+  permissions: Record<string, boolean> = {},
+): Promise<{ id: string; name: string }> {
+  await request.post(`${BASE_URL}/api/v1/auth/login`, {
+    data: { username: USERNAME, password: PASSWORD, rememberMe: false },
+  });
+  const response = await request.post(`${BASE_URL}/api/v1/admin/global-roles`, {
+    data: { name, permissions },
+  });
+  expect(response.ok()).toBeTruthy();
+  return (await response.json()).data;
+}
+
 test.describe('Global Roles Management', () => {
   const signInAsAdmin = async (page: Page) => {
     await page.goto(`${BASE_URL}/`);
+    await ensureLoginForm(page);
     await page.getByRole('textbox', { name: 'Username' }).fill(USERNAME);
     await page.getByRole('textbox', { name: 'Password' }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
@@ -59,6 +76,7 @@ test.describe('Global Roles Management', () => {
     test('Page header and statistics are visible', async ({ page }) => {
       // 1. Navigate to the app and sign in as admin
       await page.goto(`${BASE_URL}/`);
+      await ensureLoginForm(page);
       await page.getByRole('textbox', { name: 'Username' }).fill(USERNAME);
       await page.getByRole('textbox', { name: 'Password' }).fill(PASSWORD);
       await page.getByRole('button', { name: 'Sign in' }).click();
@@ -82,10 +100,10 @@ test.describe('Global Roles Management', () => {
     test('Roles table displays expected columns and rows', async ({ page }) => {
       await signInAsAdmin(page);
 
-      // Roles table should have columns "Name", "Permissions", and "Created"
+      // Roles table should have columns "Name", "Permissions", and "Default"
       await expect(page.getByRole('columnheader', { name: 'Name' })).toBeVisible();
       await expect(page.getByRole('columnheader', { name: 'Permissions' })).toBeVisible();
-      await expect(page.getByRole('columnheader', { name: 'Created' })).toBeVisible();
+      await expect(page.getByRole('columnheader', { name: 'Default' })).toBeVisible();
 
       // Each default role should appear as a row in the table
       await expect(page.getByRole('table').getByText('ADMIN', { exact: true })).toBeVisible();
@@ -126,7 +144,7 @@ test.describe('Global Roles Management', () => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const roleName = `E2E_SECURITY_MANAGER_${timestamp}`;
+      const roleName = `E2E_GR_SECURITY_MANAGER_${timestamp}`;
 
       // When the user clicks the "New Role" button and fills in details
       await page.getByRole('button', { name: 'New Role' }).click();
@@ -158,7 +176,7 @@ test.describe('Global Roles Management', () => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const roleName = `E2E_SHOULD_NOT_EXIST_${timestamp}`;
+      const roleName = `E2E_GR_SHOULD_NOT_EXIST_${timestamp}`;
 
       // When the user fills the name and then cancels
       await page.getByRole('button', { name: 'New Role' }).click();
@@ -174,7 +192,7 @@ test.describe('Global Roles Management', () => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const roleName = `E2E_EMPTY_PERMISSIONS_${timestamp}`;
+      const roleName = `E2E_GR_EMPTY_PERMISSIONS_${timestamp}`;
 
       await page.getByRole('button', { name: 'New Role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).fill(roleName);
@@ -190,7 +208,7 @@ test.describe('Global Roles Management', () => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const roleName = `E2E_GLOBAL_ROLES_WILDCARD_${timestamp}`;
+      const roleName = `E2E_GR_GLOBAL_ROLES_WILDCARD_${timestamp}`;
 
       await page.getByRole('button', { name: 'New Role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).fill(roleName);
@@ -207,7 +225,7 @@ test.describe('Global Roles Management', () => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const roleName = `E2E_USERS_WILDCARD_${timestamp}`;
+      const roleName = `E2E_GR_USERS_WILDCARD_${timestamp}`;
 
       await page.getByRole('button', { name: 'New Role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).fill(roleName);
@@ -224,7 +242,7 @@ test.describe('Global Roles Management', () => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const roleName = `E2E_PROJECTS_WILDCARD_${timestamp}`;
+      const roleName = `E2E_GR_PROJECTS_WILDCARD_${timestamp}`;
 
       await page.getByRole('button', { name: 'New Role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).fill(roleName);
@@ -246,7 +264,7 @@ test.describe('Global Roles Management', () => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const roleName = `E2E_SUPER_ROLE_${timestamp}`;
+      const roleName = `E2E_GR_SUPER_ROLE_${timestamp}`;
 
       await page.getByRole('button', { name: 'New Role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).fill(roleName);
@@ -278,7 +296,7 @@ test.describe('Global Roles Management', () => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const roleName = `E2E_MIXED_${timestamp}`;
+      const roleName = `E2E_GR_MIXED_${timestamp}`;
 
       await page.getByRole('button', { name: 'New Role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).fill(roleName);
@@ -369,7 +387,7 @@ test.describe('Global Roles Management', () => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const roleName = `E2E_COUNT_CHECK_${timestamp}`;
+      const roleName = `E2E_GR_COUNT_CHECK_${timestamp}`;
 
       await page.getByRole('button', { name: 'New Role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).fill(roleName);
@@ -408,7 +426,7 @@ test.describe('Global Roles Management', () => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const roleName = `E2E_EDITABLE_${timestamp}`;
+      const roleName = `E2E_GR_EDITABLE_${timestamp}`;
 
       await page.getByRole('button', { name: 'New Role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).fill(roleName);
@@ -431,8 +449,8 @@ test.describe('Global Roles Management', () => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const originalName = `E2E_EDITABLE_${timestamp}`;
-      const renamedName = `E2E_RENAMED_${timestamp}`;
+      const originalName = `E2E_GR_EDITABLE_${timestamp}`;
+      const renamedName = `E2E_GR_RENAMED_${timestamp}`;
 
       await page.getByRole('button', { name: 'New Role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).fill(originalName);
@@ -456,7 +474,7 @@ test.describe('Global Roles Management', () => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const originalName = `E2E_EDITABLE_${timestamp}`;
+      const originalName = `E2E_GR_EDITABLE_${timestamp}`;
 
       await page.getByRole('button', { name: 'New Role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).fill(originalName);
@@ -468,19 +486,19 @@ test.describe('Global Roles Management', () => {
       await roleRow.hover();
       await roleRow.getByRole('button', { name: 'Edit role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).clear();
-      await page.getByRole('textbox', { name: 'Role Name' }).fill('E2E_UNSAVED_CHANGE');
+      await page.getByRole('textbox', { name: 'Role Name' }).fill('E2E_GR_UNSAVED_CHANGE');
       await page.getByRole('button', { name: 'Cancel' }).click();
 
       await expect(page.getByRole('dialog', { name: 'Edit Role' })).not.toBeVisible();
       await expect(page.getByRole('table').getByText(originalName, { exact: true })).toBeVisible();
-      await expect(page.getByRole('table').getByText('E2E_UNSAVED_CHANGE', { exact: true })).not.toBeVisible();
+      await expect(page.getByRole('table').getByText('E2E_GR_UNSAVED_CHANGE', { exact: true })).not.toBeVisible();
     });
 
     test('Completing a domain group during edit collapses it to a wildcard', async ({ page }) => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const roleName = `E2E_PARTIAL_GR_${timestamp}`;
+      const roleName = `E2E_GR_PARTIAL_GR_${timestamp}`;
 
       await page.getByRole('button', { name: 'New Role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).fill(roleName);
@@ -504,7 +522,7 @@ test.describe('Global Roles Management', () => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const roleName = `E2E_REMOVE_PERMS_${timestamp}`;
+      const roleName = `E2E_GR_REMOVE_PERMS_${timestamp}`;
 
       await page.getByRole('button', { name: 'New Role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).fill(roleName);
@@ -529,7 +547,7 @@ test.describe('Global Roles Management', () => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const roleName = `E2E_PREPOP_${timestamp}`;
+      const roleName = `E2E_GR_PREPOP_${timestamp}`;
 
       await page.getByRole('button', { name: 'New Role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).fill(roleName);
@@ -554,7 +572,7 @@ test.describe('Global Roles Management', () => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const roleName = `E2E_TOGGLE_PERSIST_${timestamp}`;
+      const roleName = `E2E_GR_TOGGLE_PERSIST_${timestamp}`;
 
       await page.getByRole('button', { name: 'New Role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).fill(roleName);
@@ -582,7 +600,7 @@ test.describe('Global Roles Management', () => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const roleName = `E2E_DELETABLE_${timestamp}`;
+      const roleName = `E2E_GR_DELETABLE_${timestamp}`;
 
       await page.getByRole('button', { name: 'New Role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).fill(roleName);
@@ -610,7 +628,7 @@ test.describe('Global Roles Management', () => {
       await signInAsAdmin(page);
 
       const timestamp = Date.now();
-      const roleName = `E2E_PRESERVED_${timestamp}`;
+      const roleName = `E2E_GR_PRESERVED_${timestamp}`;
 
       await page.getByRole('button', { name: 'New Role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).fill(roleName);
@@ -629,6 +647,138 @@ test.describe('Global Roles Management', () => {
     });
   });
 
+  // The default role is instance-wide: every new user and global agent starts
+  // with it, and other specs create those at the same time. So the real default
+  // (USER) is only read here, never changed; making another role the default is
+  // driven through the page with the server's answer stubbed. The server side
+  // of it is covered by the API's own end-to-end tests.
+  test.describe('The default role', () => {
+    const rowOf = (page: Page, name: string) =>
+      page.getByRole('row').filter({ has: page.getByText(name, { exact: true }) });
+
+    test('Marks the role new accounts start with, and does not let it be deleted', async ({ page, request }) => {
+      await signInAsAdmin(page);
+
+      // Exactly one role carries the mark (the column header is not a row of the body).
+      const marks = page.locator('tbody').getByText('Default', { exact: true });
+      await expect(marks).toHaveCount(1);
+      const userRow = rowOf(page, 'USER');
+      await expect(userRow.getByText('Default', { exact: true })).toBeVisible();
+
+      // Its edit action stays; its delete action is disabled, with the reason.
+      await expect(userRow.getByRole('button', { name: 'Edit role' })).toBeEnabled();
+      const remove = userRow.getByRole('button', { name: 'Delete role' });
+      await expect(remove).toBeDisabled();
+      await expect(remove.locator('xpath=..')).toHaveAttribute(
+        'title',
+        "The default role can't be deleted. Make another role the default first.",
+      );
+      // ...and there is nothing to make default on the default itself.
+      await expect(userRow.getByRole('button', { name: 'Set as default role' })).toHaveCount(0);
+
+      // The server holds the line too, for anything that bypasses the page.
+      await request.post(`${BASE_URL}/api/v1/auth/login`, {
+        data: { username: USERNAME, password: PASSWORD, rememberMe: false },
+      });
+      const roles: Array<{ id: string; name: string; is_default: boolean }> = (
+        await (await request.get(`${BASE_URL}/api/v1/admin/global-roles`)).json()
+      ).data;
+      const defaultRole = roles.find((role) => role.is_default);
+      if (!defaultRole) throw new Error('one role is the default');
+      expect(defaultRole.name).toBe('USER');
+      const refused = await request.delete(`${BASE_URL}/api/v1/admin/global-roles/${defaultRole.id}`);
+      expect(refused.status()).toBe(409);
+      expect((await refused.json()).error_code).toBe('GLOBAL_ROLE_IS_DEFAULT');
+    });
+
+    test('Making another role the default asks first, then moves the mark in the table', async ({ page, request }) => {
+      const role = await createTestRole(request, `E2E_GR_PROMOTED_${Date.now()}`);
+      await signInAsAdmin(page);
+      await expect(rowOf(page, role.name)).toBeVisible();
+
+      // Answer the request here, and have the list show the outcome afterwards.
+      let promoted = false;
+      let promotion: { method: string; url: string } | null = null;
+      await page.route(`**/api/v1/admin/global-roles/${role.id}/set-default`, async (route) => {
+        promoted = true;
+        promotion = { method: route.request().method(), url: route.request().url() };
+        await route.fulfill({ status: 200, json: { success: true, data: { ...role, is_default: true } } });
+      });
+      await page.route('**/api/v1/admin/global-roles', async (route) => {
+        if (route.request().method() !== 'GET') {
+          await route.fallback();
+          return;
+        }
+        const response = await route.fetch();
+        const body = await response.json();
+        if (promoted) {
+          body.data = body.data.map((r: { id: string }) => ({ ...r, is_default: r.id === role.id }));
+        }
+        await route.fulfill({ response, json: body });
+      });
+
+      const target = rowOf(page, role.name);
+      await target.hover();
+      await target.getByRole('button', { name: 'Set as default role' }).click();
+
+      // It says what the default is for before changing anything.
+      const dialog = page.getByRole('dialog', { name: 'Set default role' });
+      await expect(dialog).toBeVisible();
+      await expect(
+        dialog.getByText(`New users and new global agents will start with the ${role.name} role.`),
+      ).toBeVisible();
+      expect(promoted).toBe(false);
+      await dialog.getByRole('button', { name: 'Set as default' }).click();
+      await expect(dialog).toHaveCount(0);
+
+      expect(promotion).toEqual({
+        method: 'PUT',
+        url: expect.stringMatching(new RegExp(`/admin/global-roles/${role.id}/set-default$`)),
+      });
+      // The mark moved: the new default cannot be deleted, the old one can.
+      const userRow = rowOf(page, 'USER');
+      await expect(target.getByText('Default', { exact: true })).toBeVisible();
+      await expect(userRow.getByText('Default', { exact: true })).toHaveCount(0);
+      await expect(target.getByRole('button', { name: 'Delete role' })).toBeDisabled();
+      await expect(userRow.getByRole('button', { name: 'Delete role' })).toBeEnabled();
+    });
+
+    test('Cancelling the confirmation changes nothing', async ({ page, request }) => {
+      const role = await createTestRole(request, `E2E_GR_NOT_PROMOTED_${Date.now()}`);
+      await signInAsAdmin(page);
+
+      let requested = false;
+      await page.route(`**/api/v1/admin/global-roles/${role.id}/set-default`, async (route) => {
+        requested = true;
+        await route.fallback();
+      });
+
+      const target = rowOf(page, role.name);
+      await target.hover();
+      await target.getByRole('button', { name: 'Set as default role' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Set default role' });
+      await dialog.getByRole('button', { name: 'Cancel' }).click();
+
+      await expect(dialog).toHaveCount(0);
+      expect(requested).toBe(false);
+      await expect(rowOf(page, 'USER').getByText('Default', { exact: true })).toBeVisible();
+      await expect(target.getByText('Default', { exact: true })).toHaveCount(0);
+    });
+
+    test('Warns before a full-access role would become the default', async ({ page, request }) => {
+      const role = await createTestRole(request, `E2E_GR_FULL_ACCESS_${Date.now()}`, { '*': true });
+      await signInAsAdmin(page);
+
+      const target = rowOf(page, role.name);
+      await target.hover();
+      await target.getByRole('button', { name: 'Set as default role' }).click();
+
+      const dialog = page.getByRole('dialog', { name: 'Set default role' });
+      await expect(dialog.getByText(/grants every permission/i)).toBeVisible();
+      await dialog.getByRole('button', { name: 'Cancel' }).click();
+    });
+  });
+
   test.describe('Statistics integrity', () => {
     test('Statistics update after role creation', async ({ page }) => {
       await signInAsAdmin(page);
@@ -636,7 +786,7 @@ test.describe('Global Roles Management', () => {
       const initialText = await page.getByText(/\d+\s*roles defined/).textContent();
 
       const timestamp = Date.now();
-      const roleName = `E2E_STATS_${timestamp}`;
+      const roleName = `E2E_GR_STATS_${timestamp}`;
 
       await page.getByRole('button', { name: 'New Role' }).click();
       await page.getByRole('textbox', { name: 'Role Name' }).fill(roleName);

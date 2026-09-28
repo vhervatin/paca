@@ -1,0 +1,9 @@
+dependencies:
+- name: rustfs
+  repository: https://charts.rustfs.com
+  version: 1.0.0-rc.6
+- name: nfs-server-provisioner
+  repository: https://kubernetes-sigs.github.io/nfs-ganesha-server-and-external-provisioner/
+  version: 1.8.0
+digest: sha256:07b614179441c0ce34bced45a06a571e6499e81d43640ad0e533f323dd0e7da7
+generated: "2026-09-14T07:46:43.786575889Z"

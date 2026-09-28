@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockGet, mockPost, mockPatch, mockDelete } = vi.hoisted(() => ({
-	mockGet: vi.fn(),
-	mockPost: vi.fn(),
-	mockPatch: vi.fn(),
-	mockDelete: vi.fn(),
-}));
+const { mockGet, mockPost, mockPatch, mockPut, mockDelete } = vi.hoisted(
+	() => ({
+		mockGet: vi.fn(),
+		mockPost: vi.fn(),
+		mockPatch: vi.fn(),
+		mockPut: vi.fn(),
+		mockDelete: vi.fn(),
+	}),
+);
 
 vi.mock("./api-client", () => ({
 	apiClient: {
@@ -13,6 +16,7 @@ vi.mock("./api-client", () => ({
 			get: mockGet,
 			post: mockPost,
 			patch: mockPatch,
+			put: mockPut,
 			delete: mockDelete,
 		},
 	},
@@ -20,6 +24,7 @@ vi.mock("./api-client", () => ({
 
 import {
 	ADMIN_USERS_PAGE_SIZE,
+	assignUserGlobalRole,
 	createGlobalRole,
 	createUser,
 	deleteGlobalRole,
@@ -31,6 +36,7 @@ import {
 	globalRolesQueryOptions,
 	myPermissionsQueryOptions,
 	resetUserPassword,
+	setDefaultGlobalRole,
 	type User,
 	updateGlobalRole,
 	updateUser,
@@ -55,6 +61,7 @@ describe("admin-api", () => {
 				id: "r1",
 				name: "Admin",
 				permissions: { "users.manage": true },
+				is_default: false,
 				created_at: "2026-03-29T00:00:00.000Z",
 				updated_at: "2026-03-29T00:00:00.000Z",
 			},
@@ -67,6 +74,23 @@ describe("admin-api", () => {
 		expect(mockGet).toHaveBeenCalledWith("/admin/global-roles");
 	});
 
+	it("puts to set-default to make a role the default, and unwraps the role", async () => {
+		const role: GlobalRole = {
+			id: "r9",
+			name: "Member",
+			permissions: {},
+			is_default: true,
+			created_at: "2026-03-29T00:00:00.000Z",
+			updated_at: "2026-03-29T00:02:00.000Z",
+		};
+		mockPut.mockResolvedValue({
+			data: { data: role, error_code: null, message: "ok" },
+		});
+
+		await expect(setDefaultGlobalRole("r9")).resolves.toEqual(role);
+		expect(mockPut).toHaveBeenCalledWith("/admin/global-roles/r9/set-default");
+	});
+
 	it("posts payload to create role and unwraps response", async () => {
 		const payload = {
 			name: "Editor",
@@ -76,6 +100,7 @@ describe("admin-api", () => {
 			id: "r2",
 			name: "Editor",
 			permissions: payload.permissions,
+			is_default: false,
 			created_at: "2026-03-29T00:00:00.000Z",
 			updated_at: "2026-03-29T00:00:00.000Z",
 		};
@@ -96,6 +121,7 @@ describe("admin-api", () => {
 			id: "r3",
 			name: "Support",
 			permissions: payload.permissions,
+			is_default: false,
 			created_at: "2026-03-29T00:00:00.000Z",
 			updated_at: "2026-03-29T00:01:00.000Z",
 		};
@@ -162,6 +188,7 @@ describe("admin-api", () => {
 			total: 1,
 			page: 1,
 			page_size: 20,
+			must_change_password_count: 0,
 		};
 		mockGet.mockResolvedValue({
 			data: { data: response, error_code: null, message: "ok" },
@@ -176,7 +203,13 @@ describe("admin-api", () => {
 	it("uses default page and page_size for getUsers", async () => {
 		mockGet.mockResolvedValue({
 			data: {
-				data: { items: [], total: 0, page: 1, page_size: 20 },
+				data: {
+					items: [],
+					total: 0,
+					page: 1,
+					page_size: 20,
+					must_change_password_count: 0,
+				},
 				error_code: null,
 				message: "ok",
 			},
@@ -193,16 +226,25 @@ describe("admin-api", () => {
 			data: { data: mockUser, error_code: null, message: "ok" },
 		});
 
+		// No role: assigning one is a separate call (assignUserGlobalRole).
 		const payload = {
 			username: "alice",
 			password: "P@ssw0rd!",
 			full_name: "Alice Smith",
-			email: "alice@example.com",
-			role: "Admin",
 		};
 
 		await expect(createUser(payload)).resolves.toEqual(mockUser);
 		expect(mockPost).toHaveBeenCalledWith("/admin/users", payload);
+	});
+
+	it("assigns a user's global role through its own endpoint", async () => {
+		mockPut.mockResolvedValue({ data: { data: {}, error_code: null } });
+
+		await assignUserGlobalRole("u1", "role-admin");
+
+		expect(mockPut).toHaveBeenCalledWith("/admin/users/u1/global-roles", {
+			role_ids: ["role-admin"],
+		});
 	});
 
 	it("patches user by id and unwraps response", async () => {
@@ -285,7 +327,13 @@ describe("admin-api", () => {
 		// last page still has room → fetch next
 		expect(
 			opts.getNextPageParam(
-				{ items: [], total: 50, page: 1, page_size: 20 },
+				{
+					items: [],
+					total: 50,
+					page: 1,
+					page_size: 20,
+					must_change_password_count: 0,
+				},
 				[],
 				1,
 				[],
@@ -294,7 +342,13 @@ describe("admin-api", () => {
 		// all users loaded → stop
 		expect(
 			opts.getNextPageParam(
-				{ items: [], total: 20, page: 1, page_size: 20 },
+				{
+					items: [],
+					total: 20,
+					page: 1,
+					page_size: 20,
+					must_change_password_count: 0,
+				},
 				[],
 				1,
 				[],

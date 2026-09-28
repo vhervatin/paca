@@ -34,6 +34,7 @@
 			"noFullName": "—",
 			"resetPasswordAction": "비밀번호 재설정",
 			"editAction": "사용자 수정",
+			"changeRoleAction": "역할 변경",
 			"deleteAction": "사용자 삭제"
 		},
 		"formDialog": {
@@ -47,8 +48,10 @@
 			"done": "완료",
 			"editTitle": "사용자 수정",
 			"createTitle": "사용자 생성",
-			"editDescription": "사용자의 표시 이름과 역할 배정을 업데이트하세요.",
+			"editDescription": "사용자의 표시 이름과 이메일을 업데이트합니다.",
 			"createDescription": "안전한 임시 비밀번호가 자동으로 생성됩니다. 사용자는 첫 로그인 시 비밀번호를 변경해야 합니다.",
+			"roleStepDescription": "{{username}}이(가) {{role}} 역할로 생성되었습니다. 그대로 두거나 다른 역할을 선택하세요.",
+			"stepIndicator": "{{step}} / {{total}}",
 			"usernameLabel": "사용자 이름",
 			"usernamePlaceholder": "예: john.doe",
 			"fullNameLabel": "전체 이름",
@@ -56,10 +59,11 @@
 			"emailLabel": "이메일",
 			"emailOptionalHint": "(선택 사항 — 비밀번호 설정 링크가 포함된 환영 이메일을 보냅니다)",
 			"emailPlaceholder": "예: john.doe@example.com",
-			"roleLabel": "역할",
-			"roleOptionalHint": "(선택사항 — 기본값은 USER)",
-			"rolePlaceholder": "역할을 선택하세요…",
+			"roleStep": {
+				"title": "역할"
+			},
 			"cancel": "취소",
+			"continue": "계속",
 			"saving": "저장 중…",
 			"creating": "생성 중…",
 			"saveChanges": "변경사항 저장",
@@ -71,9 +75,20 @@
 				"emailTaken": "이미 사용 중인 이메일입니다.",
 				"userNotFound": "사용자를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.",
 				"forbidden": "이 작업을 수행할 권한이 없습니다.",
+				"noDefaultRole": "새 계정에 부여할 기본 역할이 없습니다. 전역 역할 페이지에서 설정한 후 다시 시도하세요.",
 				"internalError": "서버에서 문제가 발생했습니다. 다시 시도해 주세요.",
-				"generic": "문제가 발생했습니다.",
-				"emailRequired": "유효한 이메일을 입력하세요."
+				"generic": "문제가 발생했습니다."
+			}
+		},
+		"roleDialog": {
+			"title": "역할 변경",
+			"description": "{{username}}의 역할을 선택하세요. 다음 요청부터 적용됩니다.",
+			"assign": "역할 할당",
+			"assigning": "할당 중…",
+			"fullAccessWarning": "이 역할은 전체 액세스 권한이 있습니다. 사용자와 역할 관리를 포함해 모든 작업을 수행할 수 있습니다.",
+			"selfWarning": "본인 계정입니다. 역할을 변경하면 이 페이지에 대한 접근 권한을 잃을 수 있습니다.",
+			"errors": {
+				"roleNotFound": "해당 역할이 더 이상 존재하지 않습니다. 대화 상자를 닫고 다시 시도하세요."
 			}
 		},
 		"resetPasswordDialog": {
@@ -142,10 +157,13 @@
 		"table": {
 			"columnName": "이름",
 			"columnPermissions": "권한",
-			"columnCreated": "생성일",
+			"columnDefault": "기본값",
 			"noPermissionsAssigned": "할당된 권한 없음",
+			"default": "기본값",
+			"setDefaultAction": "기본 역할로 설정",
 			"editAction": "역할 수정",
-			"deleteAction": "역할 삭제"
+			"deleteAction": "역할 삭제",
+			"deleteDefaultDisabled": "기본 역할은 삭제할 수 없습니다. 먼저 다른 역할을 기본값으로 설정하세요."
 		},
 		"formDialog": {
 			"editTitle": "역할 수정",
@@ -182,6 +200,7 @@
 			"errors": {
 				"roleNotFound": "이 역할은 더 이상 존재하지 않습니다.",
 				"hasUsersWarning": "하나 이상의 사용자에게 할당되어 있어 이 역할을 삭제할 수 없습니다.",
+				"isDefault": "기본 역할은 삭제할 수 없습니다. 먼저 다른 역할을 기본값으로 설정하세요.",
 				"forbidden": "이 역할을 삭제할 권한이 없습니다.",
 				"internalError": "문제가 발생했습니다. 다시 시도해 주세요.",
 				"generic": "문제가 발생했습니다."
@@ -247,6 +266,10 @@
 			"settingsWrite": {
 				"label": "워크스페이스 설정 쓰기",
 				"description": "워크스페이스 로고, 파비콘, 기본 색상 업데이트"
+			},
+			"settingsSsoWrite": {
+				"label": "SSO 공급자 관리",
+				"description": "사용자가 로그인에 사용하는 ID 공급자를 설정합니다. 다른 사용자로 로그인할 수 있게 되므로 전체 관리자 권한처럼 다루세요."
 			}
 		},
 		"permissionGroups": {
@@ -255,7 +278,28 @@
 			"projects": "프로젝트",
 			"plugins": "플러그인",
 			"settings": "설정"
+		},
+		"defaultDialog": {
+			"title": "기본 역할 설정",
+			"description": "새 사용자와 새 전역 에이전트는 {{role}} 역할로 시작합니다. 이미 있는 계정은 현재 역할을 유지합니다.",
+			"fullAccessWarning": "이 역할은 모든 권한을 부여하므로 앞으로 만드는 모든 계정이 전체 액세스 권한으로 시작합니다. 의도한 설정인지 확인하세요.",
+			"cancel": "취소",
+			"confirm": "기본값으로 설정",
+			"confirming": "저장 중…",
+			"errors": {
+				"roleNotFound": "이 역할은 더 이상 존재하지 않습니다.",
+				"forbidden": "기본 역할을 변경할 권한이 없습니다.",
+				"generic": "문제가 발생했습니다. 다시 시도해 주세요."
+			}
 		}
+	},
+	"rolePicker": {
+		"current": "현재",
+		"fullAccess": "전체 액세스",
+		"loadFailed": "역할을 불러오지 못했습니다.",
+		"retry": "다시 시도",
+		"empty": "아직 생성된 역할이 없습니다.",
+		"default": "기본값"
 	},
 	"plugins": {
 		"title": "플러그인 설정",
@@ -290,11 +334,15 @@
 			"title": "아직 전역 에이전트가 없습니다",
 			"description": "전역 에이전트를 만들면 채팅과 프로젝트 초대에 사용할 수 있습니다.",
 			"createAgent": "에이전트 생성"
+		},
+		"noPermission": {
+			"title": "You don't have permission to view agents",
+			"description": "You can still create new agents using the button above."
 		}
 	},
 	"settings": {
-		"title": "워크스페이스 브랜딩",
-		"description": "이 워크스페이스의 모든 프로젝트에서 사용되는 로고, 파비콘, 기본 색상을 설정합니다.",
+		"title": "워크스페이스 설정",
+		"description": "이 워크스페이스의 브랜딩 및 로그인 옵션입니다.",
 		"images": {
 			"title": "로고 및 파비콘",
 			"logo": {
@@ -336,6 +384,61 @@
 			"saved": "저장됨",
 			"errors": {
 				"updateFailed": "저장에 실패했습니다. 다시 시도해 주세요."
+			}
+		},
+		"sso": {
+			"title": "싱글 사인온 (SSO)",
+			"description": "Google, Microsoft Entra ID, Okta, Keycloak 같은 OpenID Connect ID 공급자로 로그인할 수 있게 합니다.",
+			"add": "공급자 추가",
+			"empty": "아직 SSO 공급자가 없습니다. 사용자는 사용자 이름과 비밀번호로 로그인합니다.",
+			"enabled": "사용",
+			"disabled": "사용 안 함",
+			"edit": "{{name}} 편집",
+			"delete": "{{name}} 삭제",
+			"copy": "복사",
+			"dialog": {
+				"createTitle": "SSO 공급자 추가",
+				"editTitle": "SSO 공급자 편집",
+				"description": "ID 공급자에 Paca를 OpenID Connect 클라이언트로 등록한 뒤, 발급된 정보를 입력하세요.",
+				"cancel": "취소",
+				"save": "저장"
+			},
+			"fields": {
+				"displayName": "표시 이름",
+				"displayNamePlaceholder": "회사 SSO",
+				"slug": "슬러그",
+				"slugHint": "로그인 URL과 콜백 URL에 사용됩니다. 변경하면 공급자에 등록된 콜백 URL이 동작하지 않습니다.",
+				"callbackUrl": "콜백 URL",
+				"callbackUrlHint": "이 주소를 ID 공급자의 리디렉션 URI로 등록하세요.",
+				"issuerUrl": "발급자 URL",
+				"issuerUrlHint": "OpenID Connect 발급자입니다. Paca 서버에서 디스커버리 문서에 접근할 수 있어야 합니다.",
+				"clientId": "클라이언트 ID",
+				"clientSecret": "클라이언트 시크릿",
+				"clientSecretKeepHint": "시크릿이 저장되어 있습니다. 유지하려면 비워 두세요.",
+				"scopes": "스코프",
+				"scopesHint": "공백으로 구분합니다. \"openid\"는 항상 포함됩니다.",
+				"allowedDomains": "허용된 이메일 도메인",
+				"allowedDomainsHint": "쉼표로 구분합니다. 비워 두면 모든 도메인을 허용합니다. 인증된 이메일만 허용됩니다.",
+				"enabled": "사용",
+				"enabledHint": "로그인 페이지에 이 공급자를 표시합니다.",
+				"autoProvision": "계정 자동 생성",
+				"autoProvisionHint": "처음 로그인하는 사용자에게 기본 역할로 새 계정을 만들어 줍니다.",
+				"linkByEmail": "이메일로 기존 계정 연결",
+				"linkByEmailHint": "인증된 이메일이 기존 계정과 일치하는 신규 사용자는 해당 계정으로 로그인합니다.",
+				"linkByEmailWarning": "완전히 신뢰하는 공급자에서만 켜세요. 공급자를 제어하는 사람은 관리자를 포함해 이메일이 일치하는 모든 계정으로 로그인할 수 있습니다."
+			},
+			"deleteDialog": {
+				"title": "SSO 공급자 삭제",
+				"description": "\"{{name}}\"을(를) 삭제할까요? 더 이상 이 공급자로 로그인할 수 없고, 생성된 계정과의 연결도 해제됩니다. 계정 자체는 유지됩니다.",
+				"confirm": "삭제"
+			},
+			"errors": {
+				"slugTaken": "다른 공급자가 이미 이 슬러그를 사용하고 있습니다.",
+				"discoveryFailed": "발급자의 OpenID Connect 디스커버리 문서에 접근할 수 없습니다. 발급자 URL을 확인하세요.",
+				"invalid": "일부 항목이 올바르지 않습니다. 슬러그, 발급자 URL, 클라이언트 ID, 이메일 도메인을 확인하세요.",
+				"saveFailed": "공급자를 저장하지 못했습니다. 다시 시도하세요.",
+				"loadFailed": "SSO 공급자를 불러오지 못했습니다.",
+				"deleteFailed": "공급자를 삭제하지 못했습니다. 다시 시도하세요."
 			}
 		},
 		"email": {

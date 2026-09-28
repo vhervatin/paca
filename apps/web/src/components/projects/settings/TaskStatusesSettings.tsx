@@ -11,6 +11,8 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DeleteTaskStatusDialog } from "@/components/projects/task-statuses/DeleteTaskStatusDialog";
 import { TaskStatusFormDialog } from "@/components/projects/task-statuses/TaskStatusFormDialog";
+import { DisabledDeleteButton } from "@/components/shared/disabled-delete-button";
+import { NoPermissionState } from "@/components/shared/no-permission-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -21,6 +23,12 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { useProjectPermissions } from "@/hooks/use-project-permissions";
+import {
+	ApiErrorCode,
+	getApiErrorCode,
+	isForbiddenError,
+} from "@/lib/api-error";
 import {
 	reorderTaskStatuses,
 	STATUS_CATEGORY_LABELS,
@@ -63,9 +71,29 @@ export function TaskStatusesSettings({
 	canWrite: boolean;
 }) {
 	const { t } = useTranslation("projects");
-	const { data: statuses, isLoading } = useQuery(
-		taskStatusesQueryOptions(projectId),
-	);
+	const { hasProjectPermission, isLoading: isPermissionsLoading } =
+		useProjectPermissions(projectId);
+	// No dedicated project.settings.task_statuses.read permission — viewing
+	// the status list is implied by tasks.read, same as viewing the tasks
+	// that reference it (see authz.PermissionProjectSettingsTaskTypesWrite's
+	// doc comment on the Go side).
+	const canRead = hasProjectPermission("tasks.read");
+	const {
+		data: statuses,
+		isLoading: isDataLoading,
+		isError,
+		error,
+	} = useQuery({
+		...taskStatusesQueryOptions(projectId),
+		enabled: canRead,
+	});
+	// While permissions are still loading, canRead defaults to false same as
+	// a confirmed denial — guard on isPermissionsLoading (and fold it into
+	// isLoading) so the section shows the skeleton instead of flashing
+	// NoPermissionState first.
+	const isLoading = isPermissionsLoading || isDataLoading;
+	const noPermission =
+		!isPermissionsLoading && (!canRead || (isError && isForbiddenError(error)));
 	const queryClient = useQueryClient();
 	const [createOpen, setCreateOpen] = useState(false);
 	const [editStatus, setEditStatus] = useState<TaskStatus | null>(null);
@@ -96,9 +124,14 @@ export function TaskStatusesSettings({
 				queryKey: taskStatusesQueryOptions(projectId).queryKey,
 			});
 		},
-		onError: () => {
+		onError: (err: unknown) => {
 			setLocalOrder(null);
-			setReorderError(t("settings.taskStatuses.reorderFailed"));
+			const code = getApiErrorCode(err);
+			setReorderError(
+				code === ApiErrorCode.TaskStatusReorderInvalid
+					? t("settings.taskStatuses.reorderInvalid")
+					: t("settings.taskStatuses.reorderFailed"),
+			);
 		},
 	});
 
@@ -159,7 +192,13 @@ export function TaskStatusesSettings({
 				</p>
 			) : null}
 
-			{isLoading ? (
+			{noPermission ? (
+				<NoPermissionState
+					icon={LayoutList}
+					title={t("settings.taskStatuses.noPermission.title")}
+					description={t("settings.taskStatuses.noPermission.description")}
+				/>
+			) : isLoading ? (
 				<div className="rounded-xl border overflow-hidden mt-4">
 					{["s1", "s2", "s3"].map((k) => (
 						<div
@@ -305,15 +344,25 @@ export function TaskStatusesSettings({
 												>
 													<Edit2 className="size-3.5" />
 												</Button>
-												<Button
-													variant="ghost"
-													size="icon-sm"
-													className="text-destructive hover:text-destructive hover:bg-destructive/10"
-													onClick={() => setDeleteStatus(status)}
-													title={t("settings.taskStatuses.deleteStatus")}
-												>
-													<Trash2 className="size-3.5" />
-												</Button>
+												{status.is_default ? (
+													// New tasks land in the default status, so it can't go.
+													<DisabledDeleteButton
+														label={t("settings.taskStatuses.deleteStatus")}
+														reason={t(
+															"settings.taskStatuses.deleteDefaultDisabled",
+														)}
+													/>
+												) : (
+													<Button
+														variant="ghost"
+														size="icon-sm"
+														className="text-destructive hover:text-destructive hover:bg-destructive/10"
+														onClick={() => setDeleteStatus(status)}
+														title={t("settings.taskStatuses.deleteStatus")}
+													>
+														<Trash2 className="size-3.5" />
+													</Button>
+												)}
 											</div>
 										) : null}
 									</TableCell>

@@ -9,9 +9,11 @@ import {
 	DocEditor,
 	type DocEditorHandle,
 } from "@/components/projects/docs/doc-editor";
+import { NoPermissionState } from "@/components/shared/no-permission-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
+import { isForbiddenError } from "@/lib/api-error";
 import {
 	docFoldersQueryOptions,
 	docQueryKeys,
@@ -36,7 +38,11 @@ function DocEditorPage() {
 	const canWrite = hasProjectPermission("docs.write");
 	const qc = useQueryClient();
 
-	const { data: doc, isError } = useQuery(docQueryOptions(projectId, docId));
+	const {
+		data: doc,
+		isError,
+		error: docError,
+	} = useQuery(docQueryOptions(projectId, docId));
 	const { data: allFolders = [] } = useQuery(docFoldersQueryOptions(projectId));
 
 	// Register this doc as "currently on screen" for the chat composer's
@@ -114,6 +120,16 @@ function DocEditorPage() {
 	})();
 
 	if (isError) {
+		if (isForbiddenError(docError)) {
+			return (
+				<div className="flex flex-1 flex-col items-center justify-center p-6">
+					<NoPermissionState
+						title={t("docs.editorPage.noPermission.title")}
+						description={t("docs.editorPage.noPermission.description")}
+					/>
+				</div>
+			);
+		}
 		return (
 			<div className="flex flex-1 flex-col items-center justify-center gap-4 text-muted-foreground">
 				<div className="flex size-14 items-center justify-center rounded-xl bg-muted/50">
@@ -189,9 +205,14 @@ function DocEditorPage() {
 			</div>
 
 			{/* ── Body: editor + optional right panel ──────────────────────── */}
-			<div className="flex flex-1 min-h-0 overflow-hidden">
+			{/* Below `lg` the row itself scrolls as one column (editor, then the
+			    activity pane stacked under it) instead of two independently
+			    scrolling panes side by side — same pattern as task-detail's own
+			    layout (index.tsx). DocActivityPane is self-responsive
+			    (`w-full lg:w-80`), so it needs no extra width wrapper here. */}
+			<div className="flex flex-1 min-w-0 min-h-0 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
 				{/* Editor area */}
-				<div className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+				<div className="lg:flex-1 lg:overflow-y-auto [scrollbar-gutter:stable]">
 					<div className="max-w-7xl mx-auto px-8 py-7">
 						{doc && (
 							<DocEditor
@@ -232,13 +253,11 @@ function DocEditorPage() {
 
 				{/* Right panel: activity */}
 				{rightPanel === "activity" && doc && (
-					<div className="w-80 shrink-0 h-full overflow-hidden">
-						<DocActivityPane
-							projectId={projectId}
-							docId={docId}
-							canEdit={canWrite}
-						/>
-					</div>
+					<DocActivityPane
+						projectId={projectId}
+						docId={docId}
+						canEdit={canWrite}
+					/>
 				)}
 			</div>
 		</div>

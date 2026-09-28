@@ -2,6 +2,13 @@
 	"activityPane": {
 		"title": "Activity",
 		"empty": "No activity yet",
+		"emptyComments": "No comments yet",
+		"showAllActivity": "Show all activity",
+		"filter": {
+			"label": "Filter activity",
+			"comments": "Comments",
+			"all": "All activity"
+		},
 		"editingComment": "Editing comment...",
 		"cancel": "Cancel",
 		"sendHint": "⌘↵ to send",
@@ -80,7 +87,9 @@
 			"countInWorkspace_one": "{{count}} project in your workspace",
 			"countInWorkspace_other": "{{count}} projects in your workspace",
 			"newShort": "New",
-			"newProjectCard": "New project"
+			"newProjectCard": "New project",
+			"loadMore": "Load more projects",
+			"loadingMore": "Loading more…"
 		},
 		"projectCard": {
 			"public": "Public",

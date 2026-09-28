@@ -3,14 +3,19 @@ package docsvc
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
 	docdom "github.com/Paca-AI/api/internal/domain/doc"
+	projectdom "github.com/Paca-AI/api/internal/domain/project"
 )
+
+// memberLookup resolves an actor to their project membership.
+type memberLookup interface {
+	FindMemberByActor(ctx context.Context, projectID, actorID uuid.UUID, agentID *uuid.UUID) (*projectdom.ProjectMember, error)
+}
 
 // Service is the concrete implementation of docdom.Service.
 type Service struct {
@@ -36,7 +41,7 @@ func (s *Service) ListFolders(ctx context.Context, projectID uuid.UUID) ([]*docd
 // CreateFolder creates a new folder.
 func (s *Service) CreateFolder(ctx context.Context, in docdom.CreateFolderInput) (*docdom.DocFolder, error) {
 	name := strings.TrimSpace(in.Name)
-	if name == "" {
+	if name == "" || strings.Contains(name, "/") {
 		return nil, docdom.ErrFolderNameInvalid
 	}
 
@@ -79,7 +84,10 @@ func (s *Service) UpdateFolder(ctx context.Context, id uuid.UUID, in docdom.Upda
 		return nil, docdom.ErrFolderNotFound
 	}
 
-	if name := strings.TrimSpace(in.Name); name != "" {
+	if name := strings.TrimSpace(in.Name); name != "" && name != f.Name {
+		if strings.Contains(name, "/") {
+			return nil, docdom.ErrFolderNameInvalid
+		}
 		f.Name = name
 	}
 	if in.ParentID != nil { // double-pointer present → update parent
@@ -138,6 +146,8 @@ func (s *Service) CreateDocument(ctx context.Context, in docdom.CreateDocumentIn
 	title := strings.TrimSpace(in.Title)
 	if title == "" {
 		title = "Untitled"
+	} else if strings.Contains(title, "/") {
+		return nil, docdom.ErrDocTitleInvalid
 	}
 
 	if in.FolderID != nil {
@@ -189,6 +199,9 @@ func (s *Service) UpdateDocument(ctx context.Context, projectID, id uuid.UUID, i
 	if in.Title != nil {
 		title := strings.TrimSpace(*in.Title)
 		if title == "" {
+			return nil, docdom.ErrDocTitleInvalid
+		}
+		if title != d.Title && strings.Contains(title, "/") {
 			return nil, docdom.ErrDocTitleInvalid
 		}
 		d.Title = title
@@ -300,10 +313,4 @@ func (s *Service) resolveMember(ctx context.Context, userID *uuid.UUID, projectI
 		return nil
 	}
 	return &member.ID
-}
-
-// buildFieldChanges constructs the content for a doc.updated activity.
-func buildFieldChanges(changes []docdom.FieldChange) json.RawMessage {
-	raw, _ := json.Marshal(map[string]any{"changes": changes})
-	return raw
 }

@@ -21,8 +21,7 @@ Responsible for AI agent integration via the Model Context Protocol.
 Concerns:
 
 - MCP server implementation (`@paca-ai/paca-mcp` npm package);
-- translating MCP tool calls into REST calls to `services/api`;
-- permission-based tool filtering (user mode and agent mode);
+- translating MCP tool calls into REST calls to `services/api`, which enforces permissions per call (user mode and agent mode alike) and returns 403 for anything the caller isn't allowed to do;
 - dynamic loading of plugin-contributed MCP tools at startup;
 - BlockNote ↔ Markdown format conversion for descriptions and documents.
 
@@ -48,7 +47,7 @@ Concerns:
 - business workflows (tasks, sprints, boards, members, documents, custom fields);
 - authentication and authorization (JWT, API keys, role-based permissions);
 - persistence coordination with PostgreSQL and Valkey;
-- S3-compatible file attachment handling (MinIO or AWS S3);
+- S3-compatible file attachment handling (RustFS or AWS S3);
 - WASM plugin runtime (wazero) — loads backend plugins, registers routes, mediates host function calls;
 - publication of domain events to Valkey Streams for downstream consumers;
 - agent trigger event publication and conversation summary ingestion.

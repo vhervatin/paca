@@ -71,6 +71,11 @@ func (r *fakeUserRepo) FindByEmail(_ context.Context, email string) (*userdom.Us
 	return nil, userdom.ErrNotFound
 }
 
+// FindDefault is the role a new user starts with: USER, as on a fresh install.
+func (r *fakeUserRepo) FindDefault(context.Context) (*globalroledom.GlobalRole, error) {
+	return &globalroledom.GlobalRole{ID: fakeRoleIDUser, Name: userdom.RoleUser, IsDefault: true}, nil
+}
+
 func (r *fakeUserRepo) FindByName(_ context.Context, name string) (*globalroledom.GlobalRole, error) {
 	switch name {
 	case userdom.RoleUser:
@@ -111,6 +116,9 @@ func (r *fakeUserRepo) List(_ context.Context, offset, limit int) ([]*userdom.Us
 
 func (r *fakeUserRepo) CountUsers(_ context.Context) (int64, error) {
 	return int64(len(r.byID)), nil
+}
+func (r *fakeUserRepo) CountUsersMustChangePassword(_ context.Context) (int64, error) {
+	return 0, nil
 }
 func (r *fakeUserRepo) Delete(_ context.Context, id uuid.UUID) error {
 	u, ok := r.byID[id]

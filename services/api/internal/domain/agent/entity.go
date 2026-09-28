@@ -30,6 +30,13 @@ type Agent struct {
 	GlobalRoleID *uuid.UUID
 	Name         string
 	Handle       string
+	// Description is free text describing what this agent is for. Shown to
+	// Jev (the AI decision API, see internal/platform/jev) as the criteria
+	// description when deciding which agent should handle a chat in Auto
+	// mode, or whether to assign it a task — see ComposeJevDescription,
+	// which appends this agent's provider/model at call time rather than
+	// storing them merged into this field.
+	Description string
 	// AvatarKey and AvatarThumbKey are object-storage keys for the two
 	// server-generated avatar variants (256x256 full, 64x64 thumb). Both nil
 	// when no avatar has been uploaded. See attachmentdom.AvatarService.
@@ -159,10 +166,27 @@ type Agent struct {
 	// that would exceed it is held in agent_pending_triggers instead of
 	// being dispatched — see PendingTrigger.
 	ParallelismLimit int
-	CreatedBy        *uuid.UUID
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	DeletedAt        *time.Time
+	// AccessMode is "open" (default — any project member holding
+	// agents.read/conversations.* may use this agent) or "restricted" (only
+	// members with an AgentAccessGrant may chat with it — see
+	// Service.HasAgentUsageAccess). Deliberately independent of
+	// agents.write: reconfiguring a restricted agent's MCP servers/skills/
+	// env vars stays gated purely on the existing permission, project-wide,
+	// same as today — this only adds a per-instance gate on top of the
+	// *usage* actions (chat sessions, conversations).
+	//
+	// For a global-scope agent (AgentScope == AgentScopeGlobal), this is one
+	// shared switch, not per-project — the same as every other mutable
+	// field on a global agent (LLM settings, skills, etc.), editable from
+	// any project it's invited into. Restricting it takes effect everywhere
+	// it's invited at once; AgentAccessGrant.MemberID (a project_members.id)
+	// is what then lets each project's own admin independently decide which
+	// of *their* members regain access.
+	AccessMode string
+	CreatedBy  *uuid.UUID
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	DeletedAt  *time.Time
 	// Member ID in project_members (populated on create / list)
 	MemberID   *uuid.UUID
 	MCPServers []*AgentMCPServer
@@ -186,6 +210,26 @@ const (
 	AgentScopeProject AgentScope = "project"
 	AgentScopeGlobal  AgentScope = "global"
 )
+
+// AccessMode values — see Agent.AccessMode's doc comment.
+const (
+	AccessModeOpen       = "open"
+	AccessModeRestricted = "restricted"
+)
+
+// AgentAccessGrant is an explicit per-member exception to a restricted
+// agent's default deny. MemberID references project_members.id, not a raw
+// user/agent id — same convention AgentChatSession.MemberID already uses,
+// which is what naturally scopes a *global* agent's grants per project (the
+// same agent can be open in one project and restricted in another, since it
+// gets a separate project_members row per project it's invited into).
+type AgentAccessGrant struct {
+	ID        uuid.UUID
+	AgentID   uuid.UUID
+	MemberID  uuid.UUID
+	GrantedBy *uuid.UUID
+	CreatedAt time.Time
+}
 
 // ACPProvider values.
 const (
@@ -234,11 +278,12 @@ const (
 
 // CLIProvidersWithAPIKeyAuth is the set of cli_provider values that support
 // CLIAuthModeAPIKey — each CLI's own native non-interactive auth env var
-// (see executor's cliProviderAPIKeyEnvVar on the agent-runner side),
-// completely independent of Goose's own provider/API-key mechanism, which
-// does not apply once GOOSE_PROVIDER names a CLI provider. cursor-agent has
-// no known non-interactive API-key auth path as of this writing — login via
-// the environment terminal only.
+// (see executor/providercli's per-adapter APIKeyEnvVar on the agent-runner
+// side), completely independent of Goose's own provider/API-key mechanism,
+// which does not apply once GOOSE_PROVIDER names a CLI provider. cursor-agent
+// is left out even though a CURSOR_API_KEY env var is confirmed to exist
+// (see providercli's cursor_agent.go, APIKeyEnvVar's own doc comment) —
+// deliberately not wired up yet, left as a follow-up.
 var CLIProvidersWithAPIKeyAuth = map[string]bool{
 	CLIProviderClaudeCode: true,
 	CLIProviderCodex:      true,
@@ -457,10 +502,28 @@ type AgentConversation struct {
 	ErrorMessage *string
 	RepoPluginID *uuid.UUID
 	PRUrl        *string
-	StartedAt    *time.Time
-	FinishedAt   *time.Time
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	// Title is nil until either goose names the underlying ACP session
+	// itself (agent-runner's best-effort copy — see
+	// docs/ai-agent/agent-runner-service.md) or the user renames the
+	// conversation directly (UpdateConversationTitle, which also sets
+	// TitleSetByUser so agent-runner's own copy never overwrites it again).
+	// A nil Title has no stored default: the frontend falls back to
+	// displaying the agent's name instead.
+	Title          *string
+	TitleSetByUser bool
+	// DeletedAt marks a soft-deleted conversation — see
+	// GetConversation/GetGlobalConversation, which treat a non-nil value as
+	// ErrConversationNotFound for user-facing reads. Deliberately NOT
+	// filtered out of the raw repository lookup by id (FindConversationByID)
+	// that worker.AgentQueueConsumer and internal/service/agent's own
+	// automation-resume path use — those must keep resolving a
+	// just-deleted conversation. Never a hard DELETE: see this entity's
+	// migration (000058_add_conversation_title.sql) doc comment for why.
+	DeletedAt  *time.Time
+	StartedAt  *time.Time
+	FinishedAt *time.Time
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 	// Populated by JOIN
 	AgentName   string
 	AgentHandle string

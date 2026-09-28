@@ -29,13 +29,15 @@
 		"automation": "Automatisation",
 		"team": "Équipe",
 		"settings": "Paramètres",
-		"changelog": "Nouveautés"
+		"changelog": "Nouveautés",
+		"activity": "Activité"
 	},
 	"projectSwitcher": {
 		"projects": "Projets",
 		"yourProjects": "Vos projets",
 		"noProjectsYet": "Aucun projet pour le moment",
-		"newProject": "Nouveau projet"
+		"newProject": "Nouveau projet",
+		"loadingMore": "Chargement…"
 	},
 	"interactions": {
 		"title": "Interactions",
@@ -55,7 +57,12 @@
 		"newSubfolder": "Nouveau sous-dossier",
 		"rename": "Renommer",
 		"delete": "Supprimer",
-		"untitled": "Sans titre"
+		"untitled": "Sans titre",
+		"errors": {
+			"titleInvalid": "Ce titre n'est pas valide.",
+			"folderNameInvalid": "Ce nom de dossier n'est pas valide.",
+			"renameFailed": "Échec du renommage. Veuillez réessayer."
+		}
 	},
 	"notifications": {
 		"title": "Notifications",

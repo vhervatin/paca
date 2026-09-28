@@ -20,9 +20,12 @@
 //
 // Query invalidation strategy
 // ---------------------------
-// task.* events  → invalidate ["projects", projectId, "tasks"]
+// task.* events and automation.applied → invalidateTaskViews():
+//                  ["projects", projectId, "tasks"], sprint task lists,
+//                  view task positions and ["users", "me", "tasks"].
 //                  This covers allTasksQueryOptions, taskQueryOptions,
-//                  sprintTasksQueryOptions, epicTasksQueryOptions, etc.
+//                  sprintTasksQueryOptions, viewTaskPositions,
+//                  epicTasksQueryOptions, assignedTasksQueryOptions, etc.
 //                  Also invalidates ["projects", projectId, "agentActivities"]
 //                  (agentActivitiesQueryOptions) — task activity changes can
 //                  belong to any agent, so every agent's activity feed cache
@@ -33,7 +36,8 @@
 //                  docQueryOptions, etc. Also invalidates
 //                  ["projects", projectId, "agentActivities"], same reasoning
 //                  as task.* above.
-// sprint.* events → invalidate ["projects", projectId, "sprints"]
+// sprint.* events → invalidate ["projects", projectId, "sprints"] and
+//                  invalidateTaskViews() (sprint completion moves tasks)
 //                  This covers sprintsQueryOptions and sprintQueryOptions —
 //                  replaces the sidebar's old refetchInterval polling.
 // view.* events  → invalidate ["projects", projectId, "views"]
@@ -48,6 +52,9 @@
 //                  off "tasks" rather than "workflows", plus the
 //                  workflow.assigned bonus case — the automation engine
 //                  reassigning a task should refresh that task's data too).
+// automation.*   → (other than automation.applied) invalidate
+//                  ["projects", projectId, "automations"] and the
+//                  automation dependency map.
 // environment.status_changed → invalidate ["projects", projectId,
 //                  "environments"] (covers both environmentsQueryOptions,
 //                  the list, and environmentQueryOptions, the per-id detail
@@ -77,6 +84,26 @@ import {
 // and global scope (e.g. the Conversations page) — the hook is a no-op in
 // that case rather than requiring the caller to conditionally call it, which
 // would violate the rules of hooks.
+// Realtime event types that correspond to a new project activity log entry.
+// agent.* is deliberately absent: it carries per-token conversation events,
+// and the work an agent does arrives as task.*/doc.* anyway.
+const ACTIVITY_LOG_EVENT_PREFIXES = [
+	"task.",
+	"doc.",
+	"sprint.",
+	"view.created",
+	"view.updated",
+	"view.deleted",
+	"automation.",
+	"environment.",
+];
+// Realtime-only events under those prefixes, which are never logged.
+const ACTIVITY_LOG_SKIPPED_EVENTS = new Set([
+	"environment.status_changed",
+	"automation.node.updated",
+]);
+const ACTIVITY_LOG_REFRESH_DELAY_MS = 1500;
+
 export function useProjectRealtime(projectId: string | undefined): void {
 	const queryClient = useQueryClient();
 
@@ -92,15 +119,75 @@ export function useProjectRealtime(projectId: string | undefined): void {
 		// Subscribe to the project rooms.
 		joinProject(currentProjectId);
 
+		// Task data is cached under several prefixes besides "tasks": sprint
+		// task lists (["projects", id, "sprints", sprintId, "tasks"]), per-view
+		// task positions (["projects", id, "views", viewId, "task-positions"])
+		// and the cross-project "my tasks" list. A task change made by the
+		// server (automation, Jev autofill/auto-assign, agents) must refresh
+		// all of them, not just the ones the acting client already refetches.
+		function invalidateTaskViews() {
+			void queryClient.invalidateQueries({
+				queryKey: ["projects", currentProjectId, "tasks"],
+			});
+			void queryClient.invalidateQueries({
+				predicate: (query) => {
+					const key = query.queryKey;
+					return (
+						key[0] === "projects" &&
+						key[1] === currentProjectId &&
+						((key[2] === "sprints" && key[4] === "tasks") ||
+							(key[2] === "views" && key[4] === "task-positions"))
+					);
+				},
+			});
+			void queryClient.invalidateQueries({
+				queryKey: ["users", "me", "tasks"],
+			});
+			void queryClient.invalidateQueries({
+				queryKey: ["projects", currentProjectId, "agentActivities"],
+			});
+		}
+
+		// The project activity log is written by a worker reading the same
+		// event stream, so it lands shortly *after* this event arrives —
+		// refetching immediately would miss it. Debounced, which also
+		// collapses a burst of events into one refetch.
+		let activityRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+		function scheduleActivityLogRefresh() {
+			clearTimeout(activityRefreshTimer);
+			activityRefreshTimer = setTimeout(() => {
+				void queryClient.invalidateQueries({
+					queryKey: ["projects", currentProjectId, "projectActivities"],
+				});
+			}, ACTIVITY_LOG_REFRESH_DELAY_MS);
+		}
+
 		function handleEvent(event: RealtimeEvent) {
 			const { type } = event;
 
-			if (type.startsWith("task.")) {
+			if (
+				ACTIVITY_LOG_EVENT_PREFIXES.some((p) => type.startsWith(p)) &&
+				!ACTIVITY_LOG_SKIPPED_EVENTS.has(type)
+			) {
+				scheduleActivityLogRefresh();
+			}
+
+			// task.* and automation.applied are task activities fanned out by
+			// the API's ActivitySvc — for user edits and for system-driven
+			// ones (Jev autofill/auto-assign record task.updated, the
+			// automation engine records automation.applied).
+			if (type.startsWith("task.") || type === "automation.applied") {
+				invalidateTaskViews();
+				return;
+			}
+
+			// automation.* graph/lifecycle events (created/updated/node/edge...)
+			if (type.startsWith("automation.")) {
 				void queryClient.invalidateQueries({
-					queryKey: ["projects", currentProjectId, "tasks"],
+					queryKey: ["projects", currentProjectId, "automations"],
 				});
 				void queryClient.invalidateQueries({
-					queryKey: ["projects", currentProjectId, "agentActivities"],
+					queryKey: ["projects", currentProjectId, "automation-dependency-map"],
 				});
 				return;
 			}
@@ -115,10 +202,13 @@ export function useProjectRealtime(projectId: string | undefined): void {
 				return;
 			}
 
+			// sprint.completed bulk-moves unfinished tasks to another sprint or
+			// the backlog, so every sprint event refreshes task views too.
 			if (type.startsWith("sprint.")) {
 				void queryClient.invalidateQueries({
 					queryKey: ["projects", currentProjectId, "sprints"],
 				});
+				invalidateTaskViews();
 				return;
 			}
 
@@ -138,9 +228,7 @@ export function useProjectRealtime(projectId: string | undefined): void {
 				void queryClient.invalidateQueries({
 					queryKey: ["projects", currentProjectId, "workflows"],
 				});
-				void queryClient.invalidateQueries({
-					queryKey: ["projects", currentProjectId, "tasks"],
-				});
+				invalidateTaskViews();
 				return;
 			}
 
@@ -210,9 +298,7 @@ export function useProjectRealtime(projectId: string | undefined): void {
 					});
 					// agent.session.started shows up in task activity feeds
 					if (type === "agent.session.started" || type.startsWith("task.")) {
-						void queryClient.invalidateQueries({
-							queryKey: ["projects", currentProjectId, "tasks"],
-						});
+						invalidateTaskViews();
 					}
 				}
 				return;
@@ -234,6 +320,7 @@ export function useProjectRealtime(projectId: string | undefined): void {
 		socket.on("connect", handleConnect);
 
 		return () => {
+			clearTimeout(activityRefreshTimer);
 			socket.off("event", handleEvent);
 			socket.off("connect", handleConnect);
 			leaveProject(currentProjectId);

@@ -25,6 +25,7 @@ import (
 	"github.com/Paca-AI/api/internal/platform/authz"
 	"github.com/Paca-AI/api/internal/platform/storage"
 	jwttoken "github.com/Paca-AI/api/internal/platform/token"
+	activitysvc "github.com/Paca-AI/api/internal/service/activity"
 	attachmentsvc "github.com/Paca-AI/api/internal/service/attachment"
 	authsvc "github.com/Paca-AI/api/internal/service/auth"
 	projectsvc "github.com/Paca-AI/api/internal/service/project"
@@ -280,7 +281,7 @@ func buildAttachmentTestRouter(attachRepo *fakeAttachmentRepo, store *fakeStorag
 	taskService := tasksvc.New(taskRepo)
 	sprintService := sprintsvc.New(newFakeSprintRepoIT(), taskRepo, nil)
 	viewService := sprintsvc.NewViewService(newFakeViewRepoIT(), newFakeSprintRepoIT(), taskRepo, nil)
-	active := tasksvc.NewActivityService(newFakeTaskActivityRepo(), taskRepo, &fakeActivityMemberRepo{}, nil)
+	active := tasksvc.NewActivityService(activitysvc.New(newFakeTaskActivityRepo(), &fakeActivityMemberRepo{}, nil), taskRepo, &fakeActivityMemberRepo{})
 	attachmentService := attachmentsvc.New(attachRepo, attachmentsvc.NewTaskOwnerChecker(taskRepo), fakeDocChecker{}, store, "test-bucket")
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
@@ -1082,6 +1083,7 @@ func TestAvatarUpload_Project_FullFlow(t *testing.T) {
 			authz.PermissionProjectsWrite,
 			authz.PermissionProjectsCreate,
 		},
+		projectPerms: map[uuid.UUID][]authz.Permission{},
 	}
 	r := buildProjectAvatarTestRouter(newFakeAttachmentRepo(), store, permStore)
 	tok := issueProjectToken(t, uuid.NewString())
@@ -1093,6 +1095,17 @@ func TestAvatarUpload_Project_FullFlow(t *testing.T) {
 		t.Fatalf("create project: expected 201, got %d: %s", createW.Code, createW.Body.String())
 	}
 	projectID := projectIDFromCreate(t, createW)
+
+	// projectsvc.Service.Create already added this user as the new project's
+	// "Admin" member in the fake repo — production authorizes the
+	// project-scoped avatar routes below off that grant. projectPermStore
+	// doesn't derive project permissions from repo membership automatically,
+	// so it needs telling explicitly. See the identical note in
+	// TestIntegrationProjectManagement_AdminCRUD (project_test.go): before
+	// the GHSA-hjcj-373w-vq8m fix to hasPermissionsForActor, this test's
+	// requests below passed via the *global* projects.write set above
+	// leaking into the project-scoped check instead of real membership.
+	permStore.projectPerms[uuid.MustParse(projectID)] = []authz.Permission{authz.PermissionAll}
 	avatarPath := "/api/v1/projects/" + projectID + "/avatar"
 
 	pngBytes := fakePNG(t, 120, 80)

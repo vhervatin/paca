@@ -14,10 +14,12 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
+	activitydom "github.com/Paca-AI/api/internal/domain/activity"
 	agentdom "github.com/Paca-AI/api/internal/domain/agent"
 	attachmentdom "github.com/Paca-AI/api/internal/domain/attachment"
 	domainauth "github.com/Paca-AI/api/internal/domain/auth"
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
+	"github.com/Paca-AI/api/internal/platform/authz"
 	"github.com/Paca-AI/api/internal/transport/http/handler"
 	httpmw "github.com/Paca-AI/api/internal/transport/http/middleware"
 )
@@ -29,15 +31,21 @@ import (
 type mockAgentSvc struct {
 	getAgent                      func(ctx context.Context, projectID, agentID uuid.UUID) (*agentdom.Agent, error)
 	createAgent                   func(ctx context.Context, projectID uuid.UUID, in agentdom.CreateAgentInput) (*agentdom.Agent, error)
+	createGlobalAgent             func(ctx context.Context, in agentdom.CreateGlobalAgentInput) (*agentdom.Agent, error)
+	updateGlobalAgent             func(ctx context.Context, agentID uuid.UUID, in agentdom.UpdateAgentInput) (*agentdom.Agent, error)
+	setGlobalAgentRole            func(ctx context.Context, agentID uuid.UUID, roleID *uuid.UUID) (*agentdom.Agent, error)
 	startChatSession              func(ctx context.Context, projectID, agentID, memberID uuid.UUID, message string) (*agentdom.AgentChatSession, *agentdom.AgentConversation, error)
 	listConversations             func(ctx context.Context, filter agentdom.ListConversationsFilter, limit int) ([]*agentdom.AgentConversation, bool, error)
 	listConversationEvents        func(ctx context.Context, conversationID uuid.UUID, window agentdom.ConversationEventWindow) ([]*agentdom.AgentConversationEvent, int64, error)
 	getConversation               func(ctx context.Context, projectID, conversationID, memberID uuid.UUID) (*agentdom.AgentConversation, error)
 	getConversationForAgent       func(ctx context.Context, conversationID, callerAgentID, currentConversationID uuid.UUID) (*agentdom.AgentConversation, error)
-	listAgentActivities           func(ctx context.Context, filter agentdom.ListAgentActivitiesFilter, limit int) ([]*agentdom.ActivityFeedItem, bool, error)
+	updateConversationTitle       func(ctx context.Context, projectID, conversationID, memberID uuid.UUID, title string) (*agentdom.AgentConversation, error)
+	deleteConversation            func(ctx context.Context, projectID, conversationID, memberID uuid.UUID) error
 	getGlobalConversation         func(ctx context.Context, conversationID, actorUserID uuid.UUID) (*agentdom.AgentConversation, error)
 	listGlobalConversations       func(ctx context.Context, actorUserID uuid.UUID, filter agentdom.ListConversationsFilter, limit int) ([]*agentdom.AgentConversation, bool, error)
 	stopGlobalConversation        func(ctx context.Context, conversationID, actorUserID uuid.UUID) error
+	updateGlobalConversationTitle func(ctx context.Context, conversationID, actorUserID uuid.UUID, title string) (*agentdom.AgentConversation, error)
+	deleteGlobalConversation      func(ctx context.Context, conversationID, actorUserID uuid.UUID) error
 	pauseGlobalConversation       func(ctx context.Context, conversationID, actorUserID uuid.UUID) error
 	globalHeartbeat               func(ctx context.Context, conversationID, actorUserID uuid.UUID) error
 	sendGlobalConversationMessage func(ctx context.Context, conversationID uuid.UUID, message string, actorUserID uuid.UUID, onBusy string) error
@@ -83,6 +91,19 @@ func (m *mockAgentSvc) DeleteAgent(_ context.Context, _, _ uuid.UUID) error {
 func (m *mockAgentSvc) TriggerDescriptionWrite(_ context.Context, _, _, _, _ uuid.UUID) (*agentdom.AgentConversation, error) {
 	return nil, agentdom.ErrAgentNotFound
 }
+func (m *mockAgentSvc) HasAgentUsageAccess(_ context.Context, _, _, _ uuid.UUID) (bool, error) {
+	return true, nil
+}
+func (m *mockAgentSvc) ListAgentAccessGrants(_ context.Context, _, _ uuid.UUID) ([]*agentdom.AgentAccessGrant, error) {
+	return nil, nil
+}
+func (m *mockAgentSvc) AddAgentAccessGrant(_ context.Context, _, _, _ uuid.UUID, _ *uuid.UUID) (*agentdom.AgentAccessGrant, error) {
+	return &agentdom.AgentAccessGrant{ID: uuid.New()}, nil
+}
+func (m *mockAgentSvc) RemoveAgentAccessGrant(_ context.Context, _, _, _ uuid.UUID) error { return nil }
+func (m *mockAgentSvc) ListGrantedAgentIDsForMember(_ context.Context, _ uuid.UUID) ([]uuid.UUID, error) {
+	return nil, nil
+}
 func (m *mockAgentSvc) ListMCPServers(_ context.Context, _ uuid.UUID) ([]*agentdom.AgentMCPServer, error) {
 	return nil, nil
 }
@@ -119,12 +140,6 @@ func (m *mockAgentSvc) ListConversations(ctx context.Context, filter agentdom.Li
 	}
 	return nil, false, nil
 }
-func (m *mockAgentSvc) ListAgentActivities(ctx context.Context, filter agentdom.ListAgentActivitiesFilter, limit int) ([]*agentdom.ActivityFeedItem, bool, error) {
-	if m.listAgentActivities != nil {
-		return m.listAgentActivities(ctx, filter, limit)
-	}
-	return nil, false, nil
-}
 func (m *mockAgentSvc) GetConversation(ctx context.Context, projectID, conversationID, memberID uuid.UUID) (*agentdom.AgentConversation, error) {
 	if m.getConversation != nil {
 		return m.getConversation(ctx, projectID, conversationID, memberID)
@@ -147,7 +162,19 @@ func (m *mockAgentSvc) ListConversationEvents(ctx context.Context, conversationI
 }
 func (m *mockAgentSvc) StopConversation(_ context.Context, _, _, _ uuid.UUID) error  { return nil }
 func (m *mockAgentSvc) PauseConversation(_ context.Context, _, _, _ uuid.UUID) error { return nil }
-func (m *mockAgentSvc) Heartbeat(_ context.Context, _, _, _ uuid.UUID) error         { return nil }
+func (m *mockAgentSvc) UpdateConversationTitle(ctx context.Context, projectID, conversationID, memberID uuid.UUID, title string) (*agentdom.AgentConversation, error) {
+	if m.updateConversationTitle != nil {
+		return m.updateConversationTitle(ctx, projectID, conversationID, memberID, title)
+	}
+	return &agentdom.AgentConversation{ID: conversationID, ProjectID: projectID, Title: &title}, nil
+}
+func (m *mockAgentSvc) DeleteConversation(ctx context.Context, projectID, conversationID, memberID uuid.UUID) error {
+	if m.deleteConversation != nil {
+		return m.deleteConversation(ctx, projectID, conversationID, memberID)
+	}
+	return nil
+}
+func (m *mockAgentSvc) Heartbeat(_ context.Context, _, _, _ uuid.UUID) error { return nil }
 func (m *mockAgentSvc) SendConversationMessage(_ context.Context, _, _ uuid.UUID, _ string, _ uuid.UUID, _ []agentdom.ContextItemRef, _ string) error {
 	return nil
 }
@@ -178,11 +205,23 @@ func (m *mockAgentSvc) GetGlobalAgent(ctx context.Context, agentID uuid.UUID) (*
 	}
 	return nil, nil
 }
-func (m *mockAgentSvc) CreateGlobalAgent(_ context.Context, _ agentdom.CreateGlobalAgentInput) (*agentdom.Agent, error) {
+func (m *mockAgentSvc) CreateGlobalAgent(ctx context.Context, in agentdom.CreateGlobalAgentInput) (*agentdom.Agent, error) {
+	if m.createGlobalAgent != nil {
+		return m.createGlobalAgent(ctx, in)
+	}
 	return nil, nil
 }
-func (m *mockAgentSvc) UpdateGlobalAgent(_ context.Context, _ uuid.UUID, _ agentdom.UpdateAgentInput) (*agentdom.Agent, error) {
+func (m *mockAgentSvc) UpdateGlobalAgent(ctx context.Context, agentID uuid.UUID, in agentdom.UpdateAgentInput) (*agentdom.Agent, error) {
+	if m.updateGlobalAgent != nil {
+		return m.updateGlobalAgent(ctx, agentID, in)
+	}
 	return nil, nil
+}
+func (m *mockAgentSvc) SetGlobalAgentRole(ctx context.Context, agentID uuid.UUID, roleID *uuid.UUID) (*agentdom.Agent, error) {
+	if m.setGlobalAgentRole != nil {
+		return m.setGlobalAgentRole(ctx, agentID, roleID)
+	}
+	return &agentdom.Agent{ID: agentID, AgentScope: agentdom.AgentScopeGlobal, GlobalRoleID: roleID}, nil
 }
 func (m *mockAgentSvc) DeleteGlobalAgent(_ context.Context, _ uuid.UUID) error { return nil }
 func (m *mockAgentSvc) ListInvitedProjectIDs(_ context.Context, _ uuid.UUID) ([]uuid.UUID, error) {
@@ -211,6 +250,18 @@ func (m *mockAgentSvc) GetGlobalConversation(ctx context.Context, conversationID
 		return m.getGlobalConversation(ctx, conversationID, actorUserID)
 	}
 	return nil, nil
+}
+func (m *mockAgentSvc) UpdateGlobalConversationTitle(ctx context.Context, conversationID, actorUserID uuid.UUID, title string) (*agentdom.AgentConversation, error) {
+	if m.updateGlobalConversationTitle != nil {
+		return m.updateGlobalConversationTitle(ctx, conversationID, actorUserID, title)
+	}
+	return &agentdom.AgentConversation{ID: conversationID, ActorUserID: &actorUserID, Title: &title}, nil
+}
+func (m *mockAgentSvc) DeleteGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) error {
+	if m.deleteGlobalConversation != nil {
+		return m.deleteGlobalConversation(ctx, conversationID, actorUserID)
+	}
+	return nil
 }
 func (m *mockAgentSvc) StopGlobalConversation(ctx context.Context, conversationID, actorUserID uuid.UUID) error {
 	if m.stopGlobalConversation != nil {
@@ -318,6 +369,46 @@ func newGlobalAgentAcpRouter(svc agentdom.Service) chi.Router {
 	return r
 }
 
+// fakeGlobalPermStore implements authz.PermissionStore, returning a fixed set
+// of global permissions for every caller — a stand-in for "a caller whose
+// role stores exactly these permissions". ListProjectPermissions is unused:
+// these tests are global-scope only.
+type fakeGlobalPermStore struct {
+	globalPerms []authz.Permission
+}
+
+func (f *fakeGlobalPermStore) ListGlobalPermissions(context.Context, uuid.UUID) ([]authz.Permission, error) {
+	return f.globalPerms, nil
+}
+func (f *fakeGlobalPermStore) ListProjectPermissions(context.Context, uuid.UUID, uuid.UUID) ([]authz.Permission, error) {
+	return nil, nil
+}
+
+// newGlobalAgentAdminRouter wires the /admin/agents handlers that touch an
+// agent's own fields and its global role. It deliberately has no permission
+// middleware: who may call which route is the router's job (guards.go, proven
+// by the router package's tests); these tests cover only what the handlers do
+// once a request reaches them.
+func newGlobalAgentAdminRouter(svc agentdom.Service) chi.Router {
+	h := handler.NewAgentHandler(svc, "", "", "")
+	claims := &domainauth.Claims{
+		RegisteredClaims: jwt.RegisteredClaims{Subject: uuid.New().String()},
+		Kind:             "access",
+	}
+	r := chi.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := context.WithValue(r.Context(), httpmw.ClaimsContextKey(), claims)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	})
+	r.Post("/admin/agents", h.CreateGlobalAgent)
+	r.Patch("/admin/agents/{agentId}", h.UpdateGlobalAgent)
+	r.Put("/admin/agents/{agentId}/global-role", h.SetGlobalAgentRole)
+	r.Delete("/admin/agents/{agentId}/global-role", h.ClearGlobalAgentRole)
+	return r
+}
+
 // fakeMemberRepo implements projectdom.MemberRepository, letting tests
 // control FindMemberByUserProject (used by resolveMemberID) and
 // FindMemberByAgent (used by ListAgentActivities). Every other method
@@ -363,6 +454,9 @@ func (f *fakeMemberRepo) RemoveMember(context.Context, uuid.UUID, uuid.UUID) err
 func (f *fakeMemberRepo) UpdateMemberRoleByMemberID(context.Context, uuid.UUID, uuid.UUID) error {
 	panic("fakeMemberRepo: UpdateMemberRoleByMemberID not used by resolveMemberID tests")
 }
+func (f *fakeMemberRepo) UpdateMemberDescription(context.Context, uuid.UUID, string) error {
+	panic("fakeMemberRepo: UpdateMemberDescription not used by resolveMemberID tests")
+}
 func (f *fakeMemberRepo) RemoveMemberByMemberID(context.Context, uuid.UUID) error {
 	panic("fakeMemberRepo: RemoveMemberByMemberID not used by resolveMemberID tests")
 }
@@ -395,7 +489,13 @@ func claimsMiddleware(subject string) func(http.Handler) http.Handler {
 // injects claims with the given subject, so resolveMemberID's branches can
 // be exercised end-to-end through the HTTP layer.
 func newAgentRouterWithMemberRepo(svc agentdom.Service, memberRepo projectdom.MemberRepository, subject string) chi.Router {
-	h := handler.NewAgentHandler(svc, "", "", "")
+	return newAgentRouterWithActivities(svc, memberRepo, &fakeActivityLister{}, subject)
+}
+
+// newAgentRouterWithActivities is newAgentRouterWithMemberRepo with the
+// activity log the agent tab reads from.
+func newAgentRouterWithActivities(svc agentdom.Service, memberRepo projectdom.MemberRepository, lister *fakeActivityLister, subject string) chi.Router {
+	h := handler.NewAgentHandler(svc, "", "", "").WithActivityLister(lister)
 	if memberRepo != nil {
 		h = h.WithMemberRepo(memberRepo)
 	}
@@ -930,6 +1030,17 @@ func TestListAgentActivities_InvalidType_Returns400(t *testing.T) {
 	}
 }
 
+// fakeActivityLister records the filter the handler asks the activity log for.
+type fakeActivityLister struct {
+	gotFilter activitydom.ListFilter
+	items     []*activitydom.Activity
+}
+
+func (f *fakeActivityLister) List(_ context.Context, filter activitydom.ListFilter, _ int) ([]*activitydom.Activity, bool, error) {
+	f.gotFilter = filter
+	return f.items, false, nil
+}
+
 func TestListAgentActivities_Success_ResolvesMemberAndForwardsFilters(t *testing.T) {
 	memberID := uuid.New()
 	memberRepo := &fakeMemberRepo{
@@ -937,15 +1048,11 @@ func TestListAgentActivities_Success_ResolvesMemberAndForwardsFilters(t *testing
 			return &projectdom.ProjectMember{ID: memberID}, nil
 		},
 	}
-	var gotFilter agentdom.ListAgentActivitiesFilter
-	svc := validAgentSvc()
-	svc.listAgentActivities = func(_ context.Context, filter agentdom.ListAgentActivitiesFilter, _ int) ([]*agentdom.ActivityFeedItem, bool, error) {
-		gotFilter = filter
-		return []*agentdom.ActivityFeedItem{
-			{ID: uuid.New(), SourceType: agentdom.ActivitySourceTask, ActivityType: "task.created"},
-		}, false, nil
-	}
-	r := newAgentRouterWithMemberRepo(svc, memberRepo, uuid.New().String())
+	taskID := uuid.New()
+	lister := &fakeActivityLister{items: []*activitydom.Activity{
+		{ID: uuid.New(), EntityType: "task", EntityID: &taskID, ActivityType: "task.created"},
+	}}
+	r := newAgentRouterWithActivities(validAgentSvc(), memberRepo, lister, uuid.New().String())
 	projectID := uuid.New()
 	agentID := uuid.New()
 
@@ -954,27 +1061,52 @@ func TestListAgentActivities_Success_ResolvesMemberAndForwardsFilters(t *testing
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
-	if gotFilter.ActorMemberID != memberID {
-		t.Fatalf("expected the resolved member ID %v to reach the service, got %v", memberID, gotFilter.ActorMemberID)
+	got := lister.gotFilter
+	if len(got.ActorMemberIDs) != 1 || got.ActorMemberIDs[0] != memberID {
+		t.Fatalf("expected the resolved member ID %v to reach the log, got %v", memberID, got.ActorMemberIDs)
 	}
-	wantTypes := []agentdom.ActivitySourceType{agentdom.ActivitySourceTask, agentdom.ActivitySourceDoc}
-	if len(gotFilter.SourceTypes) != len(wantTypes) || gotFilter.SourceTypes[0] != wantTypes[0] || gotFilter.SourceTypes[1] != wantTypes[1] {
-		t.Fatalf("expected source types %v, got %v", wantTypes, gotFilter.SourceTypes)
+	if got.ProjectID != projectID {
+		t.Fatalf("expected project %v, got %v", projectID, got.ProjectID)
 	}
-	if gotFilter.Search == nil || *gotFilter.Search != "hello" {
-		t.Fatalf("expected search %q, got %v", "hello", gotFilter.Search)
+	if len(got.EntityTypes) != 2 || got.EntityTypes[0] != "task" || got.EntityTypes[1] != "doc" {
+		t.Fatalf("expected entity types [task doc], got %v", got.EntityTypes)
+	}
+	if got.Search != "hello" {
+		t.Fatalf("expected search %q, got %q", "hello", got.Search)
 	}
 
 	var body struct {
 		Data struct {
-			Items []any `json:"items"`
+			Items []struct {
+				SourceType string `json:"source_type"`
+				SourceID   string `json:"source_id"`
+			} `json:"items"`
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
 		t.Fatalf("failed to decode response body: %v", err)
 	}
-	if len(body.Data.Items) != 1 {
-		t.Fatalf("expected 1 item in response, got %d", len(body.Data.Items))
+	if len(body.Data.Items) != 1 || body.Data.Items[0].SourceType != "task" || body.Data.Items[0].SourceID != taskID.String() {
+		t.Fatalf("expected one task item for %v, got %+v", taskID, body.Data.Items)
+	}
+}
+
+func TestListAgentActivities_NoTypeFilter_DefaultsToTaskAndDoc(t *testing.T) {
+	memberRepo := &fakeMemberRepo{
+		findByAgent: func(context.Context, uuid.UUID, uuid.UUID) (*projectdom.ProjectMember, error) {
+			return &projectdom.ProjectMember{ID: uuid.New()}, nil
+		},
+	}
+	lister := &fakeActivityLister{}
+	r := newAgentRouterWithActivities(validAgentSvc(), memberRepo, lister, uuid.New().String())
+
+	w := doAgentRequest(t, r, http.MethodGet,
+		"/projects/"+uuid.New().String()+"/agents/"+uuid.New().String()+"/activities", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if len(lister.gotFilter.EntityTypes) != 2 {
+		t.Fatalf("expected the agent tab to default to task and doc entries, got %v", lister.gotFilter.EntityTypes)
 	}
 }
 
@@ -1323,5 +1455,187 @@ func TestVerifyCLILogin_WrongAgentType_Returns400(t *testing.T) {
 	}
 	if resp.ErrorCode != "AGENT_NOT_PROVIDER_CLI" {
 		t.Errorf("expected AGENT_NOT_PROVIDER_CLI, got %q", resp.ErrorCode)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Global agent role binding (GHSA-xxc8-ggm7-vmxp)
+//
+// Binding a global agent to a global role decides what the agent may do, so it
+// is a privilege of its own (global_roles.assign) and has its own routes,
+// PUT/DELETE /admin/agents/{agentId}/global-role, whose permissions the router
+// declares. Create/update therefore refuse global_role_id outright: silently
+// ignoring it would let a client believe the role was bound.
+// ---------------------------------------------------------------------------
+
+func validGlobalAgentBody(overrides map[string]any) map[string]any {
+	base := map[string]any{
+		"name":         "Test Bot",
+		"handle":       "test-bot",
+		"llm_provider": "openai",
+		"llm_model":    "gpt-4",
+		"llm_api_key":  "sk-test",
+	}
+	for k, v := range overrides {
+		base[k] = v
+	}
+	return base
+}
+
+func TestCreateGlobalAgent_RejectsGlobalRoleID(t *testing.T) {
+	svc := &mockAgentSvc{
+		createGlobalAgent: func(context.Context, agentdom.CreateGlobalAgentInput) (*agentdom.Agent, error) {
+			t.Fatal("CreateGlobalAgent must not be called when the body sets global_role_id")
+			return nil, nil
+		},
+	}
+	w := doAgentRequest(t, newGlobalAgentAdminRouter(svc), http.MethodPost, "/admin/agents",
+		validGlobalAgentBody(map[string]any{"global_role_id": uuid.New()}))
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "global-role") {
+		t.Errorf("expected the error to point at the global-role route, got %s", w.Body.String())
+	}
+}
+
+func TestCreateGlobalAgent_WithoutRoleField_Creates(t *testing.T) {
+	called := false
+	svc := &mockAgentSvc{
+		createGlobalAgent: func(context.Context, agentdom.CreateGlobalAgentInput) (*agentdom.Agent, error) {
+			called = true
+			return &agentdom.Agent{ID: uuid.New(), AgentScope: agentdom.AgentScopeGlobal, Name: "Test Bot", Handle: "test-bot"}, nil
+		},
+	}
+	w := doAgentRequest(t, newGlobalAgentAdminRouter(svc), http.MethodPost, "/admin/agents", validGlobalAgentBody(nil))
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	if !called {
+		t.Error("expected CreateGlobalAgent to be called")
+	}
+}
+
+func TestUpdateGlobalAgent_RejectsGlobalRoleID(t *testing.T) {
+	for name, roleID := range map[string]uuid.UUID{"a real role": uuid.New(), "the old clear sentinel": uuid.Nil} {
+		t.Run(name, func(t *testing.T) {
+			svc := &mockAgentSvc{
+				updateGlobalAgent: func(context.Context, uuid.UUID, agentdom.UpdateAgentInput) (*agentdom.Agent, error) {
+					t.Fatal("UpdateGlobalAgent must not be called when the body sets global_role_id")
+					return nil, nil
+				},
+			}
+			w := doAgentRequest(t, newGlobalAgentAdminRouter(svc), http.MethodPatch, "/admin/agents/"+uuid.New().String(),
+				map[string]any{"global_role_id": roleID})
+
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestUpdateGlobalAgent_WithoutRoleField_Updates(t *testing.T) {
+	called := false
+	svc := &mockAgentSvc{
+		updateGlobalAgent: func(context.Context, uuid.UUID, agentdom.UpdateAgentInput) (*agentdom.Agent, error) {
+			called = true
+			return &agentdom.Agent{ID: uuid.New(), AgentScope: agentdom.AgentScopeGlobal, Name: "Renamed", Handle: "test-bot"}, nil
+		},
+	}
+	w := doAgentRequest(t, newGlobalAgentAdminRouter(svc), http.MethodPatch, "/admin/agents/"+uuid.New().String(),
+		map[string]any{"name": "Renamed"})
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !called {
+		t.Error("expected UpdateGlobalAgent to be called")
+	}
+}
+
+func TestSetGlobalAgentRole_BindsRole(t *testing.T) {
+	agentID, roleID := uuid.New(), uuid.New()
+	svc := &mockAgentSvc{
+		setGlobalAgentRole: func(_ context.Context, gotAgent uuid.UUID, gotRole *uuid.UUID) (*agentdom.Agent, error) {
+			if gotAgent != agentID || gotRole == nil || *gotRole != roleID {
+				t.Fatalf("service called with agent %v role %v, want %v / %v", gotAgent, gotRole, agentID, roleID)
+			}
+			return &agentdom.Agent{ID: agentID, AgentScope: agentdom.AgentScopeGlobal, GlobalRoleID: gotRole}, nil
+		},
+	}
+	w := doAgentRequest(t, newGlobalAgentAdminRouter(svc), http.MethodPut,
+		"/admin/agents/"+agentID.String()+"/global-role", map[string]any{"global_role_id": roleID})
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), roleID.String()) {
+		t.Errorf("expected the bound role in the response, got %s", w.Body.String())
+	}
+}
+
+func TestSetGlobalAgentRole_RejectsMissingOrZeroRole(t *testing.T) {
+	for name, body := range map[string]map[string]any{
+		"missing field": {},
+		"zero uuid":     {"global_role_id": uuid.Nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			svc := &mockAgentSvc{
+				setGlobalAgentRole: func(context.Context, uuid.UUID, *uuid.UUID) (*agentdom.Agent, error) {
+					t.Fatal("SetGlobalAgentRole must not be called without a role")
+					return nil, nil
+				},
+			}
+			w := doAgentRequest(t, newGlobalAgentAdminRouter(svc), http.MethodPut,
+				"/admin/agents/"+uuid.New().String()+"/global-role", body)
+
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestSetGlobalAgentRole_InvalidAgentID(t *testing.T) {
+	w := doAgentRequest(t, newGlobalAgentAdminRouter(&mockAgentSvc{}), http.MethodPut,
+		"/admin/agents/not-a-uuid/global-role", map[string]any{"global_role_id": uuid.New()})
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestSetGlobalAgentRole_UnknownAgentMapsToNotFound(t *testing.T) {
+	svc := &mockAgentSvc{
+		setGlobalAgentRole: func(context.Context, uuid.UUID, *uuid.UUID) (*agentdom.Agent, error) {
+			return nil, agentdom.ErrAgentNotFound
+		},
+	}
+	w := doAgentRequest(t, newGlobalAgentAdminRouter(svc), http.MethodPut,
+		"/admin/agents/"+uuid.New().String()+"/global-role", map[string]any{"global_role_id": uuid.New()})
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestClearGlobalAgentRole_Unbinds(t *testing.T) {
+	agentID := uuid.New()
+	svc := &mockAgentSvc{
+		setGlobalAgentRole: func(_ context.Context, gotAgent uuid.UUID, gotRole *uuid.UUID) (*agentdom.Agent, error) {
+			if gotAgent != agentID || gotRole != nil {
+				t.Fatalf("service called with agent %v role %v, want %v / nil", gotAgent, gotRole, agentID)
+			}
+			return &agentdom.Agent{ID: agentID, AgentScope: agentdom.AgentScopeGlobal}, nil
+		},
+	}
+	w := doAgentRequest(t, newGlobalAgentAdminRouter(svc), http.MethodDelete,
+		"/admin/agents/"+agentID.String()+"/global-role", nil)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 }

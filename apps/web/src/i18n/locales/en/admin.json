@@ -9,6 +9,10 @@
 			"title": "No global agents yet",
 			"description": "Create a global agent to make it available for chat and project invites.",
 			"createAgent": "Create agent"
+		},
+		"noPermission": {
+			"title": "You don't have permission to view agents",
+			"description": "You can still create new agents using the button above."
 		}
 	},
 	"users": {
@@ -46,6 +50,7 @@
 			"noFullName": "—",
 			"resetPasswordAction": "Reset password",
 			"editAction": "Edit user",
+			"changeRoleAction": "Change role",
 			"deleteAction": "Delete user"
 		},
 		"formDialog": {
@@ -59,8 +64,10 @@
 			"done": "Done",
 			"editTitle": "Edit User",
 			"createTitle": "Create User",
-			"editDescription": "Update the user's display name and role assignment.",
+			"editDescription": "Update the user's display name and email.",
 			"createDescription": "A secure temporary password will be generated automatically. The user will be required to change it on first login.",
+			"roleStepDescription": "{{username}} was created with the {{role}} role. Keep it, or choose a different one.",
+			"stepIndicator": "{{step}} / {{total}}",
 			"usernameLabel": "Username",
 			"usernamePlaceholder": "e.g. john.doe",
 			"fullNameLabel": "Full Name",
@@ -68,10 +75,11 @@
 			"emailLabel": "Email",
 			"emailOptionalHint": "(optional — sends a welcome email with a link to set their password)",
 			"emailPlaceholder": "e.g. john.doe@example.com",
-			"roleLabel": "Role",
-			"roleOptionalHint": "(optional — defaults to USER)",
-			"rolePlaceholder": "Select a role…",
+			"roleStep": {
+				"title": "Role"
+			},
 			"cancel": "Cancel",
+			"continue": "Continue",
 			"saving": "Saving…",
 			"creating": "Creating…",
 			"saveChanges": "Save changes",
@@ -83,9 +91,20 @@
 				"emailTaken": "This email is already in use.",
 				"userNotFound": "User not found. They may have already been deleted.",
 				"forbidden": "You don't have permission to perform this action.",
+				"noDefaultRole": "There is no default role to give the new account. Set one on the Global Roles page, then try again.",
 				"internalError": "Something went wrong on the server. Please try again.",
-				"generic": "Something went wrong.",
-				"emailRequired": "Enter a valid email."
+				"generic": "Something went wrong."
+			}
+		},
+		"roleDialog": {
+			"title": "Change role",
+			"description": "Choose a role for {{username}}. It applies from their next request.",
+			"assign": "Assign role",
+			"assigning": "Assigning…",
+			"fullAccessWarning": "This role has full access. It can do everything, including managing users and roles.",
+			"selfWarning": "This is your own account. Changing your role can remove your access to this page.",
+			"errors": {
+				"roleNotFound": "That role no longer exists. Close this dialog and try again."
 			}
 		},
 		"resetPasswordDialog": {
@@ -154,10 +173,13 @@
 		"table": {
 			"columnName": "Name",
 			"columnPermissions": "Permissions",
-			"columnCreated": "Created",
+			"columnDefault": "Default",
 			"noPermissionsAssigned": "No permissions assigned",
+			"default": "Default",
+			"setDefaultAction": "Set as default role",
 			"editAction": "Edit role",
-			"deleteAction": "Delete role"
+			"deleteAction": "Delete role",
+			"deleteDefaultDisabled": "The default role can't be deleted. Make another role the default first."
 		},
 		"formDialog": {
 			"editTitle": "Edit Role",
@@ -194,6 +216,7 @@
 			"errors": {
 				"roleNotFound": "This role no longer exists.",
 				"hasUsersWarning": "This role cannot be deleted because it is still assigned to one or more users.",
+				"isDefault": "The default role can't be deleted. Make another role the default first.",
 				"forbidden": "You don't have permission to delete this role.",
 				"internalError": "Something went wrong. Please try again.",
 				"generic": "Something went wrong."
@@ -259,6 +282,10 @@
 			"settingsWrite": {
 				"label": "Write Workspace Settings",
 				"description": "Update the workspace logo, favicon, and primary color"
+			},
+			"settingsSsoWrite": {
+				"label": "Manage SSO Providers",
+				"description": "Configure the identity providers users can sign in with. Grants the ability to sign in as other users, so treat it like full admin access."
 			}
 		},
 		"permissionGroups": {
@@ -267,7 +294,28 @@
 			"projects": "Projects",
 			"plugins": "Plugins",
 			"settings": "Settings"
+		},
+		"defaultDialog": {
+			"title": "Set default role",
+			"description": "New users and new global agents will start with the {{role}} role. Accounts that already exist keep the role they have.",
+			"fullAccessWarning": "This role grants every permission, so every account you create from now on would start with full access. Make sure that's what you want.",
+			"cancel": "Cancel",
+			"confirm": "Set as default",
+			"confirming": "Saving…",
+			"errors": {
+				"roleNotFound": "This role no longer exists.",
+				"forbidden": "You don't have permission to change the default role.",
+				"generic": "Something went wrong. Please try again."
+			}
 		}
+	},
+	"rolePicker": {
+		"current": "Current",
+		"fullAccess": "Full access",
+		"loadFailed": "Couldn't load the roles.",
+		"retry": "Try again",
+		"empty": "No roles have been created yet.",
+		"default": "Default"
 	},
 	"plugins": {
 		"title": "Plugin Settings",
@@ -293,8 +341,8 @@
 		"empty": "No release notes available yet."
 	},
 	"settings": {
-		"title": "Workspace Branding",
-		"description": "Set the logo, favicon, and primary color used across every project in this workspace.",
+		"title": "Workspace Settings",
+		"description": "Branding and sign-in options for this workspace.",
 		"images": {
 			"title": "Logo & Favicon",
 			"logo": {
@@ -336,6 +384,61 @@
 			"saved": "Saved",
 			"errors": {
 				"updateFailed": "Failed to save. Please try again."
+			}
+		},
+		"sso": {
+			"title": "Single sign-on (SSO)",
+			"description": "Let people sign in with an OpenID Connect identity provider such as Google, Microsoft Entra ID, Okta or Keycloak.",
+			"add": "Add provider",
+			"empty": "No SSO providers yet. Users sign in with a username and password.",
+			"enabled": "Enabled",
+			"disabled": "Disabled",
+			"edit": "Edit {{name}}",
+			"delete": "Delete {{name}}",
+			"copy": "Copy",
+			"dialog": {
+				"createTitle": "Add SSO provider",
+				"editTitle": "Edit SSO provider",
+				"description": "Register Paca as an OpenID Connect client at your identity provider, then enter the details it gives you.",
+				"cancel": "Cancel",
+				"save": "Save"
+			},
+			"fields": {
+				"displayName": "Display name",
+				"displayNamePlaceholder": "Company SSO",
+				"slug": "Slug",
+				"slugHint": "Used in the sign-in and callback URLs. Changing it breaks the callback URL registered at the provider.",
+				"callbackUrl": "Callback URL",
+				"callbackUrlHint": "Register this as the redirect URI at your identity provider.",
+				"issuerUrl": "Issuer URL",
+				"issuerUrlHint": "The OpenID Connect issuer. Its discovery document must be reachable from the Paca server.",
+				"clientId": "Client ID",
+				"clientSecret": "Client secret",
+				"clientSecretKeepHint": "A secret is stored. Leave blank to keep it.",
+				"scopes": "Scopes",
+				"scopesHint": "Space-separated. \"openid\" is always included.",
+				"allowedDomains": "Allowed email domains",
+				"allowedDomainsHint": "Comma-separated. Leave empty to allow any domain. Only verified emails are accepted.",
+				"enabled": "Enabled",
+				"enabledHint": "Show this provider on the sign-in page.",
+				"autoProvision": "Create accounts automatically",
+				"autoProvisionHint": "First-time users get a new account with the default role.",
+				"linkByEmail": "Link existing accounts by email",
+				"linkByEmailHint": "A first-time user whose verified email matches an existing account signs in as that account.",
+				"linkByEmailWarning": "Only turn this on for a provider you trust completely: anyone who controls it can sign in as any account with a matching email, including administrators."
+			},
+			"deleteDialog": {
+				"title": "Delete SSO provider",
+				"description": "Delete \"{{name}}\"? People can no longer sign in with it, and the accounts it created lose their link to it. The accounts themselves are kept.",
+				"confirm": "Delete"
+			},
+			"errors": {
+				"slugTaken": "Another provider already uses this slug.",
+				"discoveryFailed": "Could not reach the issuer's OpenID Connect discovery document. Check the issuer URL.",
+				"invalid": "Some fields are invalid. Check the slug, issuer URL, client ID and email domains.",
+				"saveFailed": "Failed to save the provider. Please try again.",
+				"loadFailed": "Failed to load SSO providers.",
+				"deleteFailed": "Failed to delete the provider. Please try again."
 			}
 		},
 		"email": {

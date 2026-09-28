@@ -22,6 +22,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { useJevEnabled } from "@/hooks/use-jev-enabled";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
 	agentQueryOptions,
@@ -60,6 +61,15 @@ export interface AgentPickerState {
 
 export const AgentPickerContext = createContext<AgentPickerState | null>(null);
 
+// AUTO_AGENT_ID is the picker's sentinel "Auto" selection — Jev (the AI
+// decision API) picks which real agent handles the conversation, based on
+// the user's opening message, at send time. Not a real agent id: whichever
+// send handler owns the picker (new-conversation-thread.tsx, the floating
+// chat widget) must resolve it to a real id via resolveAutoAgent/
+// resolveGlobalAutoAgent before calling startChatSession — see those
+// handlers' own "Auto" branch.
+export const AUTO_AGENT_ID = "__auto__";
+
 // Fetches the project's agents and owns the selected-agent state that feeds
 // `AgentPickerState` — shared by the floating chat widget and the
 // Conversations page's inline "new conversation" thread so neither duplicates
@@ -69,19 +79,47 @@ export function useAgentPicker(
 	projectId: string,
 	options?: { disabled?: boolean; enabled?: boolean },
 ) {
-	const { data: agents = [], isLoading: agentsLoading } = useQuery({
+	const { t } = useTranslation("projects");
+	const jevEnabled = useJevEnabled(projectId);
+	const { data: allAgents = [], isLoading: agentsLoading } = useQuery({
 		...agentsQueryOptions(projectId),
 		enabled: options?.enabled ?? true,
 	});
+	// A restricted agent the caller has no grant for is visible on the
+	// Agents page (so people know it exists and who to ask) but not
+	// selectable here — starting a chat with it would just fail with
+	// AGENT_ACCESS_RESTRICTED, so it's left off the composer's own list
+	// instead of offering a choice guaranteed to error.
+	const realAgents = useMemo(
+		() =>
+			allAgents.filter(
+				(a) => a.access_mode !== "restricted" || a.access_granted,
+			),
+		[allAgents],
+	);
+	// "Auto" is prepended as a synthetic first option — only when Jev is
+	// configured AND there's at least one real agent to resolve it to
+	// (otherwise it'd be a dead end: picking it just 404s at send time).
+	const agents = useMemo(
+		() =>
+			jevEnabled && realAgents.length > 0
+				? [{ id: AUTO_AGENT_ID, name: t("aiChat.autoAgent") }, ...realAgents]
+				: realAgents,
+		[realAgents, jevEnabled, t],
+	);
 	const [agentId, setAgentId] = useState("");
 
-	// Nothing to actually pick between — auto-select the project's only agent
-	// instead of forcing an explicit choice before the composer will send.
+	// Default to Auto once Jev is available; otherwise fall back to the
+	// pre-Auto behavior — auto-select the project's only agent instead of
+	// forcing an explicit choice before the composer will send.
 	useEffect(() => {
-		if (!agentId && agents.length === 1 && agents[0]) {
-			setAgentId(agents[0].id);
+		if (agentId) return;
+		if (jevEnabled && realAgents.length > 0) {
+			setAgentId(AUTO_AGENT_ID);
+		} else if (realAgents.length === 1 && realAgents[0]) {
+			setAgentId(realAgents[0].id);
 		}
-	}, [agents, agentId]);
+	}, [realAgents, agentId, jevEnabled]);
 
 	const disabled = options?.disabled;
 	const pickerState = useMemo<AgentPickerState>(
@@ -110,18 +148,33 @@ export function useGlobalAgentPicker(options?: {
 	disabled?: boolean;
 	enabled?: boolean;
 }) {
+	const { t } = useTranslation("projects");
+	// No project in scope here (this is the global, cross-project picker), so
+	// Jev is always treated as unconfigured — matches ResolveGlobalAutoAgent's
+	// own graceful nil-project fallback on the backend.
+	const jevEnabled = useJevEnabled(undefined);
 	const { hasPermission } = usePermissions();
-	const { data: agents = [], isLoading: agentsLoading } = useQuery({
+	const { data: realAgents = [], isLoading: agentsLoading } = useQuery({
 		...chattableAgentsQueryOptions,
 		enabled: options?.enabled ?? true,
 	});
+	const agents = useMemo(
+		() =>
+			jevEnabled && realAgents.length > 0
+				? [{ id: AUTO_AGENT_ID, name: t("aiChat.autoAgent") }, ...realAgents]
+				: realAgents,
+		[realAgents, jevEnabled, t],
+	);
 	const [agentId, setAgentId] = useState("");
 
 	useEffect(() => {
-		if (!agentId && agents.length === 1 && agents[0]) {
-			setAgentId(agents[0].id);
+		if (agentId) return;
+		if (jevEnabled && realAgents.length > 0) {
+			setAgentId(AUTO_AGENT_ID);
+		} else if (realAgents.length === 1 && realAgents[0]) {
+			setAgentId(realAgents[0].id);
 		}
-	}, [agents, agentId]);
+	}, [realAgents, agentId, jevEnabled]);
 
 	const disabled = options?.disabled;
 	const canCreate = hasPermission("agents.write");
@@ -239,6 +292,12 @@ export interface EnvironmentPickerState {
 	 * useEnvironmentPicker's own doc comment on why a provider_cli agent
 	 * locks environment but leaves folder pickable. */
 	environmentDisabled?: boolean;
+	/** True for an ACP-type agent — its sandboxing is owned entirely by the
+	 * user's own local ACP client, so no static environment/folder ever
+	 * applies (mirrors agent-detail.tsx's own `!isAcp` gate on its
+	 * Environment section). Both pickers stay hidden entirely rather than
+	 * merely disabled. */
+	hidden?: boolean;
 }
 
 export const EnvironmentPickerContext =
@@ -253,10 +312,22 @@ export function useEnvironmentPicker(
 	options?: { disabled?: boolean; enabled?: boolean },
 ) {
 	const queryEnabled = (options?.enabled ?? true) && !!projectId;
-	const { data: environments = [], isLoading: environmentsLoading } = useQuery({
-		...environmentsQueryOptions(projectId),
-		enabled: queryEnabled,
-	});
+	const { data: allEnvironments = [], isLoading: environmentsLoading } =
+		useQuery({
+			...environmentsQueryOptions(projectId),
+			enabled: queryEnabled,
+		});
+	// Same reasoning as useAgentPicker's own filter: a restricted
+	// environment the caller has no grant for would just fail to attach
+	// with ENVIRONMENT_ACCESS_RESTRICTED, so it's left off this list
+	// rather than offered as a choice guaranteed to error.
+	const environments = useMemo(
+		() =>
+			allEnvironments.filter(
+				(e) => e.access_mode !== "restricted" || e.access_granted,
+			),
+		[allEnvironments],
+	);
 	// Fetched only to read default_environment_id — this agent is typically
 	// already warm in the agent picker's own cache once chosen, so this is
 	// usually an instant cache hit rather than a new request.
@@ -356,6 +427,12 @@ export function useEnvironmentPicker(
 	// caller-locked picker (e.g. an already-started conversation) must stay
 	// locked regardless of agent type.
 	const environmentDisabled = disabled || agent?.agent_type === "provider_cli";
+	// An ACP agent runs entirely through the user's own local ACP client
+	// (apps/acp-bridge) — it never attaches to one of this project's static
+	// environments, so both pickers are hidden outright instead of merely
+	// disabled (same `!isAcp` gate agent-detail.tsx's Environment section
+	// already uses).
+	const hidden = agent?.agent_type === "acp";
 	const pickerState = useMemo<EnvironmentPickerState>(
 		() => ({
 			projectId,
@@ -368,6 +445,7 @@ export function useEnvironmentPicker(
 			onFolderChange: setFolderId,
 			disabled,
 			environmentDisabled,
+			hidden,
 		}),
 		[
 			projectId,
@@ -379,6 +457,7 @@ export function useEnvironmentPicker(
 			folderId,
 			disabled,
 			environmentDisabled,
+			hidden,
 		],
 	);
 
@@ -404,11 +483,13 @@ export function EnvironmentPickerInline() {
 		onEnvironmentChange,
 		disabled,
 		environmentDisabled,
+		hidden,
 	} = picker;
 
-	// Nothing to pick from yet — this project hasn't created any static
-	// environments, so stay invisible rather than showing an empty picker.
-	if (environmentsLoading || environments.length === 0) {
+	// Hidden outright for an ACP-type agent (see EnvironmentPickerState.hidden),
+	// or when this project hasn't created any static environments yet — either
+	// way, stay invisible rather than showing an empty/meaningless picker.
+	if (hidden || environmentsLoading || environments.length === 0) {
 		return null;
 	}
 
@@ -484,9 +565,10 @@ export function FolderPickerInline() {
 		folderId,
 		onFolderChange,
 		disabled,
+		hidden,
 	} = picker;
 
-	if (!environmentId) return null;
+	if (hidden || !environmentId) return null;
 	const selectedEnvironment = environments.find((e) => e.id === environmentId);
 	if (!selectedEnvironment) return null;
 

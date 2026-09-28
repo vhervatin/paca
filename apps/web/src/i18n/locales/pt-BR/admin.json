@@ -34,6 +34,7 @@
 			"noFullName": "—",
 			"resetPasswordAction": "Redefinir senha",
 			"editAction": "Editar usuário",
+			"changeRoleAction": "Alterar função",
 			"deleteAction": "Excluir usuário"
 		},
 		"formDialog": {
@@ -47,8 +48,10 @@
 			"done": "Concluído",
 			"editTitle": "Editar Usuário",
 			"createTitle": "Criar Usuário",
-			"editDescription": "Atualize o nome de exibição e a atribuição de função do usuário.",
+			"editDescription": "Atualize o nome de exibição e o e-mail do usuário.",
 			"createDescription": "Uma senha temporária segura será gerada automaticamente. Será solicitado ao usuário que a altere no primeiro login.",
+			"roleStepDescription": "{{username}} foi criado com a função {{role}}. Mantenha-a ou escolha outra.",
+			"stepIndicator": "{{step}} / {{total}}",
 			"usernameLabel": "Usuário",
 			"usernamePlaceholder": "ex.: joao.silva",
 			"fullNameLabel": "Nome Completo",
@@ -56,10 +59,11 @@
 			"emailLabel": "E-mail",
 			"emailOptionalHint": "(opcional — envia um e-mail de boas-vindas com um link para definir a senha)",
 			"emailPlaceholder": "ex.: joao.silva@example.com",
-			"roleLabel": "Função",
-			"roleOptionalHint": "(opcional — o padrão é USER)",
-			"rolePlaceholder": "Selecione uma função…",
+			"roleStep": {
+				"title": "Função"
+			},
 			"cancel": "Cancelar",
+			"continue": "Continuar",
 			"saving": "Salvando…",
 			"creating": "Criando…",
 			"saveChanges": "Salvar alterações",
@@ -71,9 +75,20 @@
 				"emailTaken": "Este e-mail já está em uso.",
 				"userNotFound": "Usuário não encontrado. Ele pode já ter sido excluído.",
 				"forbidden": "Você não tem permissão para executar esta ação.",
+				"noDefaultRole": "Não há uma função padrão para a nova conta. Defina uma na página Funções Globais e tente novamente.",
 				"internalError": "Algo deu errado no servidor. Tente novamente.",
-				"generic": "Algo deu errado.",
-				"emailRequired": "Informe um e-mail válido."
+				"generic": "Algo deu errado."
+			}
+		},
+		"roleDialog": {
+			"title": "Alterar função",
+			"description": "Escolha uma função para {{username}}. Ela vale a partir da próxima requisição.",
+			"assign": "Atribuir função",
+			"assigning": "Atribuindo…",
+			"fullAccessWarning": "Esta função tem acesso total. Ela pode fazer tudo, inclusive gerenciar usuários e funções.",
+			"selfWarning": "Esta é a sua própria conta. Alterar sua função pode remover seu acesso a esta página.",
+			"errors": {
+				"roleNotFound": "Essa função não existe mais. Feche esta caixa de diálogo e tente novamente."
 			}
 		},
 		"resetPasswordDialog": {
@@ -142,10 +157,13 @@
 		"table": {
 			"columnName": "Nome",
 			"columnPermissions": "Permissões",
-			"columnCreated": "Criado em",
+			"columnDefault": "Padrão",
 			"noPermissionsAssigned": "Nenhuma permissão atribuída",
+			"default": "Padrão",
+			"setDefaultAction": "Definir como função padrão",
 			"editAction": "Editar função",
-			"deleteAction": "Excluir função"
+			"deleteAction": "Excluir função",
+			"deleteDefaultDisabled": "A função padrão não pode ser excluída. Defina primeiro outra função como padrão."
 		},
 		"formDialog": {
 			"editTitle": "Editar Função",
@@ -182,6 +200,7 @@
 			"errors": {
 				"roleNotFound": "Esta função não existe mais.",
 				"hasUsersWarning": "Esta função não pode ser excluída porque ainda está atribuída a um ou mais usuários.",
+				"isDefault": "A função padrão não pode ser excluída. Defina primeiro outra função como padrão.",
 				"forbidden": "Você não tem permissão para excluir esta função.",
 				"internalError": "Algo deu errado. Tente novamente.",
 				"generic": "Algo deu errado."
@@ -247,6 +266,10 @@
 			"settingsWrite": {
 				"label": "Editar configurações do workspace",
 				"description": "Atualizar o logotipo, o favicon e a cor principal do workspace"
+			},
+			"settingsSsoWrite": {
+				"label": "Gerenciar provedores SSO",
+				"description": "Configurar os provedores de identidade usados para login. Permite entrar como outros usuários, então trate como acesso total de administrador."
 			}
 		},
 		"permissionGroups": {
@@ -255,7 +278,28 @@
 			"projects": "Projetos",
 			"plugins": "Plugins",
 			"settings": "Configurações"
+		},
+		"defaultDialog": {
+			"title": "Definir função padrão",
+			"description": "Novos usuários e novos agentes globais começarão com a função {{role}}. As contas que já existem mantêm a função atual.",
+			"fullAccessWarning": "Esta função concede todas as permissões, então toda conta criada a partir de agora começará com acesso total. Confirme se é isso que você quer.",
+			"cancel": "Cancelar",
+			"confirm": "Definir como padrão",
+			"confirming": "Salvando…",
+			"errors": {
+				"roleNotFound": "Esta função não existe mais.",
+				"forbidden": "Você não tem permissão para alterar a função padrão.",
+				"generic": "Algo deu errado. Tente novamente."
+			}
 		}
+	},
+	"rolePicker": {
+		"current": "Atual",
+		"fullAccess": "Acesso total",
+		"loadFailed": "Não foi possível carregar as funções.",
+		"retry": "Tentar novamente",
+		"empty": "Nenhuma função foi criada ainda.",
+		"default": "Padrão"
 	},
 	"plugins": {
 		"title": "Configurações de Plugins",
@@ -290,11 +334,15 @@
 			"title": "Ainda não há agentes globais",
 			"description": "Crie um agente global para disponibilizá-lo para conversas e convites de projeto.",
 			"createAgent": "Criar agente"
+		},
+		"noPermission": {
+			"title": "You don't have permission to view agents",
+			"description": "You can still create new agents using the button above."
 		}
 	},
 	"settings": {
-		"title": "Identidade visual do workspace",
-		"description": "Defina o logotipo, o favicon e a cor principal usados em todos os projetos deste workspace.",
+		"title": "Configurações do espaço de trabalho",
+		"description": "Opções de marca e de login deste espaço de trabalho.",
 		"images": {
 			"title": "Logotipo e favicon",
 			"logo": {
@@ -336,6 +384,61 @@
 			"saved": "Salvo",
 			"errors": {
 				"updateFailed": "Falha ao salvar. Tente novamente."
+			}
+		},
+		"sso": {
+			"title": "Login único (SSO)",
+			"description": "Permita o login com um provedor de identidade OpenID Connect, como Google, Microsoft Entra ID, Okta ou Keycloak.",
+			"add": "Adicionar provedor",
+			"empty": "Nenhum provedor SSO ainda. Os usuários entram com nome de usuário e senha.",
+			"enabled": "Ativado",
+			"disabled": "Desativado",
+			"edit": "Editar {{name}}",
+			"delete": "Excluir {{name}}",
+			"copy": "Copiar",
+			"dialog": {
+				"createTitle": "Adicionar provedor SSO",
+				"editTitle": "Editar provedor SSO",
+				"description": "Registre o Paca como cliente OpenID Connect no seu provedor de identidade e depois informe os dados fornecidos por ele.",
+				"cancel": "Cancelar",
+				"save": "Salvar"
+			},
+			"fields": {
+				"displayName": "Nome de exibição",
+				"displayNamePlaceholder": "SSO da empresa",
+				"slug": "Identificador",
+				"slugHint": "Usado nas URLs de login e de retorno. Alterá-lo invalida a URL de retorno registrada no provedor.",
+				"callbackUrl": "URL de retorno",
+				"callbackUrlHint": "Registre-a como URI de redirecionamento no seu provedor de identidade.",
+				"issuerUrl": "URL do emissor",
+				"issuerUrlHint": "O emissor OpenID Connect. Seu documento de descoberta precisa estar acessível a partir do servidor do Paca.",
+				"clientId": "ID do cliente",
+				"clientSecret": "Segredo do cliente",
+				"clientSecretKeepHint": "Há um segredo salvo. Deixe em branco para mantê-lo.",
+				"scopes": "Escopos",
+				"scopesHint": "Separados por espaços. \"openid\" é sempre incluído.",
+				"allowedDomains": "Domínios de e-mail permitidos",
+				"allowedDomainsHint": "Separados por vírgulas. Deixe vazio para permitir qualquer domínio. Apenas e-mails verificados são aceitos.",
+				"enabled": "Ativado",
+				"enabledHint": "Mostrar este provedor na página de login.",
+				"autoProvision": "Criar contas automaticamente",
+				"autoProvisionHint": "Usuários de primeiro acesso recebem uma conta nova com a função padrão.",
+				"linkByEmail": "Vincular contas existentes por e-mail",
+				"linkByEmailHint": "Um usuário de primeiro acesso cujo e-mail verificado corresponda a uma conta existente entra nessa conta.",
+				"linkByEmailWarning": "Ative apenas para um provedor totalmente confiável: quem o controla pode entrar como qualquer conta com e-mail correspondente, inclusive administradores."
+			},
+			"deleteDialog": {
+				"title": "Excluir provedor SSO",
+				"description": "Excluir \"{{name}}\"? Não será mais possível entrar com ele, e as contas criadas por ele perderão o vínculo. As contas em si são mantidas.",
+				"confirm": "Excluir"
+			},
+			"errors": {
+				"slugTaken": "Outro provedor já usa este identificador.",
+				"discoveryFailed": "Não foi possível acessar o documento de descoberta OpenID Connect do emissor. Verifique a URL do emissor.",
+				"invalid": "Alguns campos são inválidos. Verifique o identificador, a URL do emissor, o ID do cliente e os domínios.",
+				"saveFailed": "Falha ao salvar o provedor. Tente novamente.",
+				"loadFailed": "Falha ao carregar os provedores SSO.",
+				"deleteFailed": "Falha ao excluir o provedor. Tente novamente."
 			}
 		},
 		"email": {

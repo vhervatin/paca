@@ -12,6 +12,7 @@ import (
 	attachmentdom "github.com/Paca-AI/api/internal/domain/attachment"
 	projectdom "github.com/Paca-AI/api/internal/domain/project"
 	taskdom "github.com/Paca-AI/api/internal/domain/task"
+	"github.com/Paca-AI/api/internal/platform/authz"
 )
 
 // ---------------------------------------------------------------------------
@@ -99,6 +100,18 @@ func (r *fakeProjectRepo) Update(_ context.Context, p *projectdom.Project) error
 	r.projects[p.ID] = p
 	return nil
 }
+func (r *fakeProjectRepo) UpdateJevConfig(_ context.Context, projectID uuid.UUID, apiKeySecret, baseURL, model string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	p, ok := r.projects[projectID]
+	if !ok {
+		return projectdom.ErrNotFound
+	}
+	p.JevAPIKeySecret = apiKeySecret
+	p.JevBaseURL = baseURL
+	p.JevModel = model
+	return nil
+}
 func (r *fakeProjectRepo) Delete(_ context.Context, id uuid.UUID) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -165,6 +178,9 @@ func (r *fakeProjectRepo) FindMemberByID(_ context.Context, _ uuid.UUID) (*proje
 func (r *fakeProjectRepo) AddAgentMember(_ context.Context, _, _, _, _ uuid.UUID) error { return nil }
 func (r *fakeProjectRepo) RemoveAgentMember(_ context.Context, _, _ uuid.UUID) error    { return nil }
 func (r *fakeProjectRepo) UpdateMemberRoleByMemberID(_ context.Context, _, _ uuid.UUID) error {
+	return nil
+}
+func (r *fakeProjectRepo) UpdateMemberDescription(_ context.Context, _ uuid.UUID, _ string) error {
 	return nil
 }
 func (r *fakeProjectRepo) RemoveMemberByMemberID(_ context.Context, _ uuid.UUID) error { return nil }
@@ -340,6 +356,59 @@ func TestCreate_SeedsWithCorrectTimestamps(t *testing.T) {
 		if ts.CreatedAt.Before(before) || ts.CreatedAt.After(after) {
 			t.Errorf("task status %q CreatedAt out of expected range: %v", ts.Name, ts.CreatedAt)
 		}
+	}
+}
+
+// TestCreate_EditorRoleHasNoSettingsWritePermissions is a regression test:
+// the seeded "Editor" role previously granted project.settings.{task_types,
+// task_statuses,custom_fields}.write, letting any editor redefine the
+// project's task schema — an Admin-level (project configuration) action, not
+// a content-editing one. Nothing exercised this distinction before, so the
+// over-grant shipped unnoticed.
+func TestCreate_EditorRoleHasNoSettingsWritePermissions(t *testing.T) {
+	ctx := context.Background()
+	repo := newFakeProjectRepo()
+	tb := &fakeTaskBootstrapper{}
+	svc := New(repo, tb, nil)
+
+	creatorID := uuid.New()
+	_, err := svc.Create(ctx, projectdom.CreateProjectInput{
+		Name:      "Editor Permissions Test",
+		CreatedBy: &creatorID,
+	})
+	if err != nil {
+		t.Fatalf("Create returned unexpected error: %v", err)
+	}
+
+	var editor *projectdom.ProjectRole
+	for _, r := range repo.roles {
+		if r.RoleName == "Editor" {
+			editor = r
+			break
+		}
+	}
+	if editor == nil {
+		t.Fatal("expected a seeded \"Editor\" role, found none")
+	}
+
+	writePerms := []authz.Permission{
+		authz.PermissionProjectSettingsTaskTypesWrite,
+		authz.PermissionProjectSettingsTaskStatusesWrite,
+		authz.PermissionProjectSettingsCustomFieldsWrite,
+		authz.PermissionProjectSettingsAll,
+	}
+	for _, perm := range writePerms {
+		if granted, _ := editor.Permissions[string(perm)].(bool); granted {
+			t.Errorf("Editor role must not grant %q", perm)
+		}
+	}
+
+	// There's no dedicated read permission for the schema at all (see
+	// authz.PermissionProjectSettingsTaskTypesWrite's doc comment) — viewing
+	// task types/statuses/custom fields is implied by tasks.read, which
+	// Editor must still hold.
+	if granted, _ := editor.Permissions[string(authz.PermissionTasksRead)].(bool); !granted {
+		t.Error("Editor role should still grant tasks.read")
 	}
 }
 

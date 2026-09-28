@@ -172,6 +172,11 @@ export interface Agent {
 	global_role_id?: string | null;
 	name: string;
 	handle: string;
+	// Shown to Jev (the AI decision API) when picking which agent should
+	// handle a chat in Auto mode, or whether to assign it a task — the
+	// provider/model is appended automatically, server-side, so this field
+	// itself should just describe what the agent is for.
+	description: string;
 	avatar_url?: string | null;
 	avatar_thumb_url?: string | null;
 	agent_type: AgentType;
@@ -214,11 +219,28 @@ export interface Agent {
 	// work in by default — null unless default_environment_id is also set.
 	default_folder_id?: string | null;
 	member_id?: string | null;
+	// access_mode is "open" (default — any project member who can use agents
+	// at all may chat with this one) or "restricted" (only members with an
+	// explicit access grant may). access_granted is per-viewer: whether the
+	// current user could actually use this agent right now — always true
+	// when access_mode is "open". Together these drive the locked-agent UI.
+	access_mode: AgentAccessMode;
+	access_granted: boolean;
 	mcp_servers?: AgentMCPServer[];
 	skills?: AgentSkill[];
 	env_vars?: AgentEnvVar[];
 	created_at: string;
 	updated_at: string;
+}
+
+export type AgentAccessMode = "open" | "restricted";
+
+export interface AgentAccessGrant {
+	id: string;
+	agent_id: string;
+	member_id: string;
+	granted_by?: string | null;
+	created_at: string;
 }
 
 export type ConversationStatus =
@@ -257,6 +279,13 @@ export interface AgentConversation {
 	error_message?: string | null;
 	branch_name?: string | null;
 	pr_url?: string | null;
+	// Null until either goose names the underlying ACP session itself
+	// (agent-runner's best-effort copy) or the user renames the
+	// conversation directly (see updateConversationTitle below). There is
+	// no server-generated default string — fall back to the agent's name
+	// when this is absent, same as every conversation looked before this
+	// field existed.
+	title?: string | null;
 	started_at?: string | null;
 	finished_at?: string | null;
 	created_at: string;
@@ -324,6 +353,7 @@ export async function createAgent(
 	payload: {
 		name: string;
 		handle: string;
+		description?: string;
 		agent_type?: AgentType;
 		llm_provider?: string;
 		llm_model?: string;
@@ -358,6 +388,7 @@ export async function updateAgent(
 	payload: {
 		name?: string;
 		handle?: string;
+		description?: string;
 		llm_provider?: string;
 		llm_model?: string;
 		llm_api_key?: string;
@@ -375,6 +406,7 @@ export async function updateAgent(
 		parallelism_limit?: number;
 		default_environment_id?: string | null;
 		default_folder_id?: string | null;
+		access_mode?: AgentAccessMode;
 	},
 ): Promise<Agent> {
 	const { data } = await apiClient.instance.patch<SuccessEnvelope<Agent>>(
@@ -382,6 +414,45 @@ export async function updateAgent(
 		payload,
 	);
 	return data.data;
+}
+
+// ── Agent access grants ──────────────────────────────────────────────────────
+// Who may use a restricted agent — see Agent.access_mode's doc comment.
+// Managing the grant list itself requires agents.write, same tier as every
+// other agent-configuration action; the grants themselves gate the chat
+// actions, not this list.
+
+export async function listAgentAccessGrants(
+	projectId: string,
+	agentId: string,
+): Promise<AgentAccessGrant[]> {
+	const { data } = await apiClient.instance.get<
+		SuccessEnvelope<{ items: AgentAccessGrant[] }>
+	>(`/projects/${projectId}/agents/${agentId}/access-grants`);
+	return data.data.items;
+}
+
+export async function addAgentAccessGrant(
+	projectId: string,
+	agentId: string,
+	memberId: string,
+): Promise<AgentAccessGrant> {
+	const { data } = await apiClient.instance.post<
+		SuccessEnvelope<AgentAccessGrant>
+	>(`/projects/${projectId}/agents/${agentId}/access-grants`, {
+		member_id: memberId,
+	});
+	return data.data;
+}
+
+export async function removeAgentAccessGrant(
+	projectId: string,
+	agentId: string,
+	memberId: string,
+): Promise<void> {
+	await apiClient.instance.delete(
+		`/projects/${projectId}/agents/${agentId}/access-grants/${memberId}`,
+	);
 }
 
 // ── Global Agents (admin CRUD) ───────────────────────────────────────────────
@@ -409,6 +480,7 @@ export async function getGlobalAgent(agentId: string): Promise<Agent> {
 export interface CreateGlobalAgentPayload {
 	name: string;
 	handle: string;
+	description?: string;
 	agent_type?: AgentType;
 	llm_provider?: string;
 	llm_model?: string;
@@ -429,7 +501,8 @@ export interface CreateGlobalAgentPayload {
 	// Same "always omitted, kept only for type parity" note as
 	// default_environment_id above.
 	default_folder_id?: string | null;
-	global_role_id?: string | null;
+	// No global_role_id: binding a role is its own privilege
+	// (global_roles.assign) with its own endpoint — see setGlobalAgentRole.
 }
 
 export async function createGlobalAgent(
@@ -445,6 +518,7 @@ export async function createGlobalAgent(
 export interface UpdateGlobalAgentPayload {
 	name?: string;
 	handle?: string;
+	description?: string;
 	llm_provider?: string;
 	llm_model?: string;
 	llm_api_key?: string;
@@ -461,7 +535,7 @@ export interface UpdateGlobalAgentPayload {
 	default_environment_id?: string | null;
 	// See CreateGlobalAgentPayload.default_folder_id above.
 	default_folder_id?: string | null;
-	global_role_id?: string | null;
+	// No global_role_id — see CreateGlobalAgentPayload and setGlobalAgentRole.
 }
 
 export async function updateGlobalAgent(
@@ -471,6 +545,30 @@ export async function updateGlobalAgent(
 	const { data } = await apiClient.instance.patch<SuccessEnvelope<Agent>>(
 		`/admin/agents/${agentId}`,
 		payload,
+	);
+	return data.data;
+}
+
+/** Binds a global agent to the global role that decides what it may do.
+ *  Requires both `agents.write` and `global_roles.assign`; the server refuses a
+ *  `global_role_id` on create/update, so this is the only way to set one. */
+export async function setGlobalAgentRole(
+	agentId: string,
+	roleId: string,
+): Promise<Agent> {
+	const { data } = await apiClient.instance.put<SuccessEnvelope<Agent>>(
+		`/admin/agents/${agentId}/global-role`,
+		{ global_role_id: roleId },
+	);
+	return data.data;
+}
+
+/** Unbinds a global agent from its global role, leaving it with no global
+ *  permissions. Gated like {@link setGlobalAgentRole}: removing a role is the
+ *  same privileged action as binding one. */
+export async function clearGlobalAgentRole(agentId: string): Promise<Agent> {
+	const { data } = await apiClient.instance.delete<SuccessEnvelope<Agent>>(
+		`/admin/agents/${agentId}/global-role`,
 	);
 	return data.data;
 }
@@ -503,6 +601,17 @@ export async function listGlobalChatSessions(
 		SuccessEnvelope<{ items: AgentChatSession[] }>
 	>(`/agents/${agentId}/chat-sessions`);
 	return data.data.items;
+}
+
+// resolveGlobalAutoAgent is resolveAutoAgent's global-scope sibling (no
+// project — every global agent is a candidate).
+export async function resolveGlobalAutoAgent(
+	message: string,
+): Promise<ResolveAutoAgentResponse> {
+	const { data } = await apiClient.instance.post<
+		SuccessEnvelope<ResolveAutoAgentResponse>
+	>("/agents/resolve-auto", { message });
+	return data.data;
 }
 
 export async function startGlobalChatSession(
@@ -653,6 +762,22 @@ export async function heartbeatGlobalConversation(
 	await apiClient.instance.post(
 		`/agents/conversations/${conversationId}/heartbeat`,
 	);
+}
+
+export async function updateGlobalConversationTitle(
+	conversationId: string,
+	title: string,
+): Promise<AgentConversation> {
+	const { data } = await apiClient.instance.patch<
+		SuccessEnvelope<AgentConversation>
+	>(`/agents/conversations/${conversationId}`, { title });
+	return data.data;
+}
+
+export async function deleteGlobalConversation(
+	conversationId: string,
+): Promise<void> {
+	await apiClient.instance.delete(`/agents/conversations/${conversationId}`);
 }
 
 // sendGlobalConversationMessage is sendConversationMessage's global-chat
@@ -1158,7 +1283,7 @@ export interface ListConversationsOptions {
 }
 
 /** Start of the local calendar day `dateStr` ("YYYY-MM-DD"), as a UTC instant. */
-function localDateStartISO(dateStr: string): string {
+export function localDateStartISO(dateStr: string): string {
 	const [y, m, d] = dateStr.split("-").map(Number);
 	return new Date(y, m - 1, d, 0, 0, 0, 0).toISOString();
 }
@@ -1169,7 +1294,7 @@ function localDateStartISO(dateStr: string): string {
  * date) means a range picked in the user's local timezone covers the same
  * wall-clock day server-side, instead of being reinterpreted as a UTC day.
  */
-function localDateExclusiveEndISO(dateStr: string): string {
+export function localDateExclusiveEndISO(dateStr: string): string {
 	const [y, m, d] = dateStr.split("-").map(Number);
 	return new Date(y, m - 1, d + 1, 0, 0, 0, 0).toISOString();
 }
@@ -1265,6 +1390,26 @@ export async function pauseConversation(
 	return data.data;
 }
 
+export async function updateConversationTitle(
+	projectId: string,
+	conversationId: string,
+	title: string,
+): Promise<AgentConversation> {
+	const { data } = await apiClient.instance.patch<
+		SuccessEnvelope<AgentConversation>
+	>(`/projects/${projectId}/conversations/${conversationId}`, { title });
+	return data.data;
+}
+
+export async function deleteConversation(
+	projectId: string,
+	conversationId: string,
+): Promise<void> {
+	await apiClient.instance.delete(
+		`/projects/${projectId}/conversations/${conversationId}`,
+	);
+}
+
 // sendConversationMessage replies to a conversation directly by id, rather
 // than through a chat session — used for ACP conversations of any trigger
 // type (task_assigned, comment_mention, etc.), which stay resumable straight
@@ -1326,6 +1471,26 @@ export async function listChatSessions(
 		SuccessEnvelope<{ items: AgentChatSession[] }>
 	>(`/projects/${projectId}/agents/${agentId}/chat-sessions`);
 	return data.data.items;
+}
+
+export interface ResolveAutoAgentResponse {
+	agent_id: string;
+	confidence: number;
+}
+
+// resolveAutoAgent is Auto mode's first step (see agent-picker.tsx's
+// AUTO_AGENT_ID): given the user's opening message, asks Jev which of the
+// project's agents should handle it. Callers must call this before
+// startChatSession whenever the picker's agentId is AUTO_AGENT_ID, and use
+// the resolved agent_id for that call instead.
+export async function resolveAutoAgent(
+	projectId: string,
+	message: string,
+): Promise<ResolveAutoAgentResponse> {
+	const { data } = await apiClient.instance.post<
+		SuccessEnvelope<ResolveAutoAgentResponse>
+	>(`/projects/${projectId}/agents/resolve-auto`, { message });
+	return data.data;
 }
 
 export interface StartChatSessionResponse {
@@ -1434,6 +1599,15 @@ export const agentEnvVarsQueryOptions = (projectId: string, agentId: string) =>
 	queryOptions({
 		queryKey: ["projects", projectId, "agents", agentId, "env-vars"],
 		queryFn: () => listEnvVars(projectId, agentId),
+	});
+
+export const agentAccessGrantsQueryOptions = (
+	projectId: string,
+	agentId: string,
+) =>
+	queryOptions({
+		queryKey: ["projects", projectId, "agents", agentId, "access-grants"],
+		queryFn: () => listAgentAccessGrants(projectId, agentId),
 	});
 
 export const globalAgentMCPServersQueryOptions = (agentId: string) =>

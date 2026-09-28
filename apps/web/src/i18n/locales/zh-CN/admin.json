@@ -34,6 +34,7 @@
 			"noFullName": "—",
 			"resetPasswordAction": "重置密码",
 			"editAction": "编辑用户",
+			"changeRoleAction": "更改角色",
 			"deleteAction": "删除用户"
 		},
 		"formDialog": {
@@ -47,8 +48,10 @@
 			"done": "完成",
 			"editTitle": "编辑用户",
 			"createTitle": "创建用户",
-			"editDescription": "更新用户的显示名称和角色分配。",
+			"editDescription": "更新用户的显示名称和电子邮件。",
 			"createDescription": "系统将自动生成一个安全的临时密码。用户将在首次登录时被要求修改密码。",
+			"roleStepDescription": "{{username}} 已创建，角色为 {{role}}。可保持不变，也可选择其他角色。",
+			"stepIndicator": "{{step}} / {{total}}",
 			"usernameLabel": "用户名",
 			"usernamePlaceholder": "例如：john.doe",
 			"fullNameLabel": "姓名",
@@ -56,10 +59,11 @@
 			"emailLabel": "电子邮箱",
 			"emailOptionalHint": "（可选 — 将发送包含设置密码链接的欢迎邮件）",
 			"emailPlaceholder": "例如：john.doe@example.com",
-			"roleLabel": "角色",
-			"roleOptionalHint": "（可选 — 默认为 USER）",
-			"rolePlaceholder": "选择一个角色…",
+			"roleStep": {
+				"title": "角色"
+			},
 			"cancel": "取消",
+			"continue": "继续",
 			"saving": "正在保存…",
 			"creating": "正在创建…",
 			"saveChanges": "保存更改",
@@ -71,9 +75,20 @@
 				"emailTaken": "该邮箱已被占用。",
 				"userNotFound": "未找到该用户，可能已被删除。",
 				"forbidden": "您没有权限执行此操作。",
+				"noDefaultRole": "没有可授予新账户的默认角色。请先在“全局角色”页面设置一个，然后重试。",
 				"internalError": "服务器出现错误，请重试。",
-				"generic": "出现错误。",
-				"emailRequired": "请输入有效的邮箱。"
+				"generic": "出现错误。"
+			}
+		},
+		"roleDialog": {
+			"title": "更改角色",
+			"description": "为 {{username}} 选择角色。将从其下一次请求起生效。",
+			"assign": "分配角色",
+			"assigning": "正在分配…",
+			"fullAccessWarning": "此角色拥有完全访问权限，可执行所有操作，包括管理用户和角色。",
+			"selfWarning": "这是您自己的账户。更改角色可能会使您失去对此页面的访问权限。",
+			"errors": {
+				"roleNotFound": "该角色已不存在。请关闭此对话框后重试。"
 			}
 		},
 		"resetPasswordDialog": {
@@ -142,10 +157,13 @@
 		"table": {
 			"columnName": "名称",
 			"columnPermissions": "权限",
-			"columnCreated": "创建时间",
+			"columnDefault": "默认",
 			"noPermissionsAssigned": "未分配权限",
+			"default": "默认",
+			"setDefaultAction": "设为默认角色",
 			"editAction": "编辑角色",
-			"deleteAction": "删除角色"
+			"deleteAction": "删除角色",
+			"deleteDefaultDisabled": "无法删除默认角色。请先将其他角色设为默认。"
 		},
 		"formDialog": {
 			"editTitle": "编辑角色",
@@ -182,6 +200,7 @@
 			"errors": {
 				"roleNotFound": "该角色已不存在。",
 				"hasUsersWarning": "该角色仍被分配给一个或多个用户，无法删除。",
+				"isDefault": "无法删除默认角色。请先将其他角色设为默认。",
 				"forbidden": "您没有权限删除该角色。",
 				"internalError": "出现错误，请重试。",
 				"generic": "出现错误。"
@@ -247,6 +266,10 @@
 			"settingsWrite": {
 				"label": "编辑工作区设置",
 				"description": "更新工作区的徽标、favicon 和主色调"
+			},
+			"settingsSsoWrite": {
+				"label": "管理 SSO 提供商",
+				"description": "配置用户登录所用的身份提供商。该权限可用于以其他用户身份登录，请视同完整管理员权限。"
 			}
 		},
 		"permissionGroups": {
@@ -255,7 +278,28 @@
 			"projects": "项目",
 			"plugins": "插件",
 			"settings": "设置"
+		},
+		"defaultDialog": {
+			"title": "设置默认角色",
+			"description": "新用户和新的全局智能体将以 {{role}} 角色起步。已有账户保持其当前角色不变。",
+			"fullAccessWarning": "该角色拥有所有权限，此后创建的每个账户都将以完全访问权限起步。请确认这是你想要的。",
+			"cancel": "取消",
+			"confirm": "设为默认",
+			"confirming": "保存中…",
+			"errors": {
+				"roleNotFound": "该角色已不存在。",
+				"forbidden": "你没有权限更改默认角色。",
+				"generic": "出现错误，请重试。"
+			}
 		}
+	},
+	"rolePicker": {
+		"current": "当前",
+		"fullAccess": "完全访问权限",
+		"loadFailed": "无法加载角色。",
+		"retry": "重试",
+		"empty": "尚未创建任何角色。",
+		"default": "默认"
 	},
 	"plugins": {
 		"title": "插件设置",
@@ -290,11 +334,15 @@
 			"title": "暂无全局智能体",
 			"description": "创建一个全局智能体，使其可用于聊天和项目邀请。",
 			"createAgent": "创建智能体"
+		},
+		"noPermission": {
+			"title": "You don't have permission to view agents",
+			"description": "You can still create new agents using the button above."
 		}
 	},
 	"settings": {
-		"title": "工作区品牌设置",
-		"description": "设置此工作区中所有项目通用的徽标、favicon 和主色调。",
+		"title": "工作区设置",
+		"description": "此工作区的品牌与登录选项。",
 		"images": {
 			"title": "徽标与 Favicon",
 			"logo": {
@@ -336,6 +384,61 @@
 			"saved": "已保存",
 			"errors": {
 				"updateFailed": "保存失败，请重试。"
+			}
+		},
+		"sso": {
+			"title": "单点登录 (SSO)",
+			"description": "允许用户通过 Google、Microsoft Entra ID、Okta 或 Keycloak 等 OpenID Connect 身份提供商登录。",
+			"add": "添加提供商",
+			"empty": "尚未配置 SSO 提供商。用户使用用户名和密码登录。",
+			"enabled": "已启用",
+			"disabled": "已停用",
+			"edit": "编辑 {{name}}",
+			"delete": "删除 {{name}}",
+			"copy": "复制",
+			"dialog": {
+				"createTitle": "添加 SSO 提供商",
+				"editTitle": "编辑 SSO 提供商",
+				"description": "在身份提供商处将 Paca 注册为 OpenID Connect 客户端，然后填写其提供的信息。",
+				"cancel": "取消",
+				"save": "保存"
+			},
+			"fields": {
+				"displayName": "显示名称",
+				"displayNamePlaceholder": "公司 SSO",
+				"slug": "标识符",
+				"slugHint": "用于登录和回调 URL。修改后，在提供商处注册的回调 URL 将失效。",
+				"callbackUrl": "回调 URL",
+				"callbackUrlHint": "请在身份提供商处将其注册为重定向 URI。",
+				"issuerUrl": "Issuer URL",
+				"issuerUrlHint": "OpenID Connect 签发者。Paca 服务器必须能访问其发现文档。",
+				"clientId": "客户端 ID",
+				"clientSecret": "客户端密钥",
+				"clientSecretKeepHint": "已保存密钥。留空则保持不变。",
+				"scopes": "作用域",
+				"scopesHint": "以空格分隔。始终包含 \"openid\"。",
+				"allowedDomains": "允许的邮箱域名",
+				"allowedDomainsHint": "以逗号分隔。留空则允许任何域名。仅接受已验证的邮箱。",
+				"enabled": "启用",
+				"enabledHint": "在登录页显示此提供商。",
+				"autoProvision": "自动创建账户",
+				"autoProvisionHint": "首次登录的用户将获得一个默认角色的新账户。",
+				"linkByEmail": "通过邮箱关联已有账户",
+				"linkByEmailHint": "已验证邮箱与现有账户一致的首次登录用户，将登录到该账户。",
+				"linkByEmailWarning": "仅对完全信任的提供商开启：控制该提供商的人可以登录任何邮箱匹配的账户，包括管理员。"
+			},
+			"deleteDialog": {
+				"title": "删除 SSO 提供商",
+				"description": "删除“{{name}}”？之后将无法再通过它登录，由它创建的账户也会失去关联。账户本身会保留。",
+				"confirm": "删除"
+			},
+			"errors": {
+				"slugTaken": "该标识符已被其他提供商使用。",
+				"discoveryFailed": "无法访问签发者的 OpenID Connect 发现文档。请检查 Issuer URL。",
+				"invalid": "部分字段无效。请检查标识符、Issuer URL、客户端 ID 和邮箱域名。",
+				"saveFailed": "保存提供商失败，请重试。",
+				"loadFailed": "加载 SSO 提供商失败。",
+				"deleteFailed": "删除提供商失败，请重试。"
 			}
 		},
 		"email": {

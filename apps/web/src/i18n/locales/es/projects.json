@@ -10,23 +10,31 @@
 				"taskStatuses": "Estados de tarea",
 				"taskTypes": "Tipos de tarea",
 				"customFields": "Campos personalizados",
+				"jev": "Jev IA",
 				"dangerZone": "Zona de peligro",
 				"plugins": "Plugins"
+			},
+			"pluginTab": {
+				"noPermission": {
+					"title": "No tienes permiso para ver esta pestaña",
+					"description": "Pide a un propietario o administrador del proyecto que te conceda acceso a {{pluginName}}."
+				}
 			}
 		}
 	},
 	"agents": {
 		"createDialog": {
 			"title": "Crear agente de IA",
-			"step1Description": "Configura la identidad y el rol de tu agente",
+			"step1Description": "Configura la identidad de tu agente",
 			"step2Description": "Configura el modelo de IA que impulsa a tu agente",
-			"stepIndicator": "{{step}} / 2",
+			"step3DescriptionGlobal": "{{name}} se creó con el rol global predeterminado. Consérvalo, elige otro o quítalo.",
+			"step3DescriptionProject": "Elige el rol del agente en este proyecto",
+			"stepIndicator": "{{step}} / {{total}}",
 			"startFromPreset": "Empezar desde una plantilla",
 			"nameLabel": "Nombre",
 			"handleLabel": "Identificador",
 			"handleHint": "Se genera automáticamente a partir del nombre. Se usa para menciones @ en comentarios.",
 			"projectRoleLabel": "Rol del proyecto",
-			"projectRolePlaceholder": "Selecciona un rol del proyecto…",
 			"projectRoleHint": "Controla lo que el agente puede leer y modificar en este proyecto.",
 			"agentTypeLabel": "Tipo de agente",
 			"agentTypeLLM": "LLM (clave de API)",
@@ -77,21 +85,23 @@
 			"optional": "(opcional)",
 			"charsCount": "{{count}} caracteres",
 			"createFailed": "No se pudo crear el agente. Inténtalo de nuevo.",
+			"handleTaken": "Este identificador ya está en uso. Vuelve atrás y elige uno diferente.",
+			"defaultEnvironmentInvalid": "Ese entorno ya no está disponible. Vuelve atrás y elige otro.",
+			"defaultFolderInvalid": "Esa carpeta ya no está disponible. Vuelve atrás y elige otra.",
 			"cancel": "Cancelar",
 			"continue": "Continuar",
 			"back": "Atrás",
 			"creating": "Creando…",
 			"createAgent": "Crear agente",
+			"finish": "Finalizar",
 			"namePlaceholder": "Dev Bot",
-			"systemPromptPlaceholder": "Eres un ingeniero de software sénior…",
-			"globalRoleLabel": "Rol global",
-			"globalRolePlaceholder": "Selecciona un rol global…",
-			"globalRoleHint": "Controla lo que el agente puede hacer a nivel global (por ejemplo, desde el chat de inicio o de administración). Opcional: un rol asignado más adelante, al invitarlo a un proyecto, es independiente.",
-			"noGlobalRoleOption": "Sin rol"
+			"systemPromptPlaceholder": "Eres un ingeniero de software sénior…"
 		},
 		"card": {
 			"configure": "Configurar",
 			"delete": "Eliminar",
+			"restricted": "Restricted",
+			"restrictedTooltip": "This agent is restricted — ask a project admin to grant you access before you can chat with it.",
 			"acpStatusConnected": "En línea",
 			"acpStatusDisconnected": "Desconectado",
 			"deleteDialog": {
@@ -111,6 +121,10 @@
 				"title": "Aún no hay agentes",
 				"description": "Añade un agente de IA para automatizar tareas, revisar código, escribir documentación y más.",
 				"createFirstAgent": "Crea tu primer agente"
+			},
+			"noPermission": {
+				"title": "You don't have permission to view agents",
+				"description": "Ask a project admin to grant you the agents.read permission."
 			}
 		},
 		"acpSetup": {
@@ -157,7 +171,30 @@
 				"mcpServers": "Servidores MCP",
 				"skills": "Skills",
 				"envVars": "Entorno",
+				"globalRole": "Rol global",
+				"access": "Access",
 				"activity": "Actividad"
+			},
+			"globalRole": {
+				"title": "Rol global",
+				"description": "Lo que este agente puede hacer a nivel global, por ejemplo desde el chat de inicio y de administración. Lo que puede hacer dentro de un proyecto depende de su rol en ese proyecto.",
+				"none": "Sin rol global",
+				"noneHint": "Este agente no tiene permisos globales.",
+				"assign": "Asignar rol",
+				"change": "Cambiar rol",
+				"assigning": "Asignando…",
+				"remove": "Quitar rol",
+				"removing": "Quitando…",
+				"removeConfirm": "¿Quitar el rol global de este agente? Perderá los permisos que le otorga el rol.",
+				"cancel": "Cancelar",
+				"readOnly": "Puedes ver el rol global de este agente, pero no tienes permiso para cambiarlo.",
+				"unknownRole": "Hay un rol global asignado. No tienes permiso para ver los roles, por lo que no se muestra su nombre.",
+				"fullAccessWarning": "Este rol tiene acceso total. El agente podrá hacer todo, incluida la gestión de usuarios y roles.",
+				"errors": {
+					"generic": "No se pudo actualizar el rol. Inténtalo de nuevo.",
+					"forbidden": "No tienes permiso para cambiar los roles globales.",
+					"roleNotFound": "Ese rol ya no existe. Recarga la página e inténtalo de nuevo."
+				}
 			},
 			"avatar": {
 				"change": "Cambiar avatar",
@@ -194,6 +231,8 @@
 				"noDefaultEnvironment": "Entorno temporal",
 				"defaultFolderLabel": "Carpeta predeterminada",
 				"defaultFolderHint": "La carpeta dentro del entorno predeterminado en la que trabajarán las conversaciones de este agente.",
+				"defaultEnvironmentInvalid": "Ese entorno ya no está disponible. Elige otro.",
+				"defaultFolderInvalid": "Esa carpeta ya no está disponible. Elige otra.",
 				"noDefaultFolder": "Sin carpeta predeterminada",
 				"saveChanges": "Guardar cambios",
 				"saved": "Guardado",
@@ -226,7 +265,10 @@
 				"cliLoginNotAuthenticated": "Aún no autenticado — inicia sesión desde la terminal y vuelve a verificar.",
 				"cliLoginVerifyFailed": "No se pudo comprobar el estado de inicio de sesión. Inténtalo de nuevo.",
 				"cliLoginLastVerified": "Última verificación: {{date}}.",
-				"cliLoginNoEnvironment": "Este agente no tiene un entorno configurado — elige uno arriba primero."
+				"cliLoginNoEnvironment": "Este agente no tiene un entorno configurado — elige uno arriba primero.",
+				"descriptionLabel": "Descripción",
+				"descriptionPlaceholder": "¿Para qué sirve este agente?",
+				"descriptionHint": "Se muestra a Jev al decidir qué agente debe encargarse de un chat, o si asignarle una tarea, en el modo Automático. El proveedor y el modelo se añaden automáticamente."
 			},
 			"mcp": {
 				"serverCount_one": "{{count}} servidor configurado",
@@ -265,7 +307,10 @@
 					"keyHint": "(letras, números, guiones bajos — debe empezar por una letra o guión bajo)",
 					"valueLabel": "Valor",
 					"cancel": "Cancelar",
-					"addVariable": "Añadir variable"
+					"addVariable": "Añadir variable",
+					"keyTaken": "Este agente ya tiene una variable de entorno con esa clave.",
+					"keyReserved": "Esa clave está reservada para el propio sandbox. Elige otra.",
+					"addFailed": "No se pudo añadir la variable de entorno. Inténtalo de nuevo."
 				}
 			},
 			"skills": {
@@ -287,8 +332,20 @@
 					"skillContentLabel": "Contenido de la skill (Markdown)",
 					"urlLabel": "URL",
 					"cancel": "Cancelar",
-					"addSkill": "Añadir skill"
+					"addSkill": "Añadir skill",
+					"nameReserved": "Ese nombre está reservado para el andamiaje interno de Paca. Elige otro.",
+					"nameInvalid": "El nombre de la skill no puede ser \".\", \"..\" ni contener una barra.",
+					"addFailed": "No se pudo añadir la skill. Inténtalo de nuevo."
 				}
+			},
+			"access": {
+				"restrictLabel": "Restrict access",
+				"restrictDescription": "When on, only members granted access below may chat with this agent. Everyone who can manage agents can still see and configure it.",
+				"pickMember": "Select a member…",
+				"grantAccess": "Grant access",
+				"alreadyGranted": "This member already has access.",
+				"grantFailed": "Failed to grant access. Please try again.",
+				"empty": "No members have been granted access yet."
 			},
 			"activity": {
 				"commented": "comentó",
@@ -318,12 +375,19 @@
 		"conversationView": {
 			"stop": "Detener",
 			"notFound": "Conversación no encontrada",
+			"noPermission": {
+				"title": "You don't have permission to view this conversation",
+				"description": "Ask a project admin to grant you the conversations.read permission."
+			},
 			"chatSession": "Sesión de chat",
 			"taskSession": "Sesión de tarea",
 			"pr": "PR",
 			"connect": "Conectar",
 			"conversationEnded": "Esta conversación ha finalizado.",
 			"textOnlyMessage": "Solo se admiten mensajes de texto.",
+			"agentAccessRestricted": "Este agente tiene acceso restringido. Pide a un administrador del proyecto que te conceda acceso antes de poder chatear con él.",
+			"environmentAccessRestricted": "El entorno de esta conversación tiene acceso restringido. Pide a un administrador del proyecto que te conceda acceso antes de poder chatear con este agente.",
+			"chatNoPermission": "No tienes permiso para enviar mensajes en esta conversación.",
 			"failed": "La conversación falló",
 			"noOutput": "El agente no produjo ninguna salida.",
 			"loadingOlder": "Cargando…",
@@ -418,10 +482,16 @@
 			"title": "Entornos",
 			"subtitle": "Sandboxes persistentes y con nombre a los que tus agentes pueden conectarse entre conversaciones",
 			"newEnvironment": "Nuevo entorno",
+			"restricted": "Restricted",
+			"restrictedTooltip": "This environment is restricted — ask a project admin to grant you access before you can use it.",
 			"empty": {
 				"title": "Aún no hay entornos",
 				"description": "Crea un entorno estático para mantener archivos y procesos en segundo plano activos entre conversaciones, en lugar de un sandbox desechable nuevo cada vez.",
 				"createFirstEnvironment": "Crea tu primer entorno"
+			},
+			"noPermission": {
+				"title": "You don't have permission to view environments",
+				"description": "Ask a project admin to grant you the environments.read permission."
 			}
 		},
 		"createDialog": {
@@ -439,6 +509,7 @@
 			"cpuLimitInvalid": "La CPU debe ser al menos 0.1 (100m).",
 			"memoryLimitInvalid": "La memoria debe ser al menos 256Mi.",
 			"diskLimitInvalid": "El disco debe ser un número entero positivo de GB.",
+			"nameRequired": "Ponle un nombre al entorno.",
 			"createFailed": "No se pudo crear el entorno. Inténtalo de nuevo.",
 			"cancel": "Cancelar",
 			"creating": "Creando…",
@@ -455,8 +526,11 @@
 			"tabs": {
 				"overview": "Resumen",
 				"folders": "Carpetas",
-				"portForwards": "Reenvíos de puertos"
+				"portForwards": "Reenvíos de puertos",
+				"access": "Access"
 			},
+			"busy": "Este entorno ya se está iniciando, deteniendo o reiniciando. Inténtalo de nuevo en un momento.",
+			"actionFailed": "Eso no funcionó. Inténtalo de nuevo.",
 			"overview": {
 				"connect": "Conectar",
 				"start": "Iniciar",
@@ -487,6 +561,7 @@
 				"portsPendingRestartLink": "Ver reenvíos de puertos",
 				"saveChanges": "Guardar cambios",
 				"saved": "Guardado",
+				"nameRequired": "Ponle un nombre al entorno.",
 				"saveFailed": "No se pudo guardar. Inténtalo de nuevo.",
 				"deleteDialog": {
 					"title": "¿Eliminar {{name}}?",
@@ -500,6 +575,10 @@
 				"count_one": "{{count}} carpeta configurada",
 				"count_other": "{{count}} carpetas configuradas",
 				"addFolder": "Añadir carpeta",
+				"noPermission": {
+					"title": "You don't have access to this environment",
+					"description": "Ask a project admin to grant you access before you can view its folders."
+				},
 				"deleteFailed": "No se pudo eliminar la carpeta. Inténtalo de nuevo.",
 				"empty": {
 					"title": "No se han añadido carpetas",
@@ -516,6 +595,8 @@
 						"empty": "Esta carpeta está vacía",
 						"notRunning": "Inicia el entorno para explorar sus archivos."
 					},
+					"pathTaken": "Ya existe una carpeta con esta ruta en este entorno.",
+					"pathInvalid": "La ruta debe ser absoluta (empezar con /).",
 					"addFailed": "No se pudo añadir la carpeta. Inténtalo de nuevo.",
 					"cancel": "Cancelar",
 					"addFolder": "Añadir carpeta"
@@ -526,6 +607,10 @@
 				"count_one": "{{count}} reenvío de puerto",
 				"count_other": "{{count}} reenvíos de puertos",
 				"add": "Añadir reenvío de puerto",
+				"noPermission": {
+					"title": "You don't have access to this environment",
+					"description": "Ask a project admin to grant you access before you can view its port forwards."
+				},
 				"deleteFailed": "No se pudo eliminar el reenvío de puerto. Inténtalo de nuevo.",
 				"containerPort": "Puerto del contenedor {{port}}",
 				"unassigned": "Aún no asignado",
@@ -546,14 +631,26 @@
 					"labelPlaceholder": "Servidor de desarrollo",
 					"cancel": "Cancelar",
 					"add": "Añadir",
+					"portTaken": "Este puerto del contenedor ya está redirigido en este entorno.",
+					"portOutOfRange": "El puerto debe estar entre 1 y 65535.",
 					"addFailed": "No se pudo añadir el reenvío de puerto. Inténtalo de nuevo."
 				},
 				"restartDialog": {
 					"title": "¿Reiniciar el entorno?",
 					"description": "Esto reinicia el contenedor del entorno para aplicar los reenvíos de puertos actualizados. Cualquier proceso en ejecución dentro de él se interrumpirá; tus archivos están a salvo — viven en un volumen separado.",
 					"cancel": "Cancelar",
-					"confirm": "Reiniciar"
+					"confirm": "Reiniciar",
+					"restartFailed": "No se pudo reiniciar el entorno. Inténtalo de nuevo."
 				}
+			},
+			"access": {
+				"restrictLabel": "Restrict access",
+				"restrictDescription": "When on, only members granted access below may browse, SSH into, forward ports on, or open a terminal in this environment. Everyone who can manage environments can still see and configure it.",
+				"pickMember": "Select a member…",
+				"grantAccess": "Grant access",
+				"alreadyGranted": "This member already has access.",
+				"grantFailed": "Failed to grant access. Please try again.",
+				"empty": "No members have been granted access yet."
 			},
 			"sshKeys": {
 				"connectHint": "Sustituye <bastion-host> por la dirección del bastión SSH configurado en este despliegue.",
@@ -576,6 +673,8 @@
 					"publicKeyLabel": "Clave pública",
 					"cancel": "Cancelar",
 					"addKey": "Añadir clave",
+					"keyTaken": "Esta clave ya está registrada en este entorno.",
+					"keyInvalid": "Eso no parece una clave pública SSH válida.",
 					"addFailed": "No se pudo añadir la clave SSH. Inténtalo de nuevo."
 				}
 			},
@@ -602,6 +701,7 @@
 				"connect": "Conectar",
 				"notRunning": "Inicia el entorno antes de conectarte.",
 				"readOnly": "No tienes permiso para abrir una terminal en este entorno.",
+				"restricted": "This environment is restricted — ask a project admin to grant you access before you can open a terminal.",
 				"hint": "Se abre en una nueva pestaña a pantalla completa.",
 				"pageTitle": "{{name}} — Terminal",
 				"pageTitleLoading": "Terminal",
@@ -612,7 +712,8 @@
 				"step1Description": "Registra la clave pública del par de claves SSH con el que quieras conectarte.",
 				"step2Title": "Conéctate desde tu terminal",
 				"step2Description": "Ejecuta este comando desde tu terminal:",
-				"notRunning": "Inicia el entorno antes de conectarte."
+				"notRunning": "Inicia el entorno antes de conectarte.",
+				"restricted": "This environment is restricted — ask a project admin to grant you access before you can connect via SSH."
 			}
 		}
 	},
@@ -621,6 +722,10 @@
 			"notFound": {
 				"title": "Documento no encontrado",
 				"description": "Este documento puede haber sido eliminado o el enlace no es válido."
+			},
+			"noPermission": {
+				"title": "You don't have permission to view this document",
+				"description": "Ask a project admin to grant you the docs.read permission."
 			},
 			"unsaved": "Sin guardar",
 			"saving": "Guardando…",
@@ -659,6 +764,8 @@
 			"roleNameLabel": "Nombre del rol",
 			"roleNamePlaceholder": "p. ej. PROJECT_REVIEWER",
 			"permissionsLabel": "Permisos",
+			"fullAccessBadge": "Acceso total",
+			"fullAccessDescription": "Este rol incluye automáticamente todos los permisos, incluidos los que se añadan en el futuro. Cambiar cualquier permiso a continuación lo convertirá en un conjunto fijo con los permisos actuales.",
 			"enabledCount_one": "{{count}} habilitado",
 			"enabledCount_other": "{{count}} habilitados",
 			"cancel": "Cancelar",
@@ -674,10 +781,6 @@
 			}
 		},
 		"permissions": {
-			"projectsRead": {
-				"label": "Leer proyecto",
-				"description": "Ver los detalles y la configuración del proyecto"
-			},
 			"projectsWrite": {
 				"label": "Editar proyecto",
 				"description": "Actualizar el nombre, la descripción y la configuración del proyecto"
@@ -702,6 +805,18 @@
 				"label": "Gestionar roles",
 				"description": "Crear, editar y eliminar roles del proyecto"
 			},
+			"settingsTaskTypesWrite": {
+				"label": "Manage Task Types",
+				"description": "Create, edit, delete, and set the default task type"
+			},
+			"settingsTaskStatusesWrite": {
+				"label": "Manage Task Statuses",
+				"description": "Create, edit, delete, reorder, and set the default task status"
+			},
+			"settingsCustomFieldsWrite": {
+				"label": "Manage Custom Fields",
+				"description": "Create, edit, and delete custom field definitions"
+			},
 			"tasksRead": {
 				"label": "Ver tareas",
 				"description": "Explorar y leer las tareas del proyecto"
@@ -717,6 +832,14 @@
 			"sprintsWrite": {
 				"label": "Gestionar sprints",
 				"description": "Crear, actualizar y cerrar sprints"
+			},
+			"viewsRead": {
+				"label": "View Boards",
+				"description": "Browse saved board and list views"
+			},
+			"viewsWrite": {
+				"label": "Manage Boards",
+				"description": "Create, edit, delete, and reorder board and list views"
 			},
 			"docsRead": {
 				"label": "Ver documentos",
@@ -754,6 +877,18 @@
 				"label": "Conectar a entornos",
 				"description": "Abrir una sesión de terminal interactiva dentro de un entorno en ejecución"
 			},
+			"annotationsRead": {
+				"label": "View Annotations",
+				"description": "View page comments pinned via the browser extension"
+			},
+			"annotationsWrite": {
+				"label": "Manage Annotations",
+				"description": "Create, edit, and delete page annotations"
+			},
+			"annotationsResolve": {
+				"label": "Resolve Annotations",
+				"description": "Mark a page annotation resolved or reopen it, without authoring or deleting one"
+			},
 			"workflowsRead": {
 				"label": "Ver automatización",
 				"description": "Explorar las automatizaciones y su configuración"
@@ -761,18 +896,24 @@
 			"workflowsWrite": {
 				"label": "Gestionar automatización",
 				"description": "Crear, editar, activar y eliminar automatizaciones"
+			},
+			"activitiesRead": {
+				"label": "Ver registro de actividad",
+				"description": "Ver toda la actividad registrada en este proyecto"
 			}
 		},
 		"permissionGroups": {
 			"project": "Proyecto",
 			"members": "Miembros",
-			"roles": "Roles",
+			"settings": "Settings",
 			"tasks": "Tareas",
 			"sprints": "Sprints",
+			"views": "Views",
 			"documents": "Documentos",
 			"aiAgents": "Agentes de IA",
 			"conversations": "Conversaciones",
 			"environments": "Entornos",
+			"annotations": "Annotations",
 			"workflows": "Automatización",
 			"plugins": "Plugins"
 		}
@@ -831,13 +972,18 @@
 				"permissions": "Permisos",
 				"created": "Creado"
 			},
-			"systemRolesNote": "Los roles del sistema son plantillas compartidas y no se pueden editar ni eliminar."
+			"systemRolesNote": "Los roles del sistema son plantillas compartidas y no se pueden editar ni eliminar.",
+			"noPermission": {
+				"title": "You don't have permission to view roles",
+				"description": "Ask a project admin to grant you the project.roles.read permission."
+			}
 		},
 		"taskStatuses": {
 			"title": "Estados de tarea",
 			"description": "Define los estados de flujo de trabajo por los que pasan las tareas en este proyecto.",
 			"newStatus": "Nuevo estado",
 			"reorderFailed": "No se pudo guardar el nuevo orden. Inténtalo de nuevo.",
+			"reorderInvalid": "La lista de estados cambió en otro lugar. Actualiza la página e inténtalo de nuevo.",
 			"empty": {
 				"title": "No hay estados definidos",
 				"description": "Crea estados para definir el flujo de trabajo de las tareas en este proyecto.",
@@ -851,7 +997,12 @@
 			"default": "Predeterminado",
 			"setAsDefault": "Establecer como estado predeterminado",
 			"editStatus": "Editar estado",
-			"deleteStatus": "Eliminar estado"
+			"deleteStatus": "Eliminar estado",
+			"deleteDefaultDisabled": "El estado predeterminado no se puede eliminar. Primero establece otro estado como predeterminado.",
+			"noPermission": {
+				"title": "You don't have permission to view task statuses",
+				"description": "Ask a project admin to grant you the project.settings.task_statuses.read permission."
+			}
 		},
 		"taskTypes": {
 			"title": "Tipos de tarea",
@@ -871,7 +1022,12 @@
 			"default": "Predeterminado",
 			"setAsDefault": "Establecer como tipo predeterminado",
 			"editType": "Editar tipo",
-			"deleteType": "Eliminar tipo"
+			"deleteType": "Eliminar tipo",
+			"deleteDefaultDisabled": "El tipo predeterminado no se puede eliminar. Primero establece otro tipo como predeterminado.",
+			"noPermission": {
+				"title": "You don't have permission to view task types",
+				"description": "Ask a project admin to grant you the project.settings.task_types.read permission."
+			}
 		},
 		"customFields": {
 			"title": "Campos personalizados",
@@ -942,6 +1098,63 @@
 				"confirmTextSuffix": "? Los datos de tareas almacenados en este campo se perderán. Esta acción no se puede deshacer.",
 				"deleteFailed": "No se pudo eliminar el campo. Inténtalo de nuevo.",
 				"deleteField": "Eliminar campo"
+			},
+			"noPermission": {
+				"title": "You don't have permission to view custom fields",
+				"description": "Ask a project admin to grant you the project.settings.custom_fields.read permission."
+			}
+		},
+		"jev": {
+			"title": "Jev IA",
+			"description": "Configura cómo Jev, el motor de decisiones de IA, ayuda a este proyecto.",
+			"credentials": {
+				"title": "Credenciales del proveedor",
+				"description": "Conecta tu propio proveedor compatible con Jev — TypeSafe (predeterminado), OpenJev u otro host que implemente la misma API — para habilitar las funciones siguientes.",
+				"configuredBadge": "Configurado",
+				"notConfiguredBadge": "No configurado",
+				"apiKeyLabel": "Clave de API",
+				"apiKeyPlaceholder": "Introduce una clave de API",
+				"apiKeyConfiguredPlaceholder": "Déjalo en blanco para conservar la clave actual",
+				"baseUrlLabel": "Host (opcional)",
+				"baseUrlPlaceholder": "https://api.typesafe.ai (predeterminado)",
+				"modelLabel": "Modelo (opcional)",
+				"modelPlaceholder": "jev-latest (predeterminado)",
+				"saveButton": "Guardar credenciales",
+				"testButton": "Probar conexión",
+				"advancedLabel": "Avanzado",
+				"testSuccess": "Conexión exitosa",
+				"testFailed": "No se pudo conectar. Comprueba tus credenciales e inténtalo de nuevo."
+			},
+			"autofill": {
+				"title": "Autocompletado de tareas",
+				"description": "Cuando se crea una tarea, Jev completa los campos que el creador dejó en blanco.",
+				"enabledLabel": "Activar autocompletado",
+				"enabledHint": "Jev sugiere valores para los campos vacíos poco después de crear la tarea.",
+				"excludedFieldsLabel": "Campos que Jev puede establecer",
+				"excludedFieldsHint": "Desactiva un campo para que Jev nunca lo establezca automáticamente.",
+				"fieldImportance": "Importancia",
+				"fieldTaskType": "Tipo de tarea",
+				"fieldStoryPoints": "Puntos de historia",
+				"fieldTags": "Etiquetas",
+				"fieldEpic": "Épica"
+			},
+			"autoAssign": {
+				"title": "Asignación automática de tareas",
+				"description": "Deja que Jev elija un responsable para las tareas con asignación automática.",
+				"scopeLabel": "A quién puede asignar Jev",
+				"scopeAll": "Todos los miembros",
+				"scopeHuman": "Solo miembros humanos",
+				"scopeHumanHint": "Excluye a los agentes de IA."
+			},
+			"saveChanges": "Guardar cambios",
+			"saved": "Guardado ✓",
+			"noPermission": "No tienes permiso para editar este proyecto.",
+			"errors": {
+				"updateFailed": "No se pudieron actualizar los ajustes. Inténtalo de nuevo."
+			},
+			"notConfigured": {
+				"title": "Jev aún no está configurado",
+				"description": "Agrega las credenciales del proveedor arriba para desbloquear el autocompletado de tareas y la asignación automática."
 			}
 		},
 		"dangerZone": {
@@ -967,6 +1180,8 @@
 			"confirmTextPrefix": "Eliminar",
 			"confirmTextSuffix": "? Las tareas que usen este estado perderán su estado. Esta acción no se puede deshacer.",
 			"deleteFailed": "No se pudo eliminar el estado. Inténtalo de nuevo.",
+			"isDefault": "El estado predeterminado no se puede eliminar. Primero establece otro estado como predeterminado.",
+			"inUseByAutomation": "Este estado está en uso por una regla de automatización. Actualiza o elimina esa regla primero.",
 			"cancel": "Cancelar",
 			"deleteStatus": "Eliminar estado"
 		},
@@ -1015,7 +1230,9 @@
 			"cancel": "Cancelar",
 			"addMember": "Añadir miembro",
 			"errors": {
-				"addFailed": "No se pudo añadir al miembro. Inténtalo de nuevo."
+				"addFailed": "No se pudo añadir al miembro. Inténtalo de nuevo.",
+				"alreadyAdded": "Este usuario o agente ya es miembro del proyecto.",
+				"roleNotFound": "Ese rol ya no existe. Elige otro rol."
 			},
 			"modeUser": "Usuario",
 			"modeAgent": "Agente de IA",
@@ -1024,7 +1241,11 @@
 		},
 		"roleChip": {
 			"changeRole": "Cambiar rol",
-			"changeFailed": "No se pudo cambiar el rol."
+			"errors": {
+				"memberNotFound": "Este miembro ya no forma parte del proyecto.",
+				"roleNotFound": "Ese rol ya no existe.",
+				"changeFailed": "No se pudo cambiar el rol."
+			}
 		},
 		"memberRow": {
 			"removeMember": "Eliminar miembro"
@@ -1037,6 +1258,18 @@
 			"removeFailed": "No se pudo eliminar al miembro. Inténtalo de nuevo.",
 			"cancel": "Cancelar",
 			"remove": "Eliminar"
+		},
+		"noPermission": {
+			"title": "You don't have permission to view members",
+			"description": "Ask a project admin to grant you the project.members.read permission."
+		},
+		"descriptionChip": {
+			"edit": "Editar descripción",
+			"title": "Descripción",
+			"hint": "Se muestra a Jev al decidir si asignarle una tarea a esta persona en modo Automático.",
+			"placeholder": "¿En qué trabaja esta persona?",
+			"save": "Guardar",
+			"saveFailed": "Error al guardar la descripción."
 		}
 	},
 	"aiChat": {
@@ -1045,7 +1278,9 @@
 		"agentLabel": "Agente",
 		"selectAgentPlaceholder": "Selecciona un agente…",
 		"selectAgentFirst": "Selecciona primero un agente.",
-		"noAgentsAvailable": "Aún no hay agentes disponibles."
+		"noAgentsAvailable": "Aún no hay agentes disponibles.",
+		"autoAgent": "Automático",
+		"resolvingAgent": "Eligiendo un agente…"
 	},
 	"taskTypes": {
 		"deleteDialog": {
@@ -1053,6 +1288,8 @@
 			"confirmTextPrefix": "Eliminar",
 			"confirmTextSuffix": "? Las tareas que usen este tipo perderán su asignación de tipo. Esta acción no se puede deshacer.",
 			"deleteFailed": "No se pudo eliminar el tipo de tarea. Inténtalo de nuevo.",
+			"isDefault": "El tipo predeterminado no se puede eliminar. Primero establece otro tipo como predeterminado.",
+			"isSystem": "Los tipos del sistema no se pueden eliminar.",
 			"cancel": "Cancelar",
 			"deleteType": "Eliminar tipo"
 		},
@@ -1075,7 +1312,9 @@
 			"createType": "Crear tipo",
 			"errors": {
 				"nameInvalid": "El nombre del tipo está vacío o no es válido.",
-				"saveFailed": "No se pudo guardar el tipo de tarea. Inténtalo de nuevo."
+				"nameReserved": "Ese nombre está reservado para un tipo integrado.",
+				"saveFailed": "No se pudo guardar el tipo de tarea. Inténtalo de nuevo.",
+				"isSystem": "Los tipos del sistema no se pueden editar."
 			}
 		}
 	},
@@ -1091,6 +1330,10 @@
 			"ariaLabel": "Detalle de tarea",
 			"backToProject": "Volver al proyecto",
 			"projectFallback": "Proyecto"
+		},
+		"noPermission": {
+			"title": "You don't have permission to view this task",
+			"description": "Ask a project admin to grant you the tasks.read permission."
 		},
 		"header": {
 			"created": "Creada el {{date}}",
@@ -1126,7 +1369,8 @@
 			"parent": "Tarea principal",
 			"viewParent": "Ver tarea principal",
 			"removeParent": "Eliminar tarea principal",
-			"addFields": "Añadir campos"
+			"addFields": "Añadir campos",
+			"autoAssign": "Automático"
 		},
 		"description": {
 			"title": "Descripción",
@@ -1144,14 +1388,24 @@
 			"title": "Subtareas",
 			"addButton": "Añadir subtarea",
 			"titlePlaceholder": "Título de la subtarea…",
-			"empty": "Aún no hay subtareas"
+			"empty": "Aún no hay subtareas",
+			"loadMore": "Cargar más subtareas",
+			"loadingMore": "Cargando más…"
 		},
 		"links": {
 			"title": "Tareas vinculadas",
 			"addButton": "Añadir vínculo",
 			"openTask": "Abrir tarea",
 			"removeLink": "Eliminar vínculo",
-			"empty": "No hay tareas vinculadas"
+			"empty": "No hay tareas vinculadas",
+			"errors": {
+				"alreadyExists": "Este vínculo ya existe.",
+				"cannotLinkSelf": "Una tarea no se puede vincular a sí misma.",
+				"crossProject": "Las tareas solo se pueden vincular dentro del mismo proyecto.",
+				"createFailed": "No se pudo añadir el vínculo. Inténtalo de nuevo.",
+				"notFound": "Este vínculo ya se había eliminado.",
+				"deleteFailed": "No se pudo eliminar el vínculo. Inténtalo de nuevo."
+			}
 		},
 		"attachments": {
 			"title": "Archivos adjuntos",
@@ -1164,7 +1418,13 @@
 			"unitBytes_one": "{{count}} B",
 			"unitBytes_other": "{{count}} B",
 			"unitKilobytes": "{{value}} KB",
-			"unitMegabytes": "{{value}} MB"
+			"unitMegabytes": "{{value}} MB",
+			"errors": {
+				"invalid": "No se puede subir ese archivo. Elige otro archivo.",
+				"uploadFailed": "No se pudo subir el archivo. Inténtalo de nuevo.",
+				"notFound": "Este archivo adjunto ya fue eliminado.",
+				"deleteFailed": "No se pudo eliminar el archivo adjunto. Inténtalo de nuevo."
+			}
 		},
 		"addFieldDialog": {
 			"title": "Crear campo personalizado",
@@ -1288,7 +1548,9 @@
 			"startedAiSession": "inició una sesión de IA",
 			"watchSession": "Ver sesión",
 			"madeChange": "hizo un cambio",
-			"descriptionChangeDiff": "Diferencias del cambio de descripción"
+			"descriptionChangeDiff": "Diferencias del cambio de descripción",
+			"autoAssignSkippedLowConfidence": "no pudo elegir un responsable con confianza ({{confidence}}% de confianza); la tarea quedó sin asignar",
+			"autoAssignSkipped": "omitió la asignación automática; la tarea quedó sin asignar"
 		}
 	},
 	"portForwardDetail": {
@@ -1297,6 +1559,10 @@
 			"description": "Este reenvío de puerto pudo haber sido eliminado o el enlace no es válido.",
 			"ariaLabel": "Detalle del reenvío de puerto",
 			"backToEnvironment": "Volver al entorno"
+		},
+		"noPermission": {
+			"title": "You don't have access to this environment",
+			"description": "Ask a project admin to grant you access before you can view this port forward."
 		},
 		"tabs": {
 			"overview": "Resumen",
@@ -1328,7 +1594,12 @@
 			"resolve": "Resolver",
 			"reopen": "Reabrir",
 			"createTask": "Crear tarea",
-			"taskCreated": "Tarea creada"
+			"taskCreated": "Tarea creada",
+			"errors": {
+				"alreadyHasTask": "Ya se ha creado una tarea para este comentario.",
+				"creationInProgress": "Ya hay una tarea en creación para este comentario.",
+				"createTaskFailed": "No se pudo crear la tarea. Inténtalo de nuevo."
+			}
 		}
 	},
 	"commentDetail": {
@@ -1337,6 +1608,10 @@
 			"description": "Este comentario pudo haber sido eliminado o el enlace no es válido.",
 			"ariaLabel": "Detalle del comentario",
 			"backToPortForward": "Volver al reenvío de puerto"
+		},
+		"noPermission": {
+			"title": "You don't have permission to view this comment",
+			"description": "Ask a project admin to grant you the annotations.read permission."
 		},
 		"header": {
 			"createdAt": "Comentado el {{date}}"
@@ -1353,7 +1628,11 @@
 		},
 		"thread": {
 			"replyPlaceholder": "Escribe una respuesta…",
-			"reply": "Responder"
+			"reply": "Responder",
+			"errors": {
+				"bodyEmpty": "La respuesta no puede estar vacía.",
+				"replyFailed": "No se pudo publicar la respuesta. Inténtalo de nuevo."
+			}
 		},
 		"actions": {
 			"create": "Crear",
@@ -1385,7 +1664,9 @@
 			"reporterTitle": "Reportero",
 			"epicLabel": "Épica",
 			"noEpic": "Sin épica",
-			"storyPointsTitle": "Puntos de historia"
+			"storyPointsTitle": "Puntos de historia",
+			"moveLeft": "Mover a la columna anterior",
+			"moveRight": "Mover a la columna siguiente"
 		},
 		"taskContextMenu": {
 			"open": "Abrir tarea",
@@ -1444,6 +1725,7 @@
 		}
 	},
 	"conversationsPage": {
+		"back": "Atrás",
 		"title": "Conversaciones",
 		"triggerChat": "Chat",
 		"triggerWriteDescription": "Redactar descripción",
@@ -1451,6 +1733,24 @@
 		"triggerAutomation": "Automatización",
 		"usageTitle": "{{tokens}} tokens · {{cost}}",
 		"prOpened": "PR abierto",
+		"moreActions": "Más acciones",
+		"rename": {
+			"menuLabel": "Cambiar nombre",
+			"dialogTitle": "Cambiar nombre de la conversación",
+			"placeholder": "Nombre de la conversación",
+			"cancel": "Cancelar",
+			"confirm": "Cambiar nombre",
+			"renaming": "Cambiando nombre…",
+			"error": "No se pudo cambiar el nombre de la conversación. Inténtalo de nuevo."
+		},
+		"delete": {
+			"menuLabel": "Eliminar",
+			"dialogTitle": "¿Eliminar conversación?",
+			"dialogDescription": "Esto elimina permanentemente \"{{title}}\" y su historial. Esta acción no se puede deshacer.",
+			"cancel": "Cancelar",
+			"confirm": "Eliminar",
+			"error": "No se pudo eliminar la conversación. Inténtalo de nuevo."
+		},
 		"filters": {
 			"title": "Filtros",
 			"agent": "Agente",
@@ -1463,6 +1763,10 @@
 			"clearAll": "Borrar filtros"
 		},
 		"list": {
+			"noPermission": {
+				"title": "You don't have permission to view conversations",
+				"description": "Ask a project admin to grant you the conversations.read permission."
+			},
 			"empty": {
 				"title": "Aún no hay conversaciones",
 				"description": "Las conversaciones comienzan cuando se asigna una tarea a un agente o alguien le envía un mensaje."
@@ -1486,11 +1790,18 @@
 			"renameView": "Cambiar nombre de la vista",
 			"deleteView": "Eliminar vista",
 			"searchTasksPlaceholder": "Buscar tareas…",
-			"pluginNotAvailable": "Plugin no disponible"
+			"pluginNotAvailable": "Plugin no disponible",
+			"viewErrors": {
+				"isLastView": "Esta es la última vista y no se puede eliminar.",
+				"deleteFailed": "No se pudo eliminar la vista. Inténtalo de nuevo.",
+				"reorderInvalid": "La lista de vistas cambió en otro lugar. Actualiza la página e inténtalo de nuevo.",
+				"reorderFailed": "No se pudo reordenar las vistas. Inténtalo de nuevo."
+			}
 		},
 		"viewSettings": {
 			"viewSettingsAriaLabel": "Configuración de vista",
 			"title": "Configuración de vista",
+			"onlyVisibleToYou": "Solo visible para ti",
 			"chooseFields": "Elegir campos",
 			"back": "← Atrás",
 			"clearFilters": "Borrar filtros",
@@ -1517,6 +1828,8 @@
 			"reset": "Restablecer",
 			"saving": "Guardando…",
 			"save": "Guardar",
+			"saveOnlyForMe": "Guardar solo para mí",
+			"saveForEveryone": "Guardar para todos",
 			"sprintFilter": {
 				"noSprints": "No hay sprints",
 				"allSprints": "Todos los sprints"
@@ -1638,7 +1951,9 @@
 				"unassignedHint": "Las tareas quedarán sin asignar a ningún sprint",
 				"cancel": "Cancelar",
 				"completing": "Completando…",
-				"completeSprint": "Completar sprint"
+				"completeSprint": "Completar sprint",
+				"alreadyComplete": "Este sprint ya se ha completado.",
+				"completeFailed": "No se pudo completar el sprint. Inténtalo de nuevo."
 			},
 			"deleteSprintModal": {
 				"title": "¿Eliminar sprint?",
@@ -1721,7 +2036,11 @@
 				"createFirst": "Crea tu primera automatización"
 			},
 			"noDescription": "Sin descripción",
-			"updated": "Actualizado {{time}}"
+			"updated": "Actualizado {{time}}",
+			"noPermission": {
+				"title": "You don't have permission to view automations",
+				"description": "Ask a project admin to grant you the workflows.read permission."
+			}
 		},
 		"status": {
 			"active": "Activo",
@@ -1961,7 +2280,33 @@
 				"branchFallback": "Rama {{n}}",
 				"cronSchedule": "Se ejecuta {{expression}}",
 				"webhookReady": "Webhook configurado",
-				"callApiSummary": "{{method}} {{host}}"
+				"callApiSummary": "{{method}} {{host}}",
+				"jevNoulTrue": "Sí"
+			},
+			"jev": {
+				"answerTypeLabel": "Tipo de respuesta",
+				"answerTypes": {
+					"choice": "Opción — elegir una de varias opciones",
+					"score": "Puntuación — valorar en una escala",
+					"noul": "Sí / No"
+				},
+				"answerTypeChangeHint": "Las ramas conectadas para el tipo de respuesta anterior dejarán de seguirse; vuelve a conectarlas después de guardar.",
+				"instructionsLabel": "Pregunta para Jev",
+				"instructionsPlaceholder": {
+					"choice": "p. ej., ¿Qué equipo debería encargarse de esto?",
+					"score": "p. ej., ¿Qué tan grave parece este problema?",
+					"noul": "p. ej., El cliente está pidiendo un reembolso."
+				},
+				"optionsTitle": "Opciones",
+				"optionKeyPlaceholder": "clave",
+				"optionDescriptionPlaceholder": "Cuándo elegir esta opción",
+				"addOption": "Añadir opción",
+				"levelsTitle": "Niveles (de menor a mayor)",
+				"levelPlaceholder": "Describe este nivel",
+				"addLevel": "Añadir nivel",
+				"confidenceThresholdLabel": "Umbral de confianza",
+				"trueThresholdLabel": "Umbral de “verdadero”",
+				"thresholdHint": "Por debajo de esto, el flujo de trabajo sigue la rama Else en lugar de confiar en la respuesta."
 			}
 		},
 		"runHistory": {
@@ -1985,6 +2330,132 @@
 			"subtitle": "Vista de solo lectura de cada automatización a la espera de que terminen otras tareas",
 			"empty": "Aún no hay dependencias de predecesoras configuradas",
 			"watchedTasks": "Esperando {{count}} tarea(s)"
+		},
+		"conditionTypes": {
+			"jev_condition": "Condición Jev"
+		}
+	},
+	"activityLog": {
+		"title": "Actividad",
+		"subtitle": "Todo lo que ha ocurrido en este proyecto",
+		"today": "Hoy",
+		"yesterday": "Ayer",
+		"deletedEntity": "Este elemento se ha eliminado",
+		"noPermission": {
+			"title": "No puedes ver el registro de actividad",
+			"description": "Pide a un gestor del proyecto el permiso “Ver registro de actividad”."
+		},
+		"empty": {
+			"title": "Aún no hay actividad",
+			"description": "Los cambios en este proyecto aparecerán aquí."
+		},
+		"emptyFiltered": {
+			"title": "No hay actividad que coincida",
+			"description": "Prueba a quitar filtros o cambiar la búsqueda."
+		},
+		"filters": {
+			"title": "Filtros",
+			"searchPlaceholder": "Buscar actividad…",
+			"type": "Tipo",
+			"people": "Personas",
+			"source": "Origen",
+			"dateRange": "Rango de fechas",
+			"dateFrom": "Desde",
+			"dateTo": "Hasta",
+			"clearAll": "Borrar todo"
+		},
+		"entityTypes": {
+			"task": "Tareas",
+			"doc": "Documentos",
+			"sprint": "Sprints",
+			"view": "Vistas",
+			"automation": "Automatizaciones",
+			"environment": "Entornos",
+			"member": "Miembros",
+			"role": "Roles",
+			"agent": "Agentes",
+			"project": "Proyecto"
+		},
+		"origins": {
+			"user": "Usuario",
+			"agent": "Agente",
+			"automation": "Automatización",
+			"jev": "Jev",
+			"annotation": "Anotación",
+			"system": "Sistema"
+		},
+		"detail": {
+			"asRole": "como {{role}}",
+			"roleChange": "{{from}} → {{to}}",
+			"renamedFrom": "antes “{{name}}”",
+			"member": "para {{name}}"
+		},
+		"projectFields": {
+			"name": "Nombre",
+			"description": "Descripción",
+			"task_id_prefix": "Prefijo de ID de tarea",
+			"is_public": "Visibilidad",
+			"settings": "Configuración",
+			"jev_config": "Configuración de Jev"
+		},
+		"types": {
+			"sprint_created": "creó el sprint",
+			"sprint_updated": "actualizó el sprint",
+			"sprint_deleted": "eliminó el sprint",
+			"sprint_completed": "completó el sprint",
+			"view_created": "creó la vista",
+			"view_updated": "actualizó la vista",
+			"view_deleted": "eliminó la vista",
+			"automation_created": "creó la automatización",
+			"automation_updated": "actualizó la automatización",
+			"automation_deleted": "eliminó la automatización",
+			"automation_activated": "activó la automatización",
+			"automation_deactivated": "desactivó la automatización",
+			"automation_node_added": "añadió un paso a",
+			"automation_node_removed": "quitó un paso de",
+			"automation_edge_added": "conectó pasos en",
+			"automation_edge_removed": "desconectó pasos en",
+			"environment_created": "creó el entorno",
+			"environment_updated": "actualizó el entorno",
+			"environment_deleted": "eliminó el entorno",
+			"environment_started": "inició el entorno",
+			"environment_stopped": "detuvo el entorno",
+			"environment_restarted": "reinició el entorno",
+			"environment_ssh_key_added": "añadió la clave SSH “{{label}}” a",
+			"environment_ssh_key_removed": "quitó la clave SSH “{{label}}” de",
+			"environment_access_granted": "concedió acceso a",
+			"environment_access_revoked": "revocó el acceso a",
+			"environment_port_forward_added": "reenvió el puerto {{port}} en",
+			"environment_port_forward_removed": "dejó de reenviar el puerto {{port}} en",
+			"annotation_created": "añadió una anotación en",
+			"annotation_resolved": "resolvió una anotación en",
+			"annotation_reopened": "reabrió una anotación en",
+			"annotation_commented": "respondió a una anotación en",
+			"member_added": "añadió al miembro",
+			"member_role_changed": "cambió el rol de",
+			"member_updated": "actualizó al miembro",
+			"member_removed": "eliminó al miembro",
+			"role_created": "creó el rol",
+			"role_updated": "actualizó el rol",
+			"role_deleted": "eliminó el rol",
+			"project_updated": "actualizó la configuración de",
+			"project_task_type_created": "creó el tipo de tarea “{{name}}” en",
+			"project_task_type_updated": "actualizó el tipo de tarea “{{name}}” en",
+			"project_task_type_deleted": "eliminó el tipo de tarea “{{name}}” en",
+			"project_task_type_default_set": "estableció “{{name}}” como tipo de tarea predeterminado en",
+			"project_task_status_created": "creó el estado “{{name}}” en",
+			"project_task_status_updated": "actualizó el estado “{{name}}” en",
+			"project_task_status_deleted": "eliminó el estado “{{name}}” en",
+			"project_task_status_default_set": "estableció “{{name}}” como estado predeterminado en",
+			"project_task_status_reordered": "reordenó los estados en",
+			"project_custom_field_created": "creó el campo “{{name}}” en",
+			"project_custom_field_updated": "actualizó el campo “{{name}}” en",
+			"project_custom_field_deleted": "eliminó el campo “{{name}}” en",
+			"project_agent_created": "añadió el agente",
+			"project_agent_updated": "actualizó el agente",
+			"project_agent_deleted": "quitó el agente",
+			"comment": "comentó en",
+			"fallback": "realizó {{type}} en"
 		}
 	}
 }

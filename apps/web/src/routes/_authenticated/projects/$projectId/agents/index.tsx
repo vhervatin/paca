@@ -9,6 +9,7 @@ import {
 	AcpSetupDialog,
 	CreateAgentDialog,
 } from "@/components/projects/agents/create-agent-dialog";
+import { NoPermissionState } from "@/components/shared/no-permission-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
@@ -18,10 +19,8 @@ import {
 	llmModelsQueryOptions,
 	projectScopedAgentsQueryOptions,
 } from "@/lib/agent-api";
-import {
-	projectQueryOptions,
-	projectRolesQueryOptions,
-} from "@/lib/project-api";
+import { isForbiddenError } from "@/lib/api-error";
+import { projectQueryOptions } from "@/lib/project-api";
 
 export const Route = createFileRoute(
 	"/_authenticated/projects/$projectId/agents/",
@@ -29,12 +28,14 @@ export const Route = createFileRoute(
 	validateSearch: (search: Record<string, unknown>) => ({
 		create: search.create === true || search.create === "true",
 	}),
-	loader: async ({ context: { queryClient }, params: { projectId } }) => {
-		await Promise.all([
-			queryClient.ensureQueryData(projectScopedAgentsQueryOptions(projectId)),
-			queryClient.ensureQueryData(projectRolesQueryOptions(projectId)),
-			queryClient.ensureQueryData(llmModelsQueryOptions),
-		]);
+	// Neither projectRolesQueryOptions (see below) nor the agent list itself
+	// is prefetched here — a role holding only agents.write (no agents.read)
+	// or only tasks.write (no project.roles.read) is an unusual but valid
+	// combination, and prefetching either in the loader would crash this
+	// entire page over one missing permission instead of showing
+	// NoPermissionState in place of just the agent grid below.
+	loader: async ({ context: { queryClient } }) => {
+		await queryClient.ensureQueryData(llmModelsQueryOptions);
 	},
 	component: AgentsPage,
 });
@@ -46,17 +47,39 @@ function AgentsPage() {
 	const { projectId } = Route.useParams();
 	const { create } = Route.useSearch();
 	const navigate = Route.useNavigate();
-	const { hasProjectPermission } = useProjectPermissions(projectId);
+	const { hasProjectPermission, isLoading: isPermissionsLoading } =
+		useProjectPermissions(projectId);
 	const canWrite = hasProjectPermission("agents.write");
+	const canRead = hasProjectPermission("agents.read");
+	// Creating an agent also grants it project membership at the chosen role,
+	// so the API requires project.members.write in addition to agents.write
+	// (GHSA-xxc8-ggm7-vmxp) — gate the create affordances on both so this
+	// button doesn't invite a 403 for an agents.write-only Editor. Managing
+	// an *existing* agent (AgentCard below, ACP bridge regen) stays on
+	// canWrite alone — those routes weren't changed.
+	const canCreate = canWrite && hasProjectPermission("project.members.write");
 
 	const { data: project } = useQuery(projectQueryOptions(projectId));
 	// projectScopedAgentsQueryOptions server-side-filters out global-scope
 	// agents invited into this project as members (see agent-api.ts's
 	// AgentScope doc comment) — this page manages project-owned agents only;
 	// global agents are configured from /admin/agents.
-	const { data: agents = [], isLoading } = useQuery(
-		projectScopedAgentsQueryOptions(projectId),
-	);
+	const {
+		data: agents = [],
+		isLoading: isDataLoading,
+		isError,
+		error,
+	} = useQuery({
+		...projectScopedAgentsQueryOptions(projectId),
+		enabled: canRead,
+	});
+	// While permissions are still loading, canRead defaults to false same as
+	// a confirmed denial — guard on isPermissionsLoading (and fold it into
+	// isLoading) so the page shows the skeleton instead of flashing
+	// NoPermissionState first.
+	const isLoading = isPermissionsLoading || isDataLoading;
+	const noPermission =
+		!isPermissionsLoading && (!canRead || (isError && isForbiddenError(error)));
 	const [createOpen, setCreateOpen] = useState(create);
 	const [acpSetupAgent, setAcpSetupAgent] = useState<Agent | null>(null);
 	const [acpSetupToken, setAcpSetupToken] = useState<AcpBridgeToken | null>(
@@ -101,7 +124,7 @@ function AgentsPage() {
 							{project?.name} · {t("agents.page.subtitle")}
 						</p>
 					</div>
-					{canWrite ? (
+					{canCreate ? (
 						<Button
 							size="sm"
 							className="gap-1.5 shadow-sm shadow-primary/20"
@@ -116,7 +139,13 @@ function AgentsPage() {
 
 			{/* Content */}
 			<div className="p-6">
-				{isLoading ? (
+				{noPermission ? (
+					<NoPermissionState
+						icon={Bot}
+						title={t("agents.page.noPermission.title")}
+						description={t("agents.page.noPermission.description")}
+					/>
+				) : isLoading ? (
 					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 						{Array.from({ length: 3 }).map((_, i) => (
 							// biome-ignore lint/suspicious/noArrayIndexKey: skeleton
@@ -136,7 +165,7 @@ function AgentsPage() {
 								{t("agents.page.empty.description")}
 							</p>
 						</div>
-						{canWrite && (
+						{canCreate && (
 							<Button size="sm" onClick={() => setCreateOpen(true)}>
 								<Plus className="size-4 mr-1.5" />
 								{t("agents.page.empty.createFirstAgent")}

@@ -51,6 +51,15 @@ export function DeleteTaskStatusDialog({
 				onOpenChange(false);
 				return;
 			}
+			// Someone made this the default while the dialog was open.
+			if (code === ApiErrorCode.TaskStatusIsDefault) {
+				setError(t("taskStatuses.deleteDialog.isDefault"));
+				return;
+			}
+			if (code === ApiErrorCode.TaskStatusInUseByAutomation) {
+				setError(t("taskStatuses.deleteDialog.inUseByAutomation"));
+				return;
+			}
 			setError(t("taskStatuses.deleteDialog.deleteFailed"));
 		},
 	});

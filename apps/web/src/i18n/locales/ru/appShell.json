@@ -29,13 +29,15 @@
 		"automation": "Автоматизация",
 		"team": "Команда",
 		"settings": "Настройки",
-		"changelog": "Что нового"
+		"changelog": "Что нового",
+		"activity": "Активность"
 	},
 	"projectSwitcher": {
 		"projects": "Проекты",
 		"yourProjects": "Ваши проекты",
 		"noProjectsYet": "Проектов пока нет",
-		"newProject": "Новый проект"
+		"newProject": "Новый проект",
+		"loadingMore": "Загрузка…"
 	},
 	"interactions": {
 		"title": "Взаимодействия",
@@ -55,7 +57,12 @@
 		"newSubfolder": "Новая подпапка",
 		"rename": "Переименовать",
 		"delete": "Удалить",
-		"untitled": "Без названия"
+		"untitled": "Без названия",
+		"errors": {
+			"titleInvalid": "Недопустимый заголовок.",
+			"folderNameInvalid": "Недопустимое имя папки.",
+			"renameFailed": "Не удалось переименовать. Попробуйте еще раз."
+		}
 	},
 	"notifications": {
 		"title": "Уведомления",

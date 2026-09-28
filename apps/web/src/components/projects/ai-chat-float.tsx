@@ -11,6 +11,7 @@ import { Thread } from "@/components/assistant-ui/thread";
 import {
 	AgentPickerContext,
 	AgentPickerInline,
+	AUTO_AGENT_ID,
 	useAgentPicker,
 } from "@/components/projects/agents/agent-picker";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import {
 	conversationQueryOptions,
 	heartbeatConversation,
 	pauseConversation,
+	resolveAutoAgent,
 	sendChatMessage,
 	sendConversationMessage,
 	startChatSession,
@@ -32,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { ConversationErrorBox } from "./agents/conversation-error-box";
 import {
 	canReplyToConversation,
+	chatSessionAccessDeniedKey,
 	eventsToThreadMessages,
 	extractTextOnlyContent,
 	isEnvironmentReady,
@@ -86,6 +89,15 @@ export function AIChatFloat({ projectId }: AIChatFloatProps) {
 	const [open, setOpen] = useState(false);
 	const [conversationId, setConversationId] = useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	// assistant-ui's onNew rejection isn't caught anywhere in its own
+	// send/append chain (ComposerRuntimeCore.send -> handleSend ->
+	// ThreadRuntimeCore.append all call the next step unawaited, so a thrown
+	// Error here becomes an unhandled promise rejection, not a rendered
+	// MessageError — that primitive reads a message's own persisted
+	// status.reason==="error", which only a server-confirmed failed turn ever
+	// has). Driven by local state and rendered via viewportOverlay instead,
+	// alongside the existing conversation.error_message box below.
+	const [sendError, setSendError] = useState<string | null>(null);
 	const qc = useQueryClient();
 
 	// Locked once a conversation exists — the agent is fixed for its
@@ -144,10 +156,17 @@ export function AIChatFloat({ projectId }: AIChatFloatProps) {
 		// Guards against a fast double-Enter firing two requests (e.g. two
 		// chat sessions) before the first one resolves and flips isRunning.
 		setIsSubmitting(true);
+		setSendError(null);
 		try {
 			if (!conversationId) {
 				if (!agentId) throw new Error(t("aiChat.selectAgentFirst"));
-				const result = await startChatSession(projectId, agentId, {
+				// "Auto" isn't a real agent — resolve it to one via Jev, based
+				// on this opening message, before starting the session.
+				const resolvedAgentId =
+					agentId === AUTO_AGENT_ID
+						? (await resolveAutoAgent(projectId, text)).agent_id
+						: agentId;
+				const result = await startChatSession(projectId, resolvedAgentId, {
 					message: text,
 					contextItems,
 				});
@@ -203,6 +222,13 @@ export function AIChatFloat({ projectId }: AIChatFloatProps) {
 				setConversationId(result.id);
 			}
 			invalidate(result.id);
+		} catch (err) {
+			const key = chatSessionAccessDeniedKey(err);
+			if (key) {
+				setSendError(t(key));
+				return;
+			}
+			throw err;
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -261,6 +287,7 @@ export function AIChatFloat({ projectId }: AIChatFloatProps) {
 	function handleNewConversation() {
 		if (conversationId) endConversation(conversationId);
 		setConversationId(null);
+		setSendError(null);
 	}
 
 	function handleToggleOpen() {
@@ -364,10 +391,17 @@ export function AIChatFloat({ projectId }: AIChatFloatProps) {
 										// composer, which read as small print easy to miss) so a
 										// failure with a visible message still explains itself.
 										viewportOverlay={
-											conversation?.error_message ? (
-												<ConversationErrorBox
-													message={conversation.error_message}
-												/>
+											conversation?.error_message || sendError ? (
+												<>
+													{conversation?.error_message && (
+														<ConversationErrorBox
+															message={conversation.error_message}
+														/>
+													)}
+													{sendError && (
+														<ConversationErrorBox message={sendError} />
+													)}
+												</>
 											) : undefined
 										}
 									/>

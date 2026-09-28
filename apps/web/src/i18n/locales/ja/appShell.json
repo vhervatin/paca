@@ -29,13 +29,15 @@
 		"automation": "自動化",
 		"team": "チーム",
 		"settings": "設定",
-		"changelog": "新着情報"
+		"changelog": "新着情報",
+		"activity": "アクティビティ"
 	},
 	"projectSwitcher": {
 		"projects": "プロジェクト",
 		"yourProjects": "あなたのプロジェクト",
 		"noProjectsYet": "プロジェクトはまだありません",
-		"newProject": "新しいプロジェクト"
+		"newProject": "新しいプロジェクト",
+		"loadingMore": "読み込み中…"
 	},
 	"interactions": {
 		"title": "インタラクション",
@@ -55,7 +57,12 @@
 		"newSubfolder": "新規サブフォルダ",
 		"rename": "名前を変更",
 		"delete": "削除",
-		"untitled": "無題"
+		"untitled": "無題",
+		"errors": {
+			"titleInvalid": "そのタイトルは無効です。",
+			"folderNameInvalid": "そのフォルダ名は無効です。",
+			"renameFailed": "名前の変更に失敗しました。もう一度お試しください。"
+		}
 	},
 	"notifications": {
 		"title": "通知",

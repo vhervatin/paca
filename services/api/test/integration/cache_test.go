@@ -16,6 +16,7 @@ import (
 	"github.com/Paca-AI/api/internal/platform/authz"
 	"github.com/Paca-AI/api/internal/platform/cache"
 	jwttoken "github.com/Paca-AI/api/internal/platform/token"
+	activitysvc "github.com/Paca-AI/api/internal/service/activity"
 	authsvc "github.com/Paca-AI/api/internal/service/auth"
 	projectsvc "github.com/Paca-AI/api/internal/service/project"
 	sprintsvc "github.com/Paca-AI/api/internal/service/sprint"
@@ -58,7 +59,7 @@ func buildCachedTaskRouter(t *testing.T, taskRepo *fakeTaskRepo, store *projectP
 		slog.New(slog.NewTextHandler(os.Stdout, nil)),
 	)
 	viewService := sprintsvc.NewViewService(newFakeViewRepoIT(), newFakeSprintRepoIT(), taskRepo, nil)
-	activityService := tasksvc.NewActivityService(newFakeTaskActivityRepo(), taskRepo, &fakeActivityMemberRepo{}, nil)
+	activityService := tasksvc.NewActivityService(activitysvc.New(newFakeTaskActivityRepo(), &fakeActivityMemberRepo{}, nil), taskRepo, &fakeActivityMemberRepo{})
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	r := router.New(router.Deps{
@@ -94,7 +95,7 @@ func TestCacheIntegration_TaskTypes_HitAndInvalidation(t *testing.T) {
 		projectPerms: map[uuid.UUID][]authz.Permission{
 			projectID: {
 				authz.PermissionTasksRead,
-				authz.PermissionTasksWrite,
+				authz.PermissionProjectSettingsTaskTypesWrite,
 			},
 		},
 	}
@@ -157,7 +158,7 @@ func TestCacheIntegration_TaskStatuses_HitAndInvalidation(t *testing.T) {
 		projectPerms: map[uuid.UUID][]authz.Permission{
 			projectID: {
 				authz.PermissionTasksRead,
-				authz.PermissionTasksWrite,
+				authz.PermissionProjectSettingsTaskStatusesWrite,
 			},
 		},
 	}
@@ -208,8 +209,8 @@ func TestCacheIntegration_PerProject_CacheIsolation(t *testing.T) {
 	projectB := uuid.New()
 	store := &projectPermStore{
 		projectPerms: map[uuid.UUID][]authz.Permission{
-			projectA: {authz.PermissionTasksRead, authz.PermissionTasksWrite},
-			projectB: {authz.PermissionTasksRead, authz.PermissionTasksWrite},
+			projectA: {authz.PermissionTasksRead, authz.PermissionProjectSettingsTaskTypesWrite},
+			projectB: {authz.PermissionTasksRead, authz.PermissionProjectSettingsTaskTypesWrite},
 		},
 	}
 	r, _ := buildCachedTaskRouter(t, taskRepo, store)

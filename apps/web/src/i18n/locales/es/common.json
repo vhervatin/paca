@@ -1,4 +1,10 @@
 {
+	"common": {
+		"notFound": "Not found",
+		"somethingWentWrong": "Something went wrong",
+		"retry": "Retry",
+		"noPermissionToView": "You don't have permission to view this"
+	},
 	"dialog": {
 		"closeLabel": "Cerrar",
 		"closeButton": "Cerrar"
@@ -27,5 +33,12 @@
 		"hours_other": "hace {{count}} h",
 		"days_one": "hace {{count}} d",
 		"days_other": "hace {{count}} d"
+	},
+	"pagination": {
+		"navLabel": "Paginación",
+		"previous": "Página anterior",
+		"next": "Página siguiente",
+		"page": "Página {{page}}",
+		"pageOfTotal": "Página {{page}} de {{totalPages}}"
 	}
 }

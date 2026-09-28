@@ -1,5 +1,21 @@
 # Automation Workflows
 
+> **Superseded.** This document describes the original "workflow" feature —
+> a dependency graph whose nodes wrap *existing* tasks, used only for
+> status-based reassignment. It has been replaced by a more general
+> Automation graph (node kinds Trigger/Condition/Action, not tied to a fixed
+> task, with additional trigger types, branching conditions, and action
+> types beyond reassignment) exposed today via the `get_automation` /
+> `create_automation` / `update_automation` / `delete_automation` MCP tools
+> and the project's "Automation" canvas. See
+> `services/api/internal/domain/automation/entity.go` for the current,
+> authoritative node/trigger/action vocabulary — its package doc explicitly
+> states: "Unlike the workflow feature it replaces, a node no longer wraps a
+> task." This page is kept for historical/design-rationale context (the
+> AND-join and done-status-resolution reasoning below still applies
+> conceptually to the `predecessor_done` trigger type), not as a guide to
+> the current API or MCP tool surface.
+
 This document explains the automation-workflow feature: a project-scoped
 dependency graph over *existing* tasks that automatically hands work off
 between members (human or AI agent) as tasks move through statuses.
@@ -166,7 +182,7 @@ full DDL. Key constraints:
 
 `internal/worker/workflow_consumer.go` (`WorkflowConsumer`) subscribes to the
 same Valkey stream the task-activity pipeline already writes to,
-`paca.task_activities` (`events.StreamTaskActivities`), under its own
+`paca.activities` (`events.StreamActivities`), under its own
 consumer group `api.workflow_engine` — it is a sibling reader, not a special
 case wired into the HTTP handler.
 
@@ -275,11 +291,12 @@ manual reconfiguration.
 Workflow management is exposed to AI agents as ordinary MCP tools in the
 existing Paca MCP server (`apps/mcp/src/tools/workflow-tools.ts`) — the same
 mechanism used for every other Paca resource (tasks, sprints, docs, etc.),
-not a special-cased sandbox tool or a separate server. Tool availability is
-gated the same way every other tool in that server is: by the calling
-agent's own `workflows.read` / `workflows.write` project permissions
-(`apps/mcp/src/permissions.ts`), resolved at MCP-session startup — there is
-no separate per-agent capability flag.
+not a special-cased sandbox tool or a separate server. The MCP server lists
+these tools unconditionally, the same as every other tool; enforcement of
+the calling agent's own `workflows.read` / `workflows.write` project
+permissions happens on the API side of each call, which returns 403 (surfaced
+to the agent as a "Permission denied" tool error) when the grant is missing —
+there is no separate per-agent capability flag.
 
 Tools: `get_workflow`, `create_workflow`, `update_workflow`,
 `delete_workflow` — just 4, not one per REST endpoint. An earlier version of

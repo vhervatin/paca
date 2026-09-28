@@ -100,7 +100,14 @@ jobs:
           cache-dependency-path: services/api/go.sum
 
       - name: Run tests (race detector)
-        run: go test -race -timeout 60s -coverprofile=coverage.out $(go list ./... | grep -v '/test/e2e')
+        # internal/platform/plugin's suite (WASM JIT-compiling several
+        # plugin fixtures under -race) runs ~45s on a quiet machine with
+        # near-zero headroom under the previous 60s budget — enough to tip
+        # into a hard timeout on a slower/contended CI runner with no
+        # underlying test hang (reproduces green locally every time).
+        # 120s matches the budget acp-bridge-pr-ci.yml already uses for the
+        # same class of race-detector run.
+        run: go test -race -timeout 120s -coverprofile=coverage.out $(go list ./... | grep -v '/test/e2e')
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v6
@@ -140,7 +147,7 @@ jobs:
       - name: Apply every migration to a fresh database
         # TestRealMigrations_ApplyCleanlyFromScratch (test/e2e/migrations_test.go)
         # lives in the same package as the full E2E suite, so its shared
-        # TestMain still spins up Postgres/Redis/MinIO regardless of the
+        # TestMain still spins up Postgres/Redis/RustFS regardless of the
         # -run filter below — the win here isn't a lighter container set,
         # it's a dedicated, fast-failing, unambiguously-named check that
         # doesn't depend on which other e2e test happens to apply

@@ -197,7 +197,7 @@ Table agent_conversations {
   // Trigger context
   trigger_type varchar [not null, note: 'task_assigned | comment_mention | chat_message | description_write | automation_message. Global chat always uses chat_message — project_id IS NULL is what distinguishes it.']
   task_id uuid [null, ref: > tasks.id]
-  comment_id uuid [null, note: 'task_activities row id for the triggering comment']
+  comment_id uuid [null, note: 'activities row id for the triggering comment']
   chat_session_id uuid [null, ref: > agent_chat_sessions.id]
   triggered_by_member_id uuid [null, ref: > project_members.id, note: 'A project-scoped human member. NULL for the automation-workflow engine or a global-chat conversation (see actor_user_id).']
   actor_user_id uuid [null, ref: > users.id, note: 'Set only for a global-chat conversation — the human chatting with a global agent, identified directly. ON DELETE RESTRICT.']
@@ -217,6 +217,11 @@ Table agent_conversations {
   pr_url varchar [null]
 
   persistence_dir varchar [null]
+
+  // Naming & soft delete (000058_add_conversation_title.sql)
+  title text [null, note: 'Set by agent-runner from the underlying Goose session title (best-effort, only while title_set_by_user is false), or directly by a user rename. NULL means no name yet — the frontend then falls back to the agent name.']
+  title_set_by_user boolean [not null, default: false, note: 'Once a user renames the conversation, the best-effort copy of the Goose title from agent-runner can never overwrite it again.']
+  deleted_at timestamp [null, note: 'Soft delete — never a hard DELETE, since agent-runner may still be mid-teardown against this row and the AgentQueueConsumer worker terminal-status lookup must keep resolving it. User-facing reads (GetConversation/GetGlobalConversation) treat a non-null value as not-found; FindConversationByID itself is not filtered.']
 
   started_at timestamp [null]
   finished_at timestamp [null]

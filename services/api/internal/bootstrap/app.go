@@ -25,12 +25,14 @@ import (
 	"github.com/Paca-AI/api/internal/platform/database"
 	"github.com/Paca-AI/api/internal/platform/logger"
 	"github.com/Paca-AI/api/internal/platform/messaging"
+	"github.com/Paca-AI/api/internal/platform/netguard"
 	pluginrt "github.com/Paca-AI/api/internal/platform/plugin"
 	"github.com/Paca-AI/api/internal/platform/secret"
 	"github.com/Paca-AI/api/internal/platform/storage"
 	jwttoken "github.com/Paca-AI/api/internal/platform/token"
 	pgRepo "github.com/Paca-AI/api/internal/repository/postgres"
 	redisRepo "github.com/Paca-AI/api/internal/repository/redis"
+	activitysvc "github.com/Paca-AI/api/internal/service/activity"
 	agentsvc "github.com/Paca-AI/api/internal/service/agent"
 	annotationsvc "github.com/Paca-AI/api/internal/service/annotation"
 	apikeysvc "github.com/Paca-AI/api/internal/service/apikey"
@@ -45,6 +47,7 @@ import (
 	projectsvc "github.com/Paca-AI/api/internal/service/project"
 	settingssvc "github.com/Paca-AI/api/internal/service/settings"
 	sprintsvc "github.com/Paca-AI/api/internal/service/sprint"
+	ssosvc "github.com/Paca-AI/api/internal/service/sso"
 	tasksvc "github.com/Paca-AI/api/internal/service/task"
 	usersvc "github.com/Paca-AI/api/internal/service/user"
 	"github.com/Paca-AI/api/internal/transport/http/handler"
@@ -62,19 +65,20 @@ var agentBotUserID = userdom.SystemActorUserID
 
 // App holds the HTTP server and any resources that need graceful shutdown.
 type App struct {
-	server               *http.Server
-	publisher            *messaging.Publisher
-	activityConsumer     *worker.ActivityConsumer
-	docActivityConsumer  *worker.DocActivityConsumer
-	notificationConsumer *worker.NotificationConsumer
-	pluginEventConsumer  *worker.PluginEventConsumer
-	environmentConsumer  *worker.EnvironmentCommandConsumer
-	automationConsumer   *worker.AutomationConsumer
-	agentQueueConsumer   *worker.AgentQueueConsumer
-	dueDateScheduler     *worker.DueDateScheduler
-	cronScheduler        *worker.CronScheduler
-	waitScheduler        *worker.WaitScheduler
-	log                  *slog.Logger
+	server                 *http.Server
+	publisher              *messaging.Publisher
+	activityConsumer       *worker.ActivityConsumer
+	notificationConsumer   *worker.NotificationConsumer
+	pluginEventConsumer    *worker.PluginEventConsumer
+	environmentConsumer    *worker.EnvironmentCommandConsumer
+	automationConsumer     *worker.AutomationConsumer
+	taskAutofillConsumer   *worker.TaskAutofillConsumer
+	taskAutoAssignConsumer *worker.TaskAutoAssignConsumer
+	agentQueueConsumer     *worker.AgentQueueConsumer
+	dueDateScheduler       *worker.DueDateScheduler
+	cronScheduler          *worker.CronScheduler
+	waitScheduler          *worker.WaitScheduler
+	log                    *slog.Logger
 }
 
 // New builds all dependencies and returns a ready-to-run App.
@@ -100,14 +104,18 @@ func New(cfg *config.Config) (*App, error) {
 
 	tokenManager := jwttoken.New(cfg.JWT.Secret, cfg.JWT.AccessTTL, cfg.JWT.RefreshTTL)
 	permissionStore := pgRepo.NewAuthzPermissionStore(db)
-	authorizer := authz.NewAuthorizer(permissionStore).WithAgentRoleResolver(permissionStore)
+	authorizer := authz.NewAuthorizer(permissionStore)
 
 	// --- Repositories -------------------------------------------------------
 	userRepo := pgRepo.NewUserRepository(db)
 	globalRoleRepo := pgRepo.NewGlobalRoleRepository(db)
 	projectRepo := pgRepo.NewProjectRepository(db)
 	taskRepo := pgRepo.NewTaskRepository(db)
-	activityRepo := pgRepo.NewTaskActivityRepository(db)
+	// The activity log: one repository and one service behind every
+	// entity's timeline, the project feed, the agent tab and comments, and
+	// the one Recorder every domain service records its changes through.
+	activityRecorder := activitysvc.NewRecorder(publisher)
+	activityLog := activitysvc.New(pgRepo.NewActivityRepository(db), projectRepo, activityRecorder)
 	notificationRepo := pgRepo.NewNotificationRepository(db)
 	sprintRepo := pgRepo.NewSprintRepository(db)
 	viewRepo := pgRepo.NewViewRepository(db)
@@ -156,9 +164,9 @@ func New(cfg *config.Config) (*App, error) {
 	environmentRepo := pgRepo.NewEnvironmentRepository(db)
 	annotationRepo := pgRepo.NewAnnotationRepository(db)
 	globalRoleService := globalrolesvc.NewCachedService(globalrolesvc.New(globalRoleRepo, agentRepo), cacheStore, cfg.Cache.ConfigTTL, log)
-	projectServiceBase := projectsvc.New(projectRepo, taskRepo, agentRepo)
+	projectServiceBase := projectsvc.New(projectRepo, taskRepo, agentRepo).WithActivityRecorder(activityRecorder)
 	projectService := projectsvc.NewCachedService(projectServiceBase, cacheStore, cfg.Cache.ProjectTTL, cfg.Cache.ConfigTTL, log)
-	taskService := tasksvc.NewCachedService(tasksvc.New(taskRepo).WithAutomationStatusChecker(rawAutomationRepo), cacheStore, cfg.Cache.ConfigTTL, log)
+	taskService := tasksvc.NewCachedService(tasksvc.New(taskRepo).WithAutomationStatusChecker(rawAutomationRepo).WithActivityRecorder(activityRecorder), cacheStore, cfg.Cache.ConfigTTL, log)
 	sprintService := sprintsvc.NewCachedSprintService(sprintsvc.New(sprintRepo, taskRepo, publisher), cacheStore, cfg.Cache.SprintTTL, log)
 	viewService := sprintsvc.NewCachedViewService(sprintsvc.NewViewService(viewRepo, sprintRepo, taskRepo, publisher), cacheStore, cfg.Cache.SprintTTL, log)
 	notificationService := notificationsvc.New(notificationRepo, projectRepo, publisher).
@@ -179,7 +187,17 @@ func New(cfg *config.Config) (*App, error) {
 	// Backs GetConversationForAgent's agents.read check (read_conversation
 	// MCP tool) — see agentsvc.Service.authorizer's doc comment.
 	agentService = agentService.WithAuthorizer(authorizer)
+	// Backs SetGlobalAgentRole's global_role_id existence check — see
+	// agentsvc.Service.globalRoleSvc's doc comment
+	// (GHSA-xxc8-ggm7-vmxp).
+	agentService = agentService.WithGlobalRoleService(globalRoleService)
 	settingsService := settingssvc.New(settingsRepo)
+	// encryptor is reused, verbatim, for every at-rest secret in this
+	// codebase (agent LLM keys, environment secrets, and — see below —
+	// each project's own Jev API key): a nil encryptor (ENCRYPTION_KEY
+	// unset) is a valid, non-fatal state that every WithEncryptor-style
+	// caller falls back to storing/reading plaintext for.
+	var encryptor *secret.Encryptor
 	if cfg.Security.EncryptionKey != "" {
 		keyBytes, hexErr := secret.DecodeHexKey(cfg.Security.EncryptionKey)
 		if hexErr != nil {
@@ -187,6 +205,7 @@ func New(cfg *config.Config) (*App, error) {
 		} else if enc, encErr := secret.NewEncryptor(keyBytes); encErr != nil {
 			log.Warn("agent LLM key encryption disabled: encryptor init failed", "error", encErr)
 		} else {
+			encryptor = enc
 			agentService = agentService.WithEncryptor(enc)
 			// Same Encryptor instance, reused verbatim — an environment's
 			// secret_key_encrypted is encrypted at rest exactly like
@@ -200,28 +219,37 @@ func New(cfg *config.Config) (*App, error) {
 		// with stored secrets have nothing to encrypt. But when this is
 		// unintentional, the effect is silent: encryptKey() falls back to
 		// storing the plaintext unchanged when no encryptor is configured, so
-		// LLM API keys and plugin secrets end up in the database in plaintext
-		// with no error or signal anywhere. Surface it once at startup.
-		log.Warn("ENCRYPTION_KEY not set: agent LLM API keys and plugin secrets will be stored in plaintext, not encrypted")
+		// LLM API keys, plugin secrets, and per-project Jev API keys end up
+		// in the database in plaintext with no error or signal anywhere.
+		// Surface it once at startup.
+		log.Warn("ENCRYPTION_KEY not set: agent LLM API keys, plugin secrets, and project Jev API keys will be stored in plaintext, not encrypted")
 	}
-	activityService := tasksvc.NewActivityService(activityRepo, taskRepo, projectRepo, publisher).
+	// Reassigned (unlike agentService/environmentService above) because
+	// projectServiceBase is a local var read again below when wiring
+	// ProjectHandler's Jev-config option — WithEncryptor mutates in place,
+	// so this is belt-and-suspenders, not load-bearing, but keeps the
+	// pointer's provenance obvious at every read site.
+	projectServiceBase = projectServiceBase.WithEncryptor(encryptor)
+	ssoService := ssosvc.New(pgRepo.NewSSORepository(db), redisRepo.NewSSOStateStore(redisClient, 10*time.Minute),
+		userRepo, userService, authService, log).WithEncryptor(encryptor)
+	activityService := tasksvc.NewActivityService(activityLog, taskRepo, projectRepo).
 		WithNotificationService(notificationService).
 		WithAgentTrigger(agentService)
 	notificationConsumer := worker.NewNotificationConsumer(redisClient, notificationService, log, projectRepo, agentService).
 		WithActivityRecorder(activityService)
-	activityConsumer := worker.NewActivityConsumer(redisClient, activityRepo, projectRepo, log)
+	activityConsumer := worker.NewActivityConsumer(redisClient, pgRepo.NewActivityRepository(db), projectRepo, log)
 	environmentConsumer := worker.NewEnvironmentCommandConsumer(redisClient, environmentService, log)
 	docService := docsvc.New(docRepo, projectRepo)
-	docActivityService := docsvc.NewActivityService(docRepo, docRepo, projectRepo, publisher).
-		WithNotificationService(notificationService)
-	docActivityConsumer := worker.NewDocActivityConsumer(redisClient, docRepo, projectRepo, log)
+	docActivityService := docsvc.NewActivityService(activityLog, docRepo)
 	automationService := automationsvc.New(automationRepo, taskRepo, projectRepo, publisher)
 	automationConsumer := worker.NewAutomationConsumer(redisClient, automationRepo, taskRepo, taskService, activityService, publisher, log)
+	taskAutofillConsumer := worker.NewTaskAutofillConsumer(redisClient, taskService, taskRepo, projectService, activityService, encryptor, log)
+	taskAutoAssignConsumer := worker.NewTaskAutoAssignConsumer(redisClient, taskService, projectRepo, projectService, activityService, encryptor, log)
 	dueDateScheduler := worker.NewDueDateScheduler(redisClient, automationConsumer, log)
 	cronScheduler := worker.NewCronScheduler(redisClient, automationConsumer, log)
 	waitScheduler := worker.NewWaitScheduler(redisClient, automationConsumer, log)
 
-	// Object storage — defaults to MinIO; switches to AWS S3 when STORAGE_PROVIDER=s3.
+	// Object storage — defaults to RustFS; switches to AWS S3 when STORAGE_PROVIDER=s3.
 	storageClient, err := storage.NewS3Client(context.Background(), storage.S3Config{
 		Endpoint:        cfg.Storage.Endpoint,
 		PublicURL:       cfg.Storage.PublicURL,
@@ -230,7 +258,7 @@ func New(cfg *config.Config) (*App, error) {
 		AccessKeyID:     cfg.Storage.AccessKeyID,
 		SecretAccessKey: cfg.Storage.SecretAccessKey,
 		UseSSL:          cfg.Storage.UseSSL,
-		ForcePathStyle:  cfg.Storage.Provider != "s3", // MinIO requires path-style
+		ForcePathStyle:  cfg.Storage.Provider != "s3", // self-hosted S3-compatible stores require path-style
 	})
 	if err != nil {
 		return nil, fmt.Errorf("bootstrap: storage client: %w", err)
@@ -248,7 +276,9 @@ func New(cfg *config.Config) (*App, error) {
 	// environmentService/storageClient are the same instances already
 	// wired above, not new ones.
 	annotationService := annotationsvc.New(annotationRepo, environmentService, taskService, attachmentRepo, attachmentRepo, storageClient, cfg.Storage.Bucket).
-		WithPublicURL(cfg.Server.PublicURL)
+		WithPublicURL(cfg.Server.PublicURL).
+		WithActivityRecorder(activityService).
+		WithActivityLog(activityRecorder)
 	userService = userService.WithAvatarService(attachmentService)
 	agentService = agentService.WithAvatarService(attachmentService)
 	// Unlike userService/agentService above, this return value isn't
@@ -324,10 +354,20 @@ func New(cfg *config.Config) (*App, error) {
 	passwordSetTokenIssuer := pluginrt.PasswordSetTokenIssuerFunc(userService.IssuePasswordSetToken)
 
 	pluginRuntime := pluginrt.NewRuntime(pluginStore, pluginrt.HostServices{
-		DB:                     sqlDB,
-		Log:                    log,
-		Publisher:              publisher,
-		HTTPClient:             &http.Client{Timeout: 30 * time.Second},
+		DB:        sqlDB,
+		Log:       log,
+		Publisher: publisher,
+		// netguard.NewSafeHTTPClient pins the dial to the exact IP validated
+		// by isAllowedFetchDomain (runtime.go), closing a DNS-rebinding gap:
+		// a plain client re-resolves DNS independently at dial time, so an
+		// answer that differs from (or changes after) the check bypasses it
+		// entirely — the same vulnerability class as GHSA-cj3q-c44j-q8p9,
+		// just a different call site. marketplace.go and installer.go
+		// already use netguard for their own clients; this one (paca.fetch,
+		// used by every installed plugin's outbound calls) was the one
+		// netguard's own package doc says it was built for but never got
+		// wired up.
+		HTTPClient:             netguard.NewSafeHTTPClient(30 * time.Second),
 		Authorizer:             authorizer,
 		Cache:                  cacheStore,
 		SettingsReader:         settingsReader,
@@ -373,6 +413,7 @@ func New(cfg *config.Config) (*App, error) {
 	// the same EvaluateCondition/RunAction WASM bridge HandleRequest uses.
 	automationService.WithPluginNodeResolver(pluginRuntime)
 	automationConsumer.WithPluginRuntime(pluginRuntime)
+	automationConsumer.WithJevProjectService(projectService, encryptor)
 	// trigger_ai_agent starts an agent conversation without ever touching the
 	// task's assignee: task-bound, it dispatches straight to
 	// agentService.TriggerTaskAssigned; task-less (a cron/api_trigger/
@@ -406,12 +447,15 @@ func New(cfg *config.Config) (*App, error) {
 
 	agentHandler := handler.NewAgentHandler(agentService, cfg.AIAgentURL, cfg.AIAgentInternalKey, cfg.Server.PublicURL).
 		WithActivityRecorder(activityService).
+		WithActivityLister(activityLog).
 		WithMemberRepo(projectRepo).
 		WithGlobalPermissionReader(permissionStore).
 		WithAvatarService(attachmentService).
-		WithTaskChecker(attachmentsvc.NewTaskOwnerChecker(taskRepo))
+		WithTaskChecker(attachmentsvc.NewTaskOwnerChecker(taskRepo)).
+		WithJevProjectService(projectService, encryptor)
 	environmentHandler := handler.NewEnvironmentHandler(environmentService, cfg.AIAgentInternalKey).
-		WithDeploymentConfig(cfg.SSHBastionHost, cfg.PortForwardHost)
+		WithDeploymentConfig(cfg.SSHBastionHost, cfg.PortForwardHost).
+		WithMemberRepo(projectRepo)
 	annotationHandler := handler.NewAnnotationHandler(annotationService).
 		WithAvatarService(attachmentService).
 		WithMemberRepo(projectRepo)
@@ -426,30 +470,46 @@ func New(cfg *config.Config) (*App, error) {
 		RefreshSessionTTL: cfg.JWT.RefreshSessionTTL,
 	}
 
-	userHandler := handler.NewUserHandler(userService, authService).WithAvatarService(attachmentService)
-
+	authHandler := handler.NewAuthHandler(authService, cookieCfg)
 	deps := router.Deps{
 		TokenManager:         tokenManager,
 		APIKeyAuth:           apiKeyService,
 		Authorizer:           authorizer,
+		AgentAccessSvc:       agentService,
+		EnvironmentAccessSvc: environmentService,
+		MemberRepo:           projectRepo,
 		Health:               handler.NewHealthHandler(),
 		Version:              handler.NewVersionHandler(cfg.Release, cacheStore, log),
-		Auth:                 handler.NewAuthHandler(authService, cookieCfg),
-		User:                 userHandler,
+		Auth:                 authHandler,
+		SSO:                  handler.NewSSOHandler(ssoService, authHandler, cfg.Server.PublicURL),
+		User:                 handler.NewUserHandler(userService, authService).WithAvatarService(attachmentService),
 		GlobalRole:           handler.NewGlobalRoleHandler(globalRoleService),
 		ProjectVisibilitySvc: projectService,
+		ProjectActivity:      handler.NewProjectActivityHandler(activityLog, attachmentService),
 		Project: handler.NewProjectHandler(
 			projectService,
 			authorizer,
 			handler.WithProjectDefaultViews(viewService, taskService),
 			handler.WithProjectStatsServices(taskService, userService),
 			handler.WithProjectAvatarService(attachmentService),
+			// projectService, the cached wrapper — not projectServiceBase.
+			// UpdateJevConfig writes credentials that every read path then
+			// reads back off a cached *projectdom.Project (this handler's own
+			// TestJevConfig/GetProject, and the Jev-dependent workers), so a
+			// write through the base service would leave save-then-test
+			// exercising the credentials the caller just replaced. The
+			// wrapper's UpdateJevConfig delegates and drops the cache entry;
+			// it picks up the method by assertion, so projectdom.Service
+			// still doesn't carry it and its mocks are unaffected (see
+			// WithProjectJevConfigService's doc comment).
+			handler.WithProjectJevConfigService(projectService, encryptor),
 		),
 		Task: handler.NewTaskHandler(taskService, viewService, activityService,
 			handler.WithTaskPublisher(publisher),
 			handler.WithTaskAssignedProjectService(projectService),
 			handler.WithTaskAvatarService(attachmentService),
-			handler.WithTaskNotificationService(notificationService)),
+			handler.WithTaskNotificationService(notificationService),
+			handler.WithTaskAutofillRepository(taskRepo)),
 		Sprint: handler.NewSprintHandler(sprintService, viewService,
 			handler.WithSprintDefaultTaskTypes(taskService),
 			handler.WithSprintDefaultTaskStatuses(taskService),
@@ -472,6 +532,7 @@ func New(cfg *config.Config) (*App, error) {
 		Settings:           handler.NewSettingsHandler(settingsService).WithAvatarService(attachmentService),
 		Log:                log,
 		CORSAllowedOrigins: cfg.Server.CORSAllowedOrigins,
+		AuthRateLimit:      cfg.Server.AuthRateLimit,
 	}
 
 	engine := router.New(deps)
@@ -484,7 +545,7 @@ func New(cfg *config.Config) (*App, error) {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	return &App{server: srv, publisher: publisher, activityConsumer: activityConsumer, docActivityConsumer: docActivityConsumer, notificationConsumer: notificationConsumer, pluginEventConsumer: pluginEventConsumer, environmentConsumer: environmentConsumer, automationConsumer: automationConsumer, agentQueueConsumer: agentQueueConsumer, dueDateScheduler: dueDateScheduler, cronScheduler: cronScheduler, waitScheduler: waitScheduler, log: log}, nil
+	return &App{server: srv, publisher: publisher, activityConsumer: activityConsumer, notificationConsumer: notificationConsumer, pluginEventConsumer: pluginEventConsumer, environmentConsumer: environmentConsumer, automationConsumer: automationConsumer, taskAutofillConsumer: taskAutofillConsumer, taskAutoAssignConsumer: taskAutoAssignConsumer, agentQueueConsumer: agentQueueConsumer, dueDateScheduler: dueDateScheduler, cronScheduler: cronScheduler, waitScheduler: waitScheduler, log: log}, nil
 }
 
 // Run starts the activity consumers and the HTTP server.
@@ -492,11 +553,12 @@ func New(cfg *config.Config) (*App, error) {
 func (a *App) Run() error {
 	a.log.Info("starting server", "addr", a.server.Addr)
 	a.activityConsumer.Start(context.Background())
-	a.docActivityConsumer.Start(context.Background())
 	a.notificationConsumer.Start(context.Background())
 	a.pluginEventConsumer.Start(context.Background())
 	a.environmentConsumer.Start(context.Background())
 	a.automationConsumer.Start(context.Background())
+	a.taskAutofillConsumer.Start(context.Background())
+	a.taskAutoAssignConsumer.Start(context.Background())
 	a.agentQueueConsumer.Start(context.Background())
 	a.dueDateScheduler.Start(context.Background())
 	a.cronScheduler.Start(context.Background())
@@ -508,11 +570,12 @@ func (a *App) Run() error {
 func (a *App) Shutdown(ctx context.Context) error {
 	a.log.Info("shutting down server")
 	a.activityConsumer.Stop()
-	a.docActivityConsumer.Stop()
 	a.notificationConsumer.Stop()
 	a.pluginEventConsumer.Stop()
 	a.environmentConsumer.Stop()
 	a.automationConsumer.Stop()
+	a.taskAutofillConsumer.Stop()
+	a.taskAutoAssignConsumer.Stop()
 	a.agentQueueConsumer.Stop()
 	a.dueDateScheduler.Stop()
 	a.cronScheduler.Stop()
@@ -618,26 +681,6 @@ func seedAgentBotUser(ctx context.Context, repo userdom.Repository, globalRoleRe
 	return nil
 }
 
-// projectTaskLookup implements githubsvc.TaskLookup using the project and task
-// repositories.  It is used by the GitHub service to resolve a task-ID-prefix
-// pattern (e.g. "PROJ-42") found in a branch name to the corresponding task.
-type projectTaskLookup struct {
-	projectRepo *pgRepo.ProjectRepository
-	taskRepo    *pgRepo.TaskRepository
-}
-
-func (l *projectTaskLookup) FindTaskByProjectPrefixAndNumber(ctx context.Context, prefix string, number int64) (uuid.UUID, uuid.UUID, error) {
-	project, err := l.projectRepo.FindByTaskIDPrefix(ctx, prefix)
-	if err != nil {
-		return uuid.Nil, uuid.Nil, err
-	}
-	task, err := l.taskRepo.FindTaskByNumber(ctx, project.ID, number)
-	if err != nil {
-		return uuid.Nil, uuid.Nil, err
-	}
-	return task.ID, task.ProjectID, nil
-}
-
 func seedDefaultRoles(
 	ctx context.Context,
 	db *sqlx.DB,
@@ -670,6 +713,24 @@ func seedDefaultRoles(
 		if err := globalRoleRepo.Update(ctx, role); err != nil {
 			return fmt.Errorf("seed global roles: update %s: %w", def.Name, err)
 		}
+	}
+
+	// New users and global agents start with the default role, so one must
+	// exist. A database from before the default flag, or one whose default was
+	// removed, gets USER (re-created above if it was deleted) as the default.
+	// A default someone has chosen is never overridden here.
+	if _, err := globalRoleRepo.FindDefault(ctx); err != nil {
+		if !errors.Is(err, globalroledom.ErrNoDefault) {
+			return fmt.Errorf("seed global roles: find default role: %w", err)
+		}
+		userRole, err := globalRoleRepo.FindByName(ctx, userdom.RoleUser)
+		if err != nil {
+			return fmt.Errorf("seed global roles: load %s role: %w", userdom.RoleUser, err)
+		}
+		if err := globalRoleRepo.SetDefault(ctx, userRole.ID); err != nil {
+			return fmt.Errorf("seed global roles: set default role: %w", err)
+		}
+		log.Info("no default global role was set; USER is now the default")
 	}
 
 	if err := seedDefaultProjectRoleTemplates(ctx, db); err != nil {

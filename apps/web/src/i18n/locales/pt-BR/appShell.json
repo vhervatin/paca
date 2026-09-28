@@ -29,13 +29,15 @@
 		"automation": "Automação",
 		"team": "Equipe",
 		"settings": "Configurações",
-		"changelog": "Novidades"
+		"changelog": "Novidades",
+		"activity": "Atividade"
 	},
 	"projectSwitcher": {
 		"projects": "Projetos",
 		"yourProjects": "Seus Projetos",
 		"noProjectsYet": "Nenhum projeto ainda",
-		"newProject": "Novo projeto"
+		"newProject": "Novo projeto",
+		"loadingMore": "Carregando mais…"
 	},
 	"interactions": {
 		"title": "Interações",
@@ -55,7 +57,12 @@
 		"newSubfolder": "Nova Subpasta",
 		"rename": "Renomear",
 		"delete": "Excluir",
-		"untitled": "Sem título"
+		"untitled": "Sem título",
+		"errors": {
+			"titleInvalid": "Esse título não é válido.",
+			"folderNameInvalid": "Esse nome de pasta não é válido.",
+			"renameFailed": "Falha ao renomear. Tente novamente."
+		}
 	},
 	"notifications": {
 		"title": "Notificações",

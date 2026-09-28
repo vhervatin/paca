@@ -1,6 +1,7 @@
 // spec: features/auth/change-password.feature
 // seed: tests/seed.spec.ts
 
+import { ensureLoginForm } from '../helpers/e2e-api';
 import {
 	expect,
 	test,
@@ -74,6 +75,7 @@ async function expectLoginPage(page: Page) {
 async function login(page: Page, username: string, password: string) {
 	await page.goto("/");
 	await expectLoginPage(page);
+	await ensureLoginForm(page);
 	await page.getByRole("textbox", { name: "Username" }).fill(username);
 	await page.getByRole("textbox", { name: "Password" }).fill(password);
 	await page.getByRole("button", { name: "Sign in" }).click();
@@ -138,10 +140,12 @@ async function createUserThroughAdmin(
 
 	const dialog = page.getByRole("dialog", { name: "Create User" });
 
-	// 2. Fill the new user's account details and submit the form.
+	// 2. Fill the new user's account details and create it, then carry on past
+	// the role step (the account keeps the default USER role).
 	await dialog.getByRole("textbox", { name: "Username" }).fill(username);
 	await dialog.getByRole("textbox", { name: "Full Name" }).fill(fullName);
 	await dialog.getByRole("button", { name: "Create user" }).click();
+	await dialog.getByRole("button", { name: "Continue" }).click();
 
 	const successDialog = page.getByRole("dialog", { name: "User created" });
 

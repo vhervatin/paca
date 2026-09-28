@@ -17,12 +17,14 @@ import (
 
 	"github.com/google/uuid"
 
+	activitydom "github.com/Paca-AI/api/internal/domain/activity"
 	agentdom "github.com/Paca-AI/api/internal/domain/agent"
 	apikeydom "github.com/Paca-AI/api/internal/domain/apikey"
 	taskdom "github.com/Paca-AI/api/internal/domain/task"
 	userdom "github.com/Paca-AI/api/internal/domain/user"
 	"github.com/Paca-AI/api/internal/platform/authz"
 	jwttoken "github.com/Paca-AI/api/internal/platform/token"
+	activitysvc "github.com/Paca-AI/api/internal/service/activity"
 	apikeysvc "github.com/Paca-AI/api/internal/service/apikey"
 	authsvc "github.com/Paca-AI/api/internal/service/auth"
 	projectsvc "github.com/Paca-AI/api/internal/service/project"
@@ -70,7 +72,7 @@ func buildAgentKeyRouterWithBotID(taskRepo *fakeTaskRepo, apiKeyRepo *fakeAPIKey
 	} else {
 		activityRepo = newFakeTaskActivityRepo()
 	}
-	activityService := tasksvc.NewActivityService(activityRepo, taskRepo, &fakeActivityMemberRepo{}, nil)
+	activityService := tasksvc.NewActivityService(activitysvc.New(activityRepo, &fakeActivityMemberRepo{}, nil), taskRepo, &fakeActivityMemberRepo{})
 
 	apiKeyService := apikeysvc.New(apiKeyRepo).WithAgentKey(testAgentAPIKey, botUserID)
 	// None of these task/comment-focused tests exercise the X-Actor-User-ID
@@ -84,7 +86,7 @@ func buildAgentKeyRouterWithBotID(taskRepo *fakeTaskRepo, apiKeyRepo *fakeAPIKey
 	if store == nil {
 		store = &projectPermStore{}
 	}
-	authorizer := authz.NewAuthorizer(store).WithAgentRoleResolver(store)
+	authorizer := authz.NewAuthorizer(store)
 
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
@@ -163,11 +165,6 @@ func TestAgentAPIKey_CreateTask_Success(t *testing.T) {
 		agentPerms: map[uuid.UUID]map[uuid.UUID][]authz.Permission{
 			projectID: {
 				agentID: {authz.PermissionTasksWrite},
-			},
-		},
-		agentRoles: map[uuid.UUID]map[uuid.UUID]string{
-			projectID: {
-				agentID: "agent_developer",
 			},
 		},
 	}
@@ -276,11 +273,6 @@ func TestAgentAPIKey_CreateTask_NoPermission_Returns403(t *testing.T) {
 				agentID: {authz.PermissionTasksRead},
 			},
 		},
-		agentRoles: map[uuid.UUID]map[uuid.UUID]string{
-			projectID: {
-				agentID: "agent_reader",
-			},
-		},
 	}
 
 	r := buildAgentKeyRouter(taskRepo, apiKeyRepo, store)
@@ -317,11 +309,6 @@ func TestAgentAPIKey_AddComment_Success(t *testing.T) {
 		agentPerms: map[uuid.UUID]map[uuid.UUID][]authz.Permission{
 			projectID: {
 				agentID: {authz.PermissionTasksWrite},
-			},
-		},
-		agentRoles: map[uuid.UUID]map[uuid.UUID]string{
-			projectID: {
-				agentID: "agent_developer",
 			},
 		},
 	}
@@ -445,11 +432,6 @@ func TestAgentAPIKey_UpdateComment_Success(t *testing.T) {
 				agentID: {authz.PermissionTasksWrite},
 			},
 		},
-		agentRoles: map[uuid.UUID]map[uuid.UUID]string{
-			projectID: {
-				agentID: "agent_developer",
-			},
-		},
 	}
 
 	// Seed task and comment
@@ -463,15 +445,17 @@ func TestAgentAPIKey_UpdateComment_Success(t *testing.T) {
 
 	_ = agentID // referenced only to confirm the bot user exists
 	commentContent := json.RawMessage(`[{"type":"paragraph","content":[{"type":"text","text":"Original comment"}]}]`)
-	activityRepo.activities[commentID] = &taskdom.Activity{
+	_ = activityRepo.Create(t.Context(), &activitydom.Activity{
 		ID:           commentID,
-		TaskID:       taskID,
+		ProjectID:    projectID,
+		EntityType:   "task",
+		EntityID:     &taskID,
 		ActorID:      &agentID,
-		ActivityType: taskdom.ActivityTypeComment,
+		ActivityType: activitydom.TypeComment,
 		Content:      commentContent,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
-	}
+	})
 
 	r := buildAgentKeyRouter(taskRepo, apiKeyRepo, store, activityRepo)
 	commentURL := fmt.Sprintf("/api/v1/projects/%s/tasks/%s/activities/comments/%s", projectID, taskID, commentID)
@@ -512,11 +496,6 @@ func TestAgentAPIKey_UpdateTask_Success(t *testing.T) {
 		agentPerms: map[uuid.UUID]map[uuid.UUID][]authz.Permission{
 			projectID: {
 				agentID: {authz.PermissionTasksWrite},
-			},
-		},
-		agentRoles: map[uuid.UUID]map[uuid.UUID]string{
-			projectID: {
-				agentID: "agent_developer",
 			},
 		},
 	}
@@ -576,11 +555,6 @@ func TestAgentAPIKey_ListTasks_Success(t *testing.T) {
 		agentPerms: map[uuid.UUID]map[uuid.UUID][]authz.Permission{
 			projectID: {
 				agentID: {authz.PermissionTasksRead},
-			},
-		},
-		agentRoles: map[uuid.UUID]map[uuid.UUID]string{
-			projectID: {
-				agentID: "agent_reader",
 			},
 		},
 	}
@@ -643,11 +617,6 @@ func TestAgentAPIKey_GetTask_Success(t *testing.T) {
 				agentID: {authz.PermissionTasksRead},
 			},
 		},
-		agentRoles: map[uuid.UUID]map[uuid.UUID]string{
-			projectID: {
-				agentID: "agent_reader",
-			},
-		},
 	}
 
 	// Seed a task directly
@@ -706,11 +675,6 @@ func TestAgentAPIKey_GetTask_NotFound(t *testing.T) {
 				agentID: {authz.PermissionTasksRead},
 			},
 		},
-		agentRoles: map[uuid.UUID]map[uuid.UUID]string{
-			projectID: {
-				agentID: "agent_reader",
-			},
-		},
 	}
 
 	r := buildAgentKeyRouter(taskRepo, apiKeyRepo, store)
@@ -748,11 +712,6 @@ func TestAgentAPIKey_DeleteTask_Success(t *testing.T) {
 		agentPerms: map[uuid.UUID]map[uuid.UUID][]authz.Permission{
 			projectID: {
 				agentID: {authz.PermissionTasksWrite},
-			},
-		},
-		agentRoles: map[uuid.UUID]map[uuid.UUID]string{
-			projectID: {
-				agentID: "agent_developer",
 			},
 		},
 	}
@@ -802,11 +761,6 @@ func TestAgentAPIKey_CommentWorkflow(t *testing.T) {
 		agentPerms: map[uuid.UUID]map[uuid.UUID][]authz.Permission{
 			projectID: {
 				agentID: {authz.PermissionTasksRead, authz.PermissionTasksWrite},
-			},
-		},
-		agentRoles: map[uuid.UUID]map[uuid.UUID]string{
-			projectID: {
-				agentID: "agent_developer",
 			},
 		},
 	}
@@ -1007,11 +961,6 @@ func TestAgentAPIKey_BulkTaskOperations(t *testing.T) {
 				agentID: {authz.PermissionTasksRead, authz.PermissionTasksWrite},
 			},
 		},
-		agentRoles: map[uuid.UUID]map[uuid.UUID]string{
-			projectID: {
-				agentID: "agent_developer",
-			},
-		},
 	}
 
 	r := buildAgentKeyRouter(taskRepo, apiKeyRepo, store)
@@ -1126,11 +1075,6 @@ func TestAgentAPIKey_PermissionScenarios(t *testing.T) {
 					agentID: {authz.PermissionTasksRead},
 				},
 			},
-			agentRoles: map[uuid.UUID]map[uuid.UUID]string{
-				projectID: {
-					agentID: "agent_reader",
-				},
-			},
 		}
 		r := buildAgentKeyRouter(taskRepo, apiKeyRepo, store)
 
@@ -1150,11 +1094,6 @@ func TestAgentAPIKey_PermissionScenarios(t *testing.T) {
 			agentPerms: map[uuid.UUID]map[uuid.UUID][]authz.Permission{
 				projectID: {
 					agentID: {authz.PermissionTasksWrite},
-				},
-			},
-			agentRoles: map[uuid.UUID]map[uuid.UUID]string{
-				projectID: {
-					agentID: "agent_developer",
 				},
 			},
 		}
@@ -1178,11 +1117,6 @@ func TestAgentAPIKey_PermissionScenarios(t *testing.T) {
 			agentPerms: map[uuid.UUID]map[uuid.UUID][]authz.Permission{
 				projectID: {
 					agentID: {},
-				},
-			},
-			agentRoles: map[uuid.UUID]map[uuid.UUID]string{
-				projectID: {
-					agentID: "agent_no_perms",
 				},
 			},
 		}
@@ -1285,7 +1219,7 @@ func buildAgentMCPKeyRouter(taskRepo *fakeTaskRepo, apiKeyRepo *fakeAPIKeyRepo, 
 	sprintService := sprintsvc.New(newFakeSprintRepoIT(), taskRepo, nil)
 	viewService := sprintsvc.NewViewService(newFakeViewRepoIT(), newFakeSprintRepoIT(), taskRepo, nil)
 	activityRepo := newFakeTaskActivityRepo()
-	activityService := tasksvc.NewActivityService(activityRepo, taskRepo, &fakeActivityMemberRepo{}, nil)
+	activityService := tasksvc.NewActivityService(activitysvc.New(activityRepo, &fakeActivityMemberRepo{}, nil), taskRepo, &fakeActivityMemberRepo{})
 
 	apiKeyService := apikeysvc.New(apiKeyRepo).
 		WithAgentKey(testAgentAPIKey, uuid.MustParse(testAgentBotUserID)).
@@ -1294,7 +1228,7 @@ func buildAgentMCPKeyRouter(taskRepo *fakeTaskRepo, apiKeyRepo *fakeAPIKeyRepo, 
 	if store == nil {
 		store = &projectPermStore{}
 	}
-	authorizer := authz.NewAuthorizer(store).WithAgentRoleResolver(store)
+	authorizer := authz.NewAuthorizer(store)
 
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
@@ -1334,11 +1268,6 @@ func TestAgentMCPKey_CreateTask_Success(t *testing.T) {
 		agentPerms: map[uuid.UUID]map[uuid.UUID][]authz.Permission{
 			projectID: {
 				agentID: {authz.PermissionTasksWrite},
-			},
-		},
-		agentRoles: map[uuid.UUID]map[uuid.UUID]string{
-			projectID: {
-				agentID: "agent_developer",
 			},
 		},
 	}
@@ -1409,9 +1338,6 @@ func TestAgentMCPKey_RegeneratedKey_InvalidatesOldKey(t *testing.T) {
 		agentPerms: map[uuid.UUID]map[uuid.UUID][]authz.Permission{
 			projectID: {agentID: {authz.PermissionTasksRead}},
 		},
-		agentRoles: map[uuid.UUID]map[uuid.UUID]string{
-			projectID: {agentID: "agent_reader"},
-		},
 	}
 
 	r := buildAgentMCPKeyRouter(taskRepo, apiKeyRepo, store, identityStore)
@@ -1470,12 +1396,6 @@ func TestAgentMCPKey_XAgentIDHeaderIgnored(t *testing.T) {
 			projectID: {
 				ownAgentID:   {authz.PermissionTasksRead},
 				otherAgentID: {}, // explicitly no permissions
-			},
-		},
-		agentRoles: map[uuid.UUID]map[uuid.UUID]string{
-			projectID: {
-				ownAgentID:   "agent_reader",
-				otherAgentID: "agent_no_perms",
 			},
 		},
 	}

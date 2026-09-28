@@ -29,13 +29,15 @@
 		"automation": "Automatización",
 		"team": "Equipo",
 		"settings": "Configuración",
-		"changelog": "Novedades"
+		"changelog": "Novedades",
+		"activity": "Actividad"
 	},
 	"projectSwitcher": {
 		"projects": "Proyectos",
 		"yourProjects": "Tus proyectos",
 		"noProjectsYet": "Aún no hay proyectos",
-		"newProject": "Nuevo proyecto"
+		"newProject": "Nuevo proyecto",
+		"loadingMore": "Cargando más…"
 	},
 	"interactions": {
 		"title": "Interacciones",
@@ -55,7 +57,12 @@
 		"newSubfolder": "Nueva subcarpeta",
 		"rename": "Cambiar nombre",
 		"delete": "Eliminar",
-		"untitled": "Sin título"
+		"untitled": "Sin título",
+		"errors": {
+			"titleInvalid": "Ese título no es válido.",
+			"folderNameInvalid": "Ese nombre de carpeta no es válido.",
+			"renameFailed": "No se pudo cambiar el nombre. Inténtalo de nuevo."
+		}
 	},
 	"notifications": {
 		"title": "Notificaciones",

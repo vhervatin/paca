@@ -45,11 +45,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
-import { isTaskNotFoundError } from "@/lib/api-error";
+import {
+	ApiErrorCode,
+	getApiErrorCode,
+	isTaskNotFoundError,
+} from "@/lib/api-error";
 import {
 	allTasksQueryOptions,
 	bulkMoveViewTaskPositions,
 	type CustomFieldFilterQuery,
+	clearMyViewConfig,
 	createSprint,
 	createTask,
 	createViewByContext,
@@ -232,6 +237,10 @@ interface InteractionLayoutProps {
 	canCreate: boolean;
 	canEdit: boolean;
 	canManageViews: boolean;
+	/** Gates New/Start Sprint (backlog context only) — sprints.write, a
+	 * separate permission from canCreate (tasks.write): being able to
+	 * create a task doesn't imply being able to create or start a sprint. */
+	canManageSprints: boolean;
 	onTaskClick?: (task: Task) => void;
 	sprintId?: string | null;
 	/** The view context — drives which API bucket is used for views */
@@ -317,6 +326,7 @@ export function InteractionLayout({
 	canCreate,
 	canEdit,
 	canManageViews,
+	canManageSprints,
 	onTaskClick,
 	sprintId,
 	context,
@@ -1648,21 +1658,60 @@ export function InteractionLayout({
 		},
 	});
 
+	// Publishes the settings-panel draft as the shared view everyone sees.
+	// Two steps, not one: PATCHing the shared config alone would leave the
+	// publisher's own override in place — now redundant with (but no longer
+	// tracking future changes to) what they just made the team default — so
+	// it's cleared right after.
+	const saveForEveryoneMutation = useMutation({
+		mutationFn: async (payload: { viewId: string; config: ViewConfig }) => {
+			await updateViewById(projectId, payload.viewId, {
+				config: payload.config,
+			});
+			await clearMyViewConfig(projectId, payload.viewId);
+		},
+		onSuccess: () => {
+			setPreviewConfig(undefined);
+			qc.invalidateQueries({ queryKey: viewsQueryKey });
+		},
+	});
+
+	const [viewActionError, setViewActionError] = useState<string | null>(null);
+
 	const deleteViewMutation = useMutation({
 		mutationFn: (viewId: string) => deleteViewById(projectId, viewId),
 		onSuccess: (_, deletedId) => {
+			setViewActionError(null);
 			qc.invalidateQueries({ queryKey: viewsQueryKey });
 			if (preferredViewId === deletedId) {
 				const remaining = views.filter((v) => v.id !== deletedId);
 				setPreferredViewId(remaining[0]?.id ?? "");
 			}
 		},
+		onError: (err: unknown) => {
+			setViewActionError(
+				getApiErrorCode(err) === ApiErrorCode.ViewIsLastView
+					? t("layout.shell.viewErrors.isLastView")
+					: t("layout.shell.viewErrors.deleteFailed"),
+			);
+		},
 	});
 
 	const reorderViewMutation = useMutation({
 		mutationFn: (orderedIds: string[]) =>
 			reorderViewsByContext(projectId, context, orderedIds, sprintId),
-		onSuccess: () => qc.invalidateQueries({ queryKey: viewsQueryKey }),
+		onSuccess: () => {
+			setViewActionError(null);
+			qc.invalidateQueries({ queryKey: viewsQueryKey });
+		},
+		onError: (err: unknown) => {
+			setLocalViews(null);
+			setViewActionError(
+				getApiErrorCode(err) === ApiErrorCode.ViewReorderInvalid
+					? t("layout.shell.viewErrors.reorderInvalid")
+					: t("layout.shell.viewErrors.reorderFailed"),
+			);
+		},
 	});
 
 	const [tabDragId, setTabDragId] = useState<string | null>(null);
@@ -1782,11 +1831,14 @@ export function InteractionLayout({
 		<div className="flex h-full flex-col overflow-hidden">
 			{/* Header */}
 			<div className="shrink-0 border-b border-border/30 px-8 py-5">
-				<div className="flex items-center gap-3">
-					<h1 className="font-[Syne] text-2xl font-bold tracking-tight flex-1">
+				<div className="flex flex-wrap items-center gap-3">
+					<h1 className="font-[Syne] text-2xl font-bold tracking-tight flex-1 min-w-[8rem]">
 						{title}
 					</h1>
 					{headerActions}
+					{/* EVUP: quick-add "Nova task" no header do backlog (gated por
+					    tasks.write). O "Novo sprint" ao lado usa a permissão
+					    granular do upstream (sprints.write). */}
 					{context === "backlog" && canCreate && (
 						<>
 							{newTaskOpen ? (
@@ -1835,16 +1887,18 @@ export function InteractionLayout({
 									{t("layout.shell.newTask")}
 								</button>
 							)}
-							<button
-								type="button"
-								onClick={handleNewSprint}
-								disabled={createSprintMutation.isPending}
-								className="flex items-center gap-1.5 rounded-lg border border-dashed border-border/60 bg-muted/10 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all duration-150 disabled:opacity-50"
-							>
-								<Plus className="size-3.5 shrink-0" />
-								{t("layout.shell.newSprint")}
-							</button>
 						</>
+					)}
+					{context === "backlog" && canManageSprints && (
+						<button
+							type="button"
+							onClick={handleNewSprint}
+							disabled={createSprintMutation.isPending}
+							className="flex items-center gap-1.5 rounded-lg border border-dashed border-border/60 bg-muted/10 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all duration-150 disabled:opacity-50"
+						>
+							<Plus className="size-3.5 shrink-0" />
+							{t("layout.shell.newSprint")}
+						</button>
 					)}
 				</div>
 				{description && (
@@ -1921,7 +1975,7 @@ export function InteractionLayout({
 									{view.name}
 								</button>
 
-								{isActive && (
+								{isActive && canManageViews && (
 									<DropdownMenu>
 										<DropdownMenuTrigger
 											render={
@@ -1945,7 +1999,10 @@ export function InteractionLayout({
 											<DropdownMenuSeparator />
 											<DropdownMenuItem
 												disabled={views.length <= 1}
-												onClick={() => deleteViewMutation.mutate(view.id)}
+												onClick={() => {
+													setViewActionError(null);
+													deleteViewMutation.mutate(view.id);
+												}}
 												className="text-destructive focus:text-destructive"
 											>
 												{t("layout.shell.deleteView")}
@@ -2026,11 +2083,25 @@ export function InteractionLayout({
 								updateViewConfigMutation.mutateAsync({ viewId, config })
 							}
 							onPreview={setPreviewConfig}
-							isPending={updateViewConfigMutation.isPending}
+							isPending={
+								updateViewConfigMutation.isPending ||
+								saveForEveryoneMutation.isPending
+							}
+							isPersonalized={activeView.is_personalized}
+							canSaveForEveryone={canManageViews}
+							onSaveForEveryone={(viewId, config) =>
+								saveForEveryoneMutation.mutateAsync({ viewId, config })
+							}
 						/>
 					)}
 				</div>
 			</div>
+
+			{viewActionError && (
+				<p className="shrink-0 border-b border-border/25 bg-destructive/10 px-8 py-2 text-xs text-destructive">
+					{viewActionError}
+				</p>
+			)}
 
 			{/* View content */}
 			<div
@@ -2141,10 +2212,14 @@ export function InteractionLayout({
 						onDeleteTask={canEdit ? handleRequestDeleteTask : undefined}
 						sprints={context === "backlog" ? sprints : undefined}
 						onStartSprint={
-							context === "backlog" && canCreate ? handleStartSprint : undefined
+							context === "backlog" && canManageSprints
+								? handleStartSprint
+								: undefined
 						}
 						onCreateSprint={
-							context === "backlog" && canCreate ? handleNewSprint : undefined
+							context === "backlog" && canManageSprints
+								? handleNewSprint
+								: undefined
 						}
 						onCollapseChange={
 							isRealView && activeView

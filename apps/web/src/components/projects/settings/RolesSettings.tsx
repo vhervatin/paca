@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DeleteProjectRoleDialog } from "@/components/projects/roles/DeleteProjectRoleDialog";
 import { ProjectRoleFormDialog } from "@/components/projects/roles/ProjectRoleFormDialog";
+import { projectPermissionBadgeClass } from "@/components/projects/roles/utils";
+import { NoPermissionState } from "@/components/shared/no-permission-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -14,6 +16,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { useProjectPermissions } from "@/hooks/use-project-permissions";
+import { isForbiddenError } from "@/lib/api-error";
 import { formatDate as formatDateLocale } from "@/lib/format-date";
 import { dedupeGrantedPermissions } from "@/lib/permissions";
 import { type ProjectRole, projectRolesQueryOptions } from "@/lib/project-api";
@@ -31,32 +35,6 @@ function formatDate(iso: string) {
 		month: "short",
 		day: "numeric",
 	});
-}
-
-function projectPermissionBadgeClass(key: string): string {
-	const domain = key.split(".").slice(0, 2).join(".");
-	if (domain === "projects") {
-		return "bg-primary/10 text-primary border-primary/20 dark:bg-primary/20";
-	}
-	if (domain === "project.members") {
-		return "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-400 dark:border-violet-700/30";
-	}
-	if (domain === "project.roles") {
-		return "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-400 dark:border-sky-700/30";
-	}
-	if (domain === "tasks") {
-		return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700/30";
-	}
-	if (domain === "sprints") {
-		return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-700/30";
-	}
-	if (domain === "docs") {
-		return "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-700/30";
-	}
-	if (domain === "agents") {
-		return "bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-900/20 dark:text-pink-400 dark:border-pink-700/30";
-	}
-	return "bg-muted text-muted-foreground border-border";
 }
 
 function RolesTableSkeleton() {
@@ -173,9 +151,26 @@ export function RolesSettings({
 	canManageRoles: boolean;
 }) {
 	const { t } = useTranslation("projects");
-	const { data: roles, isLoading } = useQuery(
-		projectRolesQueryOptions(projectId),
-	);
+	const { hasProjectPermission, isLoading: isPermissionsLoading } =
+		useProjectPermissions(projectId);
+	const canReadRoles = hasProjectPermission("project.roles.read");
+	const {
+		data: roles,
+		isLoading: isDataLoading,
+		isError,
+		error,
+	} = useQuery({
+		...projectRolesQueryOptions(projectId),
+		enabled: canReadRoles,
+	});
+	// While permissions are still loading, canReadRoles defaults to false
+	// same as a confirmed denial — guard on isPermissionsLoading (and fold
+	// it into isLoading) so the section shows the skeleton instead of
+	// flashing NoPermissionState first.
+	const isLoading = isPermissionsLoading || isDataLoading;
+	const noPermission =
+		!isPermissionsLoading &&
+		(!canReadRoles || (isError && isForbiddenError(error)));
 
 	const [createOpen, setCreateOpen] = useState(false);
 	const [editRole, setEditRole] = useState<ProjectRole | null>(null);
@@ -239,7 +234,13 @@ export function RolesSettings({
 			) : null}
 
 			{/* Table */}
-			{isLoading ? (
+			{noPermission ? (
+				<NoPermissionState
+					icon={Shield}
+					title={t("settings.roles.noPermission.title")}
+					description={t("settings.roles.noPermission.description")}
+				/>
+			) : isLoading ? (
 				<RolesTableSkeleton />
 			) : !roles?.length ? (
 				<div className="flex flex-col items-center gap-4 rounded-xl border border-dashed bg-muted/20 py-16 text-center mt-4">
