@@ -27,9 +27,10 @@ import {
 	ProjectActivityFilters,
 } from "@/components/projects/activity/project-activity-filters";
 import type { ActivityNameMaps } from "@/components/projects/interactions/task-detail/activity-item";
+import { EntityAvatar } from "@/components/shared/entity-avatar";
 import { NoPermissionState } from "@/components/shared/no-permission-state";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useActorAvatar } from "@/hooks/use-actor-avatar";
 import { useProjectPermissions } from "@/hooks/use-project-permissions";
 import {
 	type ActivityEntityType,
@@ -69,7 +70,7 @@ function ProjectActivityPage() {
 	const { projectId } = Route.useParams();
 	const { hasProjectPermission, isLoading: isPermissionsLoading } =
 		useProjectPermissions(projectId);
-	const canRead = hasProjectPermission("project.activities.read");
+	const canRead = hasProjectPermission("project.activities:read");
 	const [filters, setFilters] = useState<Filters>({});
 
 	const { data: project } = useQuery(projectQueryOptions(projectId));
@@ -249,18 +250,21 @@ function ActivityRow({
 	const { t: tCommon } = useTranslation("common");
 	const Icon = ENTITY_ICONS[item.entity_type] ?? Cog;
 	const actorName = item.actor_name || t(`activityLog.origins.${item.origin}`);
-	const initials = actorName.slice(0, 2).toUpperCase();
+	const resolveActor = useActorAvatar(projectId);
 
 	return (
 		<li className="flex items-start gap-3 px-4 py-3">
-			<Avatar className="mt-0.5 size-7 shrink-0">
-				{item.actor_avatar_thumb_url && (
-					<AvatarImage src={item.actor_avatar_thumb_url} alt="" />
-				)}
-				<AvatarFallback className="text-[10px]">
-					{item.actor_id ? initials : <Cog className="size-3.5" />}
-				</AvatarFallback>
-			</Avatar>
+			<EntityAvatar
+				{...resolveActor({
+					id: item.actor_id,
+					name: item.actor_name,
+					username: item.actor_username,
+					avatarUrl: item.actor_avatar_thumb_url,
+				})}
+				fallback={<Cog className="size-3.5" />}
+				size="md"
+				className="mt-0.5 shrink-0"
+			/>
 			<div className="min-w-0 flex-1">
 				<p className="text-sm leading-6">
 					<span className="font-medium">{actorName}</span>{" "}

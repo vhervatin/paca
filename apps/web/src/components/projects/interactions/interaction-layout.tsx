@@ -83,6 +83,7 @@ import {
 	viewsByContextQueryOptions,
 } from "@/lib/interaction-api";
 import type { PluginRegistration } from "@/lib/plugin-api";
+import { usePluginAccess } from "@/lib/plugins/access";
 import { RemoteComponent } from "@/lib/plugins/loader";
 import { usePluginBaseProps } from "@/lib/plugins/plugin-props";
 import { usePluginRegistry } from "@/lib/plugins/registry";
@@ -519,8 +520,9 @@ export function InteractionLayout({
 
 	// Plugin view registrations (for the "Add view" popover layout options)
 	const { getRegistrations } = usePluginRegistry();
+	const canAccessPlugin = usePluginAccess(projectId);
 	const pluginViewRegistrations = getRegistrations("view").filter(
-		(r) => !r.hidden,
+		(r) => !r.hidden && canAccessPlugin(r),
 	);
 
 	// If the active view is a plugin view, resolve its registration from config
@@ -1122,10 +1124,18 @@ export function InteractionLayout({
 		setGlobalExtraTasks([]);
 	}, [colQueriesEnabled, fallbackQuery.data?.next_cursor]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: reset only when filters/layout change
+	// Compare by value, not reference (see colBaseOptsKey above): an upstream
+	// dependency can recompute fallbackBaseOpts to a new object with identical
+	// values after a background refetch (e.g. on tab refocus), which must not
+	// wipe the "load more" depth back to the first page.
+	const fallbackBaseOptsKey = useMemo(
+		() => JSON.stringify(fallbackBaseOpts),
+		[fallbackBaseOpts],
+	);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset only when the *value* of fallbackBaseOpts or the layout page size changes
 	useEffect(() => {
 		setGlobalExpandedPageSize(null);
-	}, [fallbackBaseOpts, initialGlobalPageSize]);
+	}, [fallbackBaseOptsKey, initialGlobalPageSize]);
 
 	const handleLoadMoreGlobal = useCallback(async () => {
 		if (globalLoadingMore) return;
@@ -1389,19 +1399,11 @@ export function InteractionLayout({
 	};
 
 	const updateStatusMutation = useMutation({
-		mutationFn: ({
-			taskId,
-			statusId,
-			taskSprintId,
-		}: {
-			taskId: string;
-			statusId: string;
-			taskSprintId: string | null | undefined;
-		}) =>
-			updateTask(projectId, taskId, {
-				status_id: statusId,
-				sprint_id: taskSprintId ?? null,
-			}),
+		// Send only status_id: the PATCH writes just the submitted fields, so
+		// echoing back sprint_id from a possibly stale cached task could
+		// overwrite a concurrent sprint change.
+		mutationFn: ({ taskId, statusId }: { taskId: string; statusId: string }) =>
+			updateTask(projectId, taskId, { status_id: statusId }),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: tasksListQueryKey });
 			// Status changes affect a sprint's incomplete-task count (surfaced in
@@ -1412,14 +1414,9 @@ export function InteractionLayout({
 
 	const handleStatusChange = useCallback(
 		(taskId: string, newStatusId: string) => {
-			const task = tasks.find((t) => t.id === taskId);
-			updateStatusMutation.mutate({
-				taskId,
-				statusId: newStatusId,
-				taskSprintId: task?.sprint_id,
-			});
+			updateStatusMutation.mutate({ taskId, statusId: newStatusId });
 		},
-		[updateStatusMutation, tasks],
+		[updateStatusMutation],
 	);
 
 	const createTaskMutation = useMutation({
@@ -2182,7 +2179,12 @@ export function InteractionLayout({
 						sprints={sprints}
 						customFields={customFields}
 						columnBy={columnBy}
+						viewConfig={activeViewConfig}
 						canCreate={canCreate}
+						canEdit={canEdit}
+						manualSort={isManualSort}
+						onReorderTask={effectiveViewId ? handleReorderTask : undefined}
+						onMoveToColumn={canEdit ? handleMoveToColumn : undefined}
 						pagination={globalPagination}
 						onCreateTask={handleCreateTask}
 						onTaskClick={handleTaskClick}

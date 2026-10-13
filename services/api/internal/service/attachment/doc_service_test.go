@@ -22,6 +22,9 @@ type fakeDocRepoForChecker struct {
 func (r *fakeDocRepoForChecker) ListDocuments(context.Context, uuid.UUID, *uuid.UUID, *string, *string, *int) ([]*docdom.Document, bool, error) {
 	return nil, false, nil
 }
+func (r *fakeDocRepoForChecker) SearchDocuments(context.Context, uuid.UUID, string, int) ([]*docdom.Document, error) {
+	return nil, nil
+}
 func (r *fakeDocRepoForChecker) FindDocumentByID(_ context.Context, id uuid.UUID) (*docdom.Document, error) {
 	d, ok := r.docs[id]
 	if !ok {
@@ -31,7 +34,10 @@ func (r *fakeDocRepoForChecker) FindDocumentByID(_ context.Context, id uuid.UUID
 }
 func (r *fakeDocRepoForChecker) CreateDocument(context.Context, *docdom.Document) error { return nil }
 func (r *fakeDocRepoForChecker) UpdateDocument(context.Context, *docdom.Document) error { return nil }
-func (r *fakeDocRepoForChecker) DeleteDocument(context.Context, uuid.UUID) error        { return nil }
+func (r *fakeDocRepoForChecker) UpdateDocumentAtomic(context.Context, uuid.UUID, func(*docdom.Document) error) (*docdom.Document, error) {
+	return nil, nil
+}
+func (r *fakeDocRepoForChecker) DeleteDocument(context.Context, uuid.UUID) error { return nil }
 
 var _ docdom.DocumentRepository = (*fakeDocRepoForChecker)(nil)
 

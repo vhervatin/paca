@@ -9,7 +9,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getTaskTypeIconComponent } from "@/components/projects/task-types/task-type-icons";
-import { EntityAvatarContent } from "@/components/shared/entity-avatar";
+import { EntityAvatar } from "@/components/shared/entity-avatar";
 import {
 	Popover,
 	PopoverContent,
@@ -38,7 +38,7 @@ import {
 	taskStatusesQueryOptions,
 	taskTypesQueryOptions,
 } from "@/lib/project-api";
-import { resolveMemberAvatarUrl } from "@/lib/provider-logos";
+import { memberAvatar } from "@/lib/provider-logos";
 import { cn } from "@/lib/utils";
 import { PRIORITY_LEVELS } from "./priority";
 import { ChipField } from "./task-detail/property-field/chip-field";
@@ -551,13 +551,7 @@ function AssigneeFilterSection({
 							label={display}
 							checked={isAll || selectedIds.includes(m.id)}
 							onChange={() => toggle(m.id)}
-							icon={
-								<div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 to-primary/10 text-primary text-xs font-bold ring-1 ring-primary/20">
-									<EntityAvatarContent avatarUrl={resolveMemberAvatarUrl(m)}>
-										{display.slice(0, 1).toUpperCase()}
-									</EntityAvatarContent>
-								</div>
-							}
+							icon={<EntityAvatar {...memberAvatar(m)} size="xs" />}
 						/>
 					);
 				})
@@ -1674,18 +1668,18 @@ export function ViewSettingsPanel({
 					)}
 					{canSaveForEveryone ? (
 						<div className="flex items-stretch">
-							{/* "Save for everyone" is primary here: for anyone who can
-							    publish shared settings, that's the common case — a
-							    personal-only save is the exception, tucked in the menu. */}
+							{/* PE-1: personal save is the default so Timeline/Board filters
+							    never leak to other users. Publishing the team default stays
+							    in the dropdown for views.write holders. */}
 							<button
 								type="button"
-								onClick={handleSaveForEveryone}
-								disabled={isPending || !differsFromShared}
+								onClick={handleSave}
+								disabled={isPending || !differsFromEffective}
 								className="rounded-l-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-all duration-150 hover:bg-primary/90 disabled:opacity-40"
 							>
 								{isPending
 									? t("layout.viewSettings.saving")
-									: t("layout.viewSettings.saveForEveryone")}
+									: t("layout.viewSettings.saveOnlyForMe")}
 							</button>
 							<Popover>
 								<PopoverTrigger
@@ -1701,11 +1695,11 @@ export function ViewSettingsPanel({
 								>
 									<button
 										type="button"
-										onClick={handleSave}
-										disabled={isPending || !differsFromEffective}
+										onClick={handleSaveForEveryone}
+										disabled={isPending || !differsFromShared}
 										className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs font-medium transition-colors duration-100 hover:bg-muted/60 disabled:opacity-40"
 									>
-										{t("layout.viewSettings.saveOnlyForMe")}
+										{t("layout.viewSettings.saveForEveryone")}
 									</button>
 								</PopoverContent>
 							</Popover>

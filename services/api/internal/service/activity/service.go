@@ -195,8 +195,8 @@ func (s *Service) ownComment(ctx context.Context, k CommentKind, id, projectID, 
 	return a, nil
 }
 
-// resolveMember maps the caller to their project membership. The shared
-// agent API key without X-Agent-ID is never a member by design, so for it
+// resolveMember maps the caller to their project membership. The
+// built-in system actor is never a member by design, so for it
 // "member not found" becomes the clearer ErrActorUnidentified.
 func (s *Service) resolveMember(ctx context.Context, k CommentKind, projectID, actorID uuid.UUID, agentID *uuid.UUID) (*projectdom.ProjectMember, error) {
 	if s.members == nil {

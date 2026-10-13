@@ -2,13 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { listDocuments } from "./doc-api";
 import { listAllTasks } from "./interaction-api";
 import { listProjectMembers, type ProjectMember } from "./project-api";
+import { type AvatarIdentity, memberAvatar } from "./provider-logos";
 
 export interface TeamMember {
 	id: string;
 	name: string;
 	username: string;
+	avatar: AvatarIdentity;
 	avatarUrl?: string | null | undefined;
-	avatarThumbUrl?: string | null | undefined;
 }
 
 export interface MentionableTask {
@@ -94,7 +95,7 @@ export function useMentionData(projectId?: string | null) {
 		name: member.full_name,
 		username: member.username,
 		avatarUrl: member.avatar_url,
-		avatarThumbUrl: member.avatar_thumb_url,
+		avatar: memberAvatar(member),
 	}));
 
 	const mentionDocs: MentionableDocument[] = documents.map((doc) => ({

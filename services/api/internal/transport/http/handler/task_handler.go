@@ -25,6 +25,7 @@ import (
 	sprintdom "github.com/Paca-AI/api/internal/domain/sprint"
 	taskdom "github.com/Paca-AI/api/internal/domain/task"
 	"github.com/Paca-AI/api/internal/events"
+	"github.com/Paca-AI/api/internal/platform/authz/iam"
 	"github.com/Paca-AI/api/internal/platform/messaging"
 	"github.com/Paca-AI/api/internal/transport/http/dto"
 	"github.com/Paca-AI/api/internal/transport/http/middleware"
@@ -33,6 +34,7 @@ import (
 
 // TaskHandler handles task management endpoints.
 type TaskHandler struct {
+	listScoper      ListScoper
 	svc             taskdom.Service
 	viewSvc         sprintdom.ViewService
 	activitySvc     taskdom.ActivityService
@@ -55,6 +57,12 @@ func NewTaskHandler(svc taskdom.Service, viewSvc sprintdom.ViewService, activity
 
 // TaskHandlerOption is a functional option for TaskHandler.
 type TaskHandlerOption func(*TaskHandler)
+
+// WithTaskListScoper limits task lists, counts and sums to the tasks the
+// caller may read, inside the queries (see scopedContext).
+func WithTaskListScoper(s ListScoper) TaskHandlerOption {
+	return func(h *TaskHandler) { h.listScoper = s }
+}
 
 // WithTaskPublisher attaches a Valkey publisher used to enqueue assignment
 // events for the NotificationConsumer worker.
@@ -527,6 +535,7 @@ func parseImportanceRanges(raw string) ([]taskdom.IntRange, error) {
 //   - task_type_ids=<uuid,uuid>
 //   - parent_task_id=<uuid>
 //   - search=<text> (matches title or "#<task_number>", case-insensitive)
+//   - search_content=true (with search: also match description text)
 //   - custom_field_filters=<json> (object keyed by custom field key; see
 //     customFieldFilterParam for the shape of each entry)
 //   - start_date_after=<YYYY-MM-DD>, start_date_before=<YYYY-MM-DD>
@@ -628,6 +637,7 @@ func (h *TaskHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 	}
 	if raw := strings.TrimSpace(r.URL.Query().Get("search")); raw != "" {
 		filter.Search = &raw
+		filter.SearchContent = r.URL.Query().Get("search_content") == "true"
 	}
 	if raw := strings.TrimSpace(r.URL.Query().Get("custom_field_filters")); raw != "" {
 		cfFilters, err := parseCustomFieldFilters(r.Context(), h.svc, projectID, raw)
@@ -703,6 +713,14 @@ func (h *TaskHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 	}
 	sort := parseTaskSort(r.Context(), h.svc, projectID, r.URL.Query().Get("sort_by"))
 
+	// The page, the total and the sum are all computed over the tasks the
+	// caller may read: the scope is applied by the repository in each query.
+	scopeCtx, err := scopedContext(r, h.listScoper, iam.ActionTasksRead, projectID, "task")
+	if err != nil {
+		presenter.Error(w, r, err)
+		return
+	}
+
 	var posMap map[uuid.UUID]*sprintdom.ViewTaskPosition
 	if raw := r.URL.Query().Get("view_id"); raw != "" {
 		viewID, err := uuid.Parse(raw)
@@ -710,7 +728,7 @@ func (h *TaskHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 			presenter.Error(w, r, apierr.New(apierr.CodeBadRequest, "invalid view_id"))
 			return
 		}
-		positions, err := h.viewSvc.ListTaskPositions(r.Context(), projectID, viewID)
+		positions, err := h.viewSvc.ListTaskPositions(scopeCtx, projectID, viewID)
 		if err != nil {
 			presenter.Error(w, r, err)
 			return
@@ -741,7 +759,7 @@ func (h *TaskHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 		totalCount int64
 		fieldSumV  float64
 	)
-	g, gctx := errgroup.WithContext(r.Context())
+	g, gctx := errgroup.WithContext(scopeCtx)
 	g.Go(func() error {
 		var err error
 		tasks, hasMore, err = h.svc.ListTasks(gctx, projectID, filter, pageSize, sort)
@@ -851,6 +869,7 @@ func (h *TaskHandler) ListAssignedToMe(w http.ResponseWriter, r *http.Request) {
 	g.SetLimit(assignedToMeMemberLookupConcurrency)
 	var mu sync.Mutex
 	var memberIDs []uuid.UUID
+	var memberProjects []uuid.UUID
 	for _, p := range projects {
 		projectID := p.ID
 		g.Go(func() error {
@@ -862,6 +881,7 @@ func (h *TaskHandler) ListAssignedToMe(w http.ResponseWriter, r *http.Request) {
 				if m.UserID == userID {
 					mu.Lock()
 					memberIDs = append(memberIDs, m.ID)
+					memberProjects = append(memberProjects, projectID)
 					mu.Unlock()
 					break
 				}
@@ -878,7 +898,27 @@ func (h *TaskHandler) ListAssignedToMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tasks, hasMore, err := h.svc.ListAssignedTasks(r.Context(), memberIDs, pageSize, cursor)
+	// Each project the caller has an assignment in contributes the scope of the
+	// tasks they may read there, applied by the repository inside the query.
+	listCtx := r.Context()
+	if h.listScoper != nil {
+		principal, perr := middleware.IAMPrincipalFrom(r)
+		if perr != nil {
+			presenter.Error(w, r, perr)
+			return
+		}
+		byProject := map[string]*iam.Node{}
+		for _, pid := range memberProjects {
+			n, serr := h.listScoper.ListScope(r.Context(), principal, string(iam.ActionTasksRead), pid.String(), "task")
+			if serr != nil {
+				presenter.Error(w, r, serr)
+				return
+			}
+			byProject[pid.String()] = n
+		}
+		listCtx = iam.WithProjectScopes(listCtx, "task", byProject)
+	}
+	tasks, hasMore, err := h.svc.ListAssignedTasks(listCtx, memberIDs, pageSize, cursor)
 	if err != nil {
 		presenter.Error(w, r, err)
 		return
@@ -1113,11 +1153,11 @@ func (h *TaskHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	// needed: TaskTypeID.Set/StoryPoints.Set/ParentTaskID.Set already
 	// distinguish omitted from explicit (the Optional* wrapper types decode
 	// that way), and CustomFields/Tags are already *map[string]any/*[]string
-	// (nil = omitted). Note CustomFields is a whole-map replace (see
-	// UpdateTaskInput's doc comment), so every key in a PATCH that touches
-	// custom_fields at all is marked user-set here, not just the key(s) that
-	// actually changed value — an accepted over-approximation since only the
-	// create-time snapshot gates the autofill consumer.
+	// (nil = omitted). Note CustomFields is merged key by key (see
+	// UpdateTaskInput's doc comment); every key submitted is marked user-set
+	// here, even one whose value didn't change — an accepted
+	// over-approximation since only the create-time snapshot gates the
+	// autofill consumer.
 	if h.autofillRepo != nil {
 		var userSetFieldKeys []string
 		if req.TaskTypeID.Set {
@@ -1306,10 +1346,14 @@ func (h *TaskHandler) taskChangedFields(ctx context.Context, old *taskdom.Task, 
 	}
 
 	if req.CustomFields != nil {
-		oldJSON, oldErr := json.Marshal(old.CustomFields)
-		newJSON, newErr := json.Marshal(*req.CustomFields)
-		if oldErr != nil || newErr != nil || string(oldJSON) != string(newJSON) {
-			changes = append(changes, taskdom.FieldChange{Field: "custom_fields"})
+		// custom_fields is merged key by key, so only the submitted keys can change.
+		for key, v := range *req.CustomFields {
+			oldJSON, oldErr := json.Marshal(old.CustomFields[key])
+			newJSON, newErr := json.Marshal(v)
+			if oldErr != nil || newErr != nil || string(oldJSON) != string(newJSON) {
+				changes = append(changes, taskdom.FieldChange{Field: "custom_fields"})
+				break
+			}
 		}
 	}
 

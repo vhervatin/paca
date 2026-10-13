@@ -2,6 +2,7 @@ import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import { apiClient } from "./api-client";
 import type { SuccessEnvelope } from "./api-error";
+import type { RoleSummary } from "./role-api";
 
 // ── Shapes ────────────────────────────────────────────────────────────────────
 
@@ -9,7 +10,6 @@ export interface Project {
 	id: string;
 	name: string;
 	description: string;
-	is_public: boolean;
 	task_id_prefix: string;
 	settings: Record<string, unknown>;
 	// Describes this project's Jev (AI decision API) setup without ever
@@ -31,18 +31,6 @@ export interface ProjectJevConfig {
 	model: string;
 }
 
-/** Text-avatar fallback for a project — one letter per word, up to two
- * words (e.g. "Test Project" -> "TP"). Shared so every surface (sidebar,
- * project cards, settings) renders the same initials for the same name. */
-export function getProjectInitials(name: string): string {
-	return name
-		.split(/\s+/)
-		.filter(Boolean)
-		.slice(0, 2)
-		.map((w) => w[0].toUpperCase())
-		.join("");
-}
-
 export interface ProjectListResult {
 	items: Project[];
 	total: number;
@@ -60,12 +48,14 @@ export interface ProjectMember {
 	id: string;
 	project_id: string;
 	user_id: string;
-	project_role_id: string;
+	/** The roles the member holds inside the project, sorted by name. */
+	roles: RoleSummary[];
 	username: string;
 	full_name: string;
-	role_name: string;
-	member_type?: string; // "human" | "agent"
+	member_type?: string; // "human" | "agent" | "service_account"
 	agent_id?: string;
+	/** The member's account when member_type is "service_account". */
+	service_account_id?: string;
 	agent_name?: string;
 	agent_handle?: string;
 	avatar_url?: string | null;
@@ -75,20 +65,12 @@ export interface ProjectMember {
 	agent_type?: string; // "llm" | "acp"
 	agent_llm_provider?: string;
 	agent_acp_provider?: string | null;
+	agent_cli_provider?: string | null;
 	// Only meaningful for a human member — shown to Jev (the AI decision
 	// API) when deciding whether to assign this member a task in Auto mode.
 	// An agent member's Jev-facing description comes from the Agent itself
 	// (Agent.description) instead.
 	description: string;
-}
-
-export interface ProjectRole {
-	id: string;
-	project_id?: string;
-	role_name: string;
-	permissions: Record<string, unknown>;
-	created_at: string;
-	updated_at: string;
 }
 
 // ── Project CRUD ──────────────────────────────────────────────────────────────
@@ -121,7 +103,6 @@ export async function createProject(payload: {
 	name: string;
 	description?: string;
 	task_id_prefix?: string;
-	is_public?: boolean;
 }): Promise<Project> {
 	const { data } = await apiClient.instance.post<SuccessEnvelope<Project>>(
 		"/projects",
@@ -136,7 +117,6 @@ export async function updateProject(
 		name?: string;
 		description?: string;
 		task_id_prefix?: string;
-		is_public?: boolean;
 		settings?: Record<string, unknown>;
 	},
 ): Promise<Project> {
@@ -195,8 +175,9 @@ export async function listProjectMembers(
 export async function addProjectMember(
 	projectId: string,
 	payload:
-		| { user_id: string; project_role_id: string; description?: string }
-		| { agent_id: string; project_role_id: string },
+		| { user_id: string; role_ids: string[]; description?: string }
+		| { agent_id: string; role_ids: string[] }
+		| { service_account_id: string; role_ids: string[] },
 ): Promise<ProjectMember> {
 	const { data } = await apiClient.instance.post<
 		SuccessEnvelope<ProjectMember>
@@ -207,8 +188,7 @@ export async function addProjectMember(
 export async function updateProjectMemberRole(
 	projectId: string,
 	memberId: string,
-	// At least one of the two must be set.
-	payload: { project_role_id?: string; description?: string },
+	payload: { description: string },
 ): Promise<ProjectMember> {
 	const { data } = await apiClient.instance.patch<
 		SuccessEnvelope<ProjectMember>
@@ -225,52 +205,11 @@ export async function removeProjectMember(
 
 export async function getMyProjectPermissions(
 	projectId: string,
-): Promise<Record<string, boolean>> {
+): Promise<string[]> {
 	const { data } = await apiClient.instance.get<
-		SuccessEnvelope<{ permissions: Record<string, boolean> }>
+		SuccessEnvelope<{ actions: string[] }>
 	>(`/projects/${projectId}/members/me/permissions`);
-	return data.data.permissions;
-}
-
-// ── Roles ─────────────────────────────────────────────────────────────────────
-
-export async function listProjectRoles(
-	projectId: string,
-): Promise<ProjectRole[]> {
-	const { data } = await apiClient.instance.get<SuccessEnvelope<ProjectRole[]>>(
-		`/projects/${projectId}/roles`,
-	);
-	return data.data;
-}
-
-export async function createProjectRole(
-	projectId: string,
-	payload: { role_name: string; permissions?: Record<string, unknown> },
-): Promise<ProjectRole> {
-	const { data } = await apiClient.instance.post<SuccessEnvelope<ProjectRole>>(
-		`/projects/${projectId}/roles`,
-		payload,
-	);
-	return data.data;
-}
-
-export async function updateProjectRole(
-	projectId: string,
-	roleId: string,
-	payload: { role_name: string; permissions?: Record<string, unknown> },
-): Promise<ProjectRole> {
-	const { data } = await apiClient.instance.patch<SuccessEnvelope<ProjectRole>>(
-		`/projects/${projectId}/roles/${roleId}`,
-		payload,
-	);
-	return data.data;
-}
-
-export async function deleteProjectRole(
-	projectId: string,
-	roleId: string,
-): Promise<void> {
-	await apiClient.instance.delete(`/projects/${projectId}/roles/${roleId}`);
+	return data.data.actions;
 }
 
 // ── Task Types ────────────────────────────────────────────────────────────────
@@ -643,12 +582,6 @@ export const myProjectPermissionsQueryOptions = (projectId: string) =>
 		queryFn: () => getMyProjectPermissions(projectId),
 		staleTime: 2 * 60 * 1000,
 		retry: false,
-	});
-
-export const projectRolesQueryOptions = (projectId: string) =>
-	queryOptions({
-		queryKey: ["projects", projectId, "roles"],
-		queryFn: () => listProjectRoles(projectId),
 	});
 
 export const taskTypesQueryOptions = (projectId: string) =>

@@ -170,6 +170,21 @@ func (b *queryBuilder) placeholder() string {
 	return p
 }
 
+// applyTaskScope narrows a task query to the tasks the caller's IAM scope
+// (attached to ctx by the handler) allows, inside the query itself so the
+// page, the count and the sum are all computed over the allowed tasks. It
+// reports none when the scope allows nothing.
+func applyTaskScope(ctx context.Context, b *queryBuilder) (none bool, err error) {
+	clause, none, err := scopeSQL(ctx, "task", taskScopeColumns, b)
+	if err != nil || none {
+		return none, err
+	}
+	if clause != "" {
+		b.whereClauses = append(b.whereClauses, clause)
+	}
+	return false, nil
+}
+
 // --- Task Types -------------------------------------------------------------
 
 const taskTypeCols = `id, project_id, name, icon, color, description, is_default, is_system, created_at, updated_at`
@@ -523,8 +538,15 @@ func applyTaskFilter(b *queryBuilder, filter taskdom.TaskFilter) {
 			b.args = append(b.args, pattern)
 			p2 := b.placeholder()
 			b.args = append(b.args, pattern)
-			b.whereClauses = append(b.whereClauses, fmt.Sprintf(
-				"(title ILIKE %s OR ('#' || task_number::text) ILIKE %s)", p1, p2))
+			clause := fmt.Sprintf("title ILIKE %s OR ('#' || task_number::text) ILIKE %s", p1, p2)
+			if filter.SearchContent {
+				p3 := b.placeholder()
+				b.args = append(b.args, pattern)
+				clause += fmt.Sprintf(` OR EXISTS (
+					SELECT 1 FROM jsonb_path_query(COALESCE(description, 'null'::jsonb), 'lax $.**.text') AS t
+					WHERE jsonb_typeof(t) = 'string' AND (t #>> '{}') ILIKE %s)`, p3)
+			}
+			b.whereClauses = append(b.whereClauses, "("+clause+")")
 		}
 	}
 
@@ -1013,6 +1035,11 @@ func (r *TaskRepository) ListTasks(ctx context.Context, projectID uuid.UUID, fil
 
 	// Apply filters
 	applyTaskFilter(b, filter)
+	if none, err := applyTaskScope(ctx, b); err != nil {
+		return nil, false, err
+	} else if none {
+		return []*taskdom.Task{}, false, nil
+	}
 
 	// Apply cursor
 	if filter.CursorAfter != nil {
@@ -1104,6 +1131,19 @@ func (r *TaskRepository) ListAssignedTasks(ctx context.Context, memberIDs []uuid
 		" AND EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = tasks.id AND ta.member_id IN (" + strings.Join(memberPlaceholders, ",") + "))" +
 		" AND NOT EXISTS (SELECT 1 FROM task_statuses ts WHERE ts.id = tasks.status_id AND ts.category = 'done')"
 
+	// The list spans projects, so the caller's IAM scope is one predicate per
+	// project, OR-ed: a project without one is not listed.
+	clause, none, err := projectScopesSQL(ctx, "task", taskScopeColumns, "tasks.project_id", b)
+	if err != nil {
+		return nil, false, err
+	}
+	if none {
+		return []*taskdom.Task{}, false, nil
+	}
+	if clause != "" {
+		baseWhere += " AND " + clause
+	}
+
 	sort := taskdom.TaskSort{By: "importance"}
 	fromClause, orderByClause, selectCols := applyTaskSort(sort, b)
 
@@ -1158,6 +1198,11 @@ func (r *TaskRepository) CountTasks(ctx context.Context, projectID uuid.UUID, fi
 	baseWhere := "project_id = " + pidP + " AND deleted_at IS NULL"
 
 	applyTaskFilter(b, filter)
+	if none, err := applyTaskScope(ctx, b); err != nil {
+		return 0, err
+	} else if none {
+		return 0, nil
+	}
 
 	whereSQL := baseWhere
 	if len(b.whereClauses) > 0 {
@@ -1183,12 +1228,26 @@ func (r *TaskRepository) CountOpenTasksByProjects(ctx context.Context, projectID
 	}
 
 	b := newQueryBuilder()
-	b.addInClause("t.project_id", uuidSliceToStrSlice(projectIDs))
+	b.addInClause("tasks.project_id", uuidSliceToStrSlice(projectIDs))
+
+	// The caller's task scope of each project, when one is attached, applies
+	// inside the count: a project without a scope, or whose scope allows no
+	// task, contributes nothing.
+	clause, none, err := projectScopesSQL(ctx, "task", taskScopeColumns, "tasks.project_id", b)
+	if err != nil {
+		return 0, fmt.Errorf("task repo: count open tasks by projects: %w", err)
+	}
+	if none {
+		return 0, nil
+	}
+	if clause != "" {
+		b.whereClauses = append(b.whereClauses, clause)
+	}
 
 	query := `
-		SELECT COUNT(*) FROM tasks t
-		JOIN task_statuses ts ON ts.id = t.status_id
-		WHERE t.deleted_at IS NULL AND ts.category != 'done' AND ` +
+		SELECT COUNT(*) FROM tasks
+		JOIN task_statuses ts ON ts.id = tasks.status_id
+		WHERE tasks.deleted_at IS NULL AND ts.category != 'done' AND ` +
 		strings.Join(b.whereClauses, " AND ")
 
 	var count int64
@@ -1224,6 +1283,11 @@ func (r *TaskRepository) SumTaskField(ctx context.Context, projectID uuid.UUID, 
 	baseWhere := "project_id = " + pidP + " AND deleted_at IS NULL"
 
 	applyTaskFilter(b, filter)
+	if none, err := applyTaskScope(ctx, b); err != nil {
+		return 0, err
+	} else if none {
+		return 0, nil
+	}
 
 	whereSQL := baseWhere
 	if len(b.whereClauses) > 0 {
@@ -1359,6 +1423,89 @@ func (r *TaskRepository) CreateTask(ctx context.Context, t *taskdom.Task) error 
 func (r *TaskRepository) UpdateTask(ctx context.Context, t *taskdom.Task) error {
 	return WithTx(ctx, r.db, func(tx *sqlx.Tx) error {
 		return updateTaskTx(ctx, tx, t)
+	})
+}
+
+// UpdateTaskFields implements taskdom.Repository — see its doc comment.
+func (r *TaskRepository) UpdateTaskFields(ctx context.Context, t *taskdom.Task, fields []taskdom.TaskField, customFieldsPatch map[string]any) error {
+	sets := []string{"updated_at=$1"}
+	args := []any{t.UpdatedAt}
+	add := func(col string, v any) {
+		args = append(args, v)
+		sets = append(sets, fmt.Sprintf("%s=$%d", col, len(args)))
+	}
+	syncAssignees := false
+	for _, f := range fields {
+		switch f {
+		case taskdom.TaskFieldTaskType:
+			add("task_type_id", uuidPtrToStrPtr(t.TaskTypeID))
+		case taskdom.TaskFieldStatus:
+			add("status_id", uuidPtrToStrPtr(t.StatusID))
+		case taskdom.TaskFieldSprint:
+			add("sprint_id", uuidPtrToStrPtr(t.SprintID))
+		case taskdom.TaskFieldParentTask:
+			add("parent_task_id", uuidPtrToStrPtr(t.ParentTaskID))
+		case taskdom.TaskFieldTitle:
+			add("title", t.Title)
+		case taskdom.TaskFieldDescription:
+			add("description", t.Description)
+		case taskdom.TaskFieldImportance:
+			add("importance", t.Importance)
+		case taskdom.TaskFieldStoryPoints:
+			add("story_points", t.StoryPoints)
+		case taskdom.TaskFieldReporter:
+			add("reporter_id", uuidPtrToStrPtr(t.ReporterID))
+		case taskdom.TaskFieldCustomFields:
+			if customFieldsPatch == nil {
+				customFieldsPatch = map[string]any{}
+			}
+			patch, err := json.Marshal(customFieldsPatch)
+			if err != nil {
+				return fmt.Errorf("task repo: marshal custom_fields: %w", err)
+			}
+			// Merged in SQL (jsonb ||) so keys this save didn't touch keep
+			// whatever a concurrent save wrote.
+			args = append(args, patch)
+			sets = append(sets, fmt.Sprintf("custom_fields=COALESCE(custom_fields, '{}'::jsonb) || $%d::jsonb", len(args)))
+		case taskdom.TaskFieldStartDate:
+			add("start_date", t.StartDate)
+		case taskdom.TaskFieldDueDate:
+			add("due_date", t.DueDate)
+		case taskdom.TaskFieldTags:
+			tags := t.Tags
+			if tags == nil {
+				tags = []string{}
+			}
+			tagsJSON, err := json.Marshal(tags)
+			if err != nil {
+				return fmt.Errorf("task repo: marshal tags: %w", err)
+			}
+			add("tags", tagsJSON)
+		case taskdom.TaskFieldAssignmentMode:
+			add("assignment_mode", assignmentModeOrDefault(t.AssignmentMode))
+		case taskdom.TaskFieldAssignees:
+			syncAssignees = true
+		default:
+			return fmt.Errorf("task repo: unknown task field %q", f)
+		}
+	}
+	args = append(args, t.ID.String())
+	query := "UPDATE tasks SET " + strings.Join(sets, ", ") + fmt.Sprintf(" WHERE id=$%d AND deleted_at IS NULL", len(args))
+	return WithTx(ctx, r.db, func(tx *sqlx.Tx) error {
+		res, err := tx.ExecContext(ctx, query, args...)
+		if err != nil {
+			return fmt.Errorf("task repo: update fields: %w", err)
+		}
+		// A save racing a soft-delete matches no live row.
+		if n, err := res.RowsAffected(); err != nil {
+			return fmt.Errorf("task repo: update fields: rows affected: %w", err)
+		} else if n == 0 {
+			return taskdom.ErrTaskNotFound
+		}
+		if syncAssignees {
+			return syncTaskAssignees(ctx, tx, t.ID, t.AssigneeIDs)
+		}
+		return nil
 	})
 }
 

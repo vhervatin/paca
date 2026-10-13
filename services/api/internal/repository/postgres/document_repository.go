@@ -234,15 +234,59 @@ func (r *DocumentRepository) CreateFolder(ctx context.Context, f *docdom.DocFold
 	return err
 }
 
-// UpdateFolder persists mutable changes to a folder.
-func (r *DocumentRepository) UpdateFolder(ctx context.Context, f *docdom.DocFolder) error {
-	rec := folderToRecord(f)
-	_, err := r.db.ExecContext(ctx, `
-		UPDATE doc_folders SET project_id=$1, parent_id=$2, name=$3, position=$4, created_by=$5, updated_at=$6
-		WHERE id=$7`,
-		rec.ProjectID, rec.ParentID, rec.Name, rec.Position, rec.CreatedBy, rec.UpdatedAt, rec.ID,
-	)
-	return err
+// UpdateFolderAtomic implements docdom.DocFolderRepository — see its doc
+// comment. A per-project advisory lock serializes folder updates so two
+// concurrent moves can't each pass a cycle check against the other's old
+// parent; the row lock then guards the read-modify-write itself.
+func (r *DocumentRepository) UpdateFolderAtomic(ctx context.Context, id uuid.UUID, decide func(current *docdom.DocFolder, find func(id uuid.UUID) (*docdom.DocFolder, error)) error) (*docdom.DocFolder, error) {
+	var result *docdom.DocFolder
+	err := WithTx(ctx, r.db, func(tx *sqlx.Tx) error {
+		var projectID string
+		if err := tx.GetContext(ctx, &projectID, `SELECT project_id FROM doc_folders WHERE id = $1`, id.String()); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return docdom.ErrFolderNotFound
+			}
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('doc_folders:' || $1::text, 0))`, projectID); err != nil {
+			return err
+		}
+		var rec docFolderRecord
+		if err := tx.GetContext(ctx, &rec, `SELECT `+docFolderCols+` FROM doc_folders WHERE id = $1 FOR UPDATE`, id.String()); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return docdom.ErrFolderNotFound
+			}
+			return err
+		}
+		current := folderFromRecord(rec)
+		find := func(fid uuid.UUID) (*docdom.DocFolder, error) {
+			var fr docFolderRecord
+			if err := tx.GetContext(ctx, &fr, `SELECT `+docFolderCols+` FROM doc_folders WHERE id = $1`, fid.String()); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return nil, docdom.ErrFolderNotFound
+				}
+				return nil, err
+			}
+			return folderFromRecord(fr), nil
+		}
+		if err := decide(current, find); err != nil {
+			return err
+		}
+		out := folderToRecord(current)
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE doc_folders SET parent_id=$1, name=$2, position=$3, updated_at=$4
+			WHERE id=$5`,
+			out.ParentID, out.Name, out.Position, out.UpdatedAt, out.ID,
+		); err != nil {
+			return err
+		}
+		result = current
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // DeleteFolder permanently deletes a folder.
@@ -269,6 +313,20 @@ func (r *DocumentRepository) ListDocuments(ctx context.Context, projectID uuid.U
 		args = append(args, folderID.String())
 		query += fmt.Sprintf(" AND folder_id = $%d", len(args))
 	}
+	// The caller's IAM scope narrows the query itself, ahead of the cursor
+	// and LIMIT, so every page is a full page of allowed documents.
+	sink := &argList{args: args}
+	clause, none, err := scopeSQL(ctx, "doc", docScopeColumns, sink)
+	if err != nil {
+		return nil, false, err
+	}
+	if none {
+		return []*docdom.Document{}, false, nil
+	}
+	if clause != "" {
+		query += " AND " + clause
+	}
+	args = sink.args
 	if search != nil {
 		if q := strings.TrimSpace(*search); q != "" {
 			args = append(args, "%"+escapeLikePattern(q)+"%")
@@ -306,6 +364,43 @@ func (r *DocumentRepository) ListDocuments(ctx context.Context, projectID uuid.U
 		out = append(out, documentFromRecord(rec))
 	}
 	return out, hasMore, nil
+}
+
+// SearchDocuments matches query (literally, case-insensitively) against the
+// title or any inline "text" node inside the BlockNote JSON content. The
+// jsonpath walk restricts body matching to visible text so structural keys
+// like "type":"paragraph" never match.
+func (r *DocumentRepository) SearchDocuments(ctx context.Context, projectID uuid.UUID, query string, limit int) ([]*docdom.Document, error) {
+	pattern := "%" + escapeLikePattern(strings.TrimSpace(query)) + "%"
+	sink := &argList{args: []any{projectID.String(), pattern}}
+	clause, none, err := scopeSQL(ctx, "doc", docScopeColumns, sink)
+	if err != nil {
+		return nil, err
+	}
+	if none {
+		return []*docdom.Document{}, nil
+	}
+	scopeAnd := ""
+	if clause != "" {
+		scopeAnd = " AND " + clause
+	}
+	limitP := sink.addArg(limit)
+	var records []documentRecord
+	err = r.db.SelectContext(ctx, &records, `SELECT `+documentCols+` FROM documents
+		WHERE project_id = $1 AND deleted_at IS NULL
+		  AND (title ILIKE $2 OR EXISTS (
+		        SELECT 1 FROM jsonb_path_query(COALESCE(content, 'null'::jsonb), 'lax $.**.text') AS t
+		        WHERE jsonb_typeof(t) = 'string' AND (t #>> '{}') ILIKE $2))`+scopeAnd+`
+		ORDER BY updated_at DESC, id ASC
+		LIMIT `+limitP, sink.args...)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*docdom.Document, 0, len(records))
+	for _, rec := range records {
+		out = append(out, documentFromRecord(rec))
+	}
+	return out, nil
 }
 
 // FindDocumentByID returns a single non-deleted document.
@@ -348,17 +443,37 @@ func (r *DocumentRepository) CreateDocument(ctx context.Context, d *docdom.Docum
 	return err
 }
 
-// UpdateDocument persists mutable changes to a document.
-func (r *DocumentRepository) UpdateDocument(ctx context.Context, d *docdom.Document) error {
-	rec := documentToRecord(d)
-	_, err := r.db.ExecContext(ctx, `
-		UPDATE documents SET project_id=$1, folder_id=$2, title=$3, content=$4, position=$5,
-		  created_by=$6, updated_by=$7, updated_at=$8, deleted_at=$9
-		WHERE id=$10`,
-		rec.ProjectID, rec.FolderID, rec.Title, rec.Content, rec.Position,
-		rec.CreatedBy, rec.UpdatedBy, rec.UpdatedAt, rec.DeletedAt, rec.ID,
-	)
-	return err
+// UpdateDocumentAtomic implements docdom.DocumentRepository — see its doc
+// comment.
+func (r *DocumentRepository) UpdateDocumentAtomic(ctx context.Context, id uuid.UUID, decide func(current *docdom.Document) error) (*docdom.Document, error) {
+	var result *docdom.Document
+	err := WithTx(ctx, r.db, func(tx *sqlx.Tx) error {
+		var rec documentRecord
+		if err := tx.GetContext(ctx, &rec, `SELECT `+documentCols+` FROM documents WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, id.String()); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return docdom.ErrDocNotFound
+			}
+			return err
+		}
+		current := documentFromRecord(rec)
+		if err := decide(current); err != nil {
+			return err
+		}
+		out := documentToRecord(current)
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE documents SET folder_id=$1, title=$2, content=$3, position=$4, updated_by=$5, updated_at=$6
+			WHERE id=$7 AND deleted_at IS NULL`,
+			out.FolderID, out.Title, out.Content, out.Position, out.UpdatedBy, out.UpdatedAt, out.ID,
+		); err != nil {
+			return err
+		}
+		result = current
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // DeleteDocument soft-deletes a document.
@@ -373,10 +488,10 @@ func (r *DocumentRepository) DeleteDocument(ctx context.Context, id uuid.UUID) e
 
 const snapshotJoinSQL = `
 	SELECT ds.id, ds.document_id, ds.title, ds.content, ds.snapshot_number, ds.created_by, ds.created_at,
-	       u.full_name AS created_by_name
+	       acc.name AS created_by_name
 	FROM doc_snapshots ds
 	LEFT JOIN project_members pm ON pm.id = ds.created_by
-	LEFT JOIN users u ON u.id = pm.user_id`
+	LEFT JOIN accounts acc ON acc.id = pm.account_id`
 
 // ListSnapshots returns all snapshots for a document, newest first.
 func (r *DocumentRepository) ListSnapshots(_ context.Context, documentID uuid.UUID) ([]*docdom.DocSnapshot, error) {

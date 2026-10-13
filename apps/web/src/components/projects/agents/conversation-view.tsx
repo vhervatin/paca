@@ -52,6 +52,7 @@ import { ConversationErrorBox } from "./conversation-error-box";
 import {
 	canReplyToConversation,
 	chatSessionAccessDeniedKey,
+	chatSessionApiErrorMessage,
 	eventsToThreadMessages,
 	extractTextOnlyContent,
 	isEnvironmentReady,
@@ -253,7 +254,7 @@ export function ConversationView({
 	// only) gets a read-only view here instead of controls that would just
 	// 403.
 	const { hasProjectPermission } = useProjectPermissions(projectId ?? "");
-	const canControl = !projectId || hasProjectPermission("conversations.write");
+	const canControl = !projectId || hasProjectPermission("conversations:write");
 	const canReply = canControl && canReplyToConversation(conversation, isACP);
 	const { dialog: agentBusyDialog, send: sendWithBusyPrompt } =
 		useAgentBusyPrompt();
@@ -358,6 +359,13 @@ export function ConversationView({
 			const key = chatSessionAccessDeniedKey(err);
 			if (key) {
 				setSendError(t(key));
+				return;
+			}
+			// Any other client error the API explained: show its message instead
+			// of dropping it as an unhandled rejection the person never sees.
+			const apiMessage = chatSessionApiErrorMessage(err);
+			if (apiMessage) {
+				setSendError(apiMessage);
 				return;
 			}
 			throw err;

@@ -36,6 +36,7 @@ import {
 	Plus,
 	Puzzle,
 	Server,
+	ServerCog,
 	Settings,
 	Shield,
 	Sparkles,
@@ -54,7 +55,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import { EntityAvatarContent } from "@/components/shared/entity-avatar";
+import { EntityAvatar } from "@/components/shared/entity-avatar";
 import { Badge } from "@/components/ui/badge";
 import {
 	DropdownMenu,
@@ -107,10 +108,10 @@ import { ExtensionPoint } from "@/lib/plugins/extension-point";
 import { resolvePluginIcon } from "@/lib/plugins/icon-resolver";
 import { usePluginRegistry } from "@/lib/plugins/registry";
 import {
-	getProjectInitials,
 	projectQueryOptions,
 	projectsInfiniteQueryOptions,
 } from "@/lib/project-api";
+import { projectAvatar } from "@/lib/provider-logos";
 import { createLoadMoreScrollHandler } from "@/lib/scroll-pagination";
 import { cn } from "@/lib/utils";
 import { UserMenu } from "./user-menu";
@@ -597,7 +598,7 @@ function DocsSidebarSection({ projectId }: { projectId: string }) {
 	const navigate = useNavigate();
 	const location = useRouterState({ select: (s) => s.location.pathname });
 	const { hasProjectPermission } = useProjectPermissions(projectId);
-	const canWrite = hasProjectPermission("docs.write");
+	const canWrite = hasProjectPermission("docs:write");
 
 	const isDocsSection = location.startsWith(`/projects/${projectId}/docs`);
 
@@ -837,20 +838,19 @@ function ProjectSwitcher({
 		onLoadMore: () => void fetchNextPage(),
 	});
 	const label = currentProject?.name ?? t("projectSwitcher.projects");
-	const initials = currentProject?.name
-		? getProjectInitials(currentProject.name)
-		: null;
 
 	const { data: user } = useQuery(currentUserQueryOptions);
 
 	if (!user) {
 		return (
 			<div className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm font-medium text-sidebar-foreground/80 select-none">
-				<div className="flex size-5 shrink-0 items-center justify-center rounded-md bg-primary/15 text-primary text-xs font-bold">
-					<EntityAvatarContent avatarUrl={currentProject?.avatar_thumb_url}>
-						{initials ?? <FolderKanban className="size-3" />}
-					</EntityAvatarContent>
-				</div>
+				<EntityAvatar
+					{...(currentProject ? projectAvatar(currentProject) : { name: "" })}
+					fallback={<FolderKanban className="size-3" />}
+					size="xs"
+					shape="rounded"
+					className="shrink-0"
+				/>
 				<span className="flex-1 truncate text-left">{label}</span>
 			</div>
 		);
@@ -866,11 +866,13 @@ function ProjectSwitcher({
 						: "hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
 				)}
 			>
-				<div className="flex size-5 shrink-0 items-center justify-center rounded-md bg-primary/15 text-primary text-xs font-bold">
-					<EntityAvatarContent avatarUrl={currentProject?.avatar_thumb_url}>
-						{initials ?? <FolderKanban className="size-3" />}
-					</EntityAvatarContent>
-				</div>
+				<EntityAvatar
+					{...(currentProject ? projectAvatar(currentProject) : { name: "" })}
+					fallback={<FolderKanban className="size-3" />}
+					size="xs"
+					shape="rounded"
+					className="shrink-0"
+				/>
 				<span className="flex-1 truncate text-left">{label}</span>
 				<ChevronDown
 					className={cn(
@@ -904,11 +906,12 @@ function ProjectSwitcher({
 									/>
 								}
 							>
-								<div className="flex size-5 shrink-0 items-center justify-center rounded bg-primary/15 text-primary text-xs font-bold">
-									<EntityAvatarContent avatarUrl={p.avatar_thumb_url}>
-										{getProjectInitials(p.name)}
-									</EntityAvatarContent>
-								</div>
+								<EntityAvatar
+									{...projectAvatar(p)}
+									size="xs"
+									shape="rounded"
+									className="shrink-0"
+								/>
 								<span className="truncate">{p.name}</span>
 								{p.id === currentProjectId && (
 									<span className="ml-auto size-1.5 rounded-full bg-primary" />
@@ -1006,11 +1009,28 @@ const PROJECT_NAV_ITEMS = [
 	{ segment: "settings", icon: Settings, labelKey: "nav.settings" },
 ] as const;
 
-// Unlike the rest of the project nav, the activity log is hidden from members
-// who can't read it: by default only owners/managers/admins can, so showing
-// it to everyone would mostly lead to a no-permission page.
-const PERMISSION_GATED_SEGMENTS: Partial<Record<string, string>> = {
-	activity: "project.activities.read",
+// A project nav entry is only listed for members who can open its page: it
+// needs the read permission below (any one of them, for the entries that list
+// several). Entries not listed here are open to every project member.
+const PERMISSION_GATED_SEGMENTS: Partial<Record<string, readonly string[]>> = {
+	agents: ["agents:read"],
+	environments: ["environments:read"],
+	conversations: ["conversations:read"],
+	automation: ["workflows:read"],
+	team: ["project.members:read"],
+	activity: ["project.activities:read"],
+	// Settings is a set of tabs, each with its own permission: list it when
+	// the member can use at least one of them.
+	settings: [
+		"projects:write",
+		"projects:delete",
+		"roles:read",
+		"roles:write",
+		"project.settings.task_types:write",
+		"project.settings.task_statuses:write",
+		"project.settings.custom_fields:write",
+		"project:export",
+	],
 };
 
 function ProjectNav() {
@@ -1035,26 +1055,22 @@ function ProjectNav() {
 	);
 }
 
-const ANON_HIDDEN_SEGMENTS = new Set([
-	"agents",
-	"environments",
-	"conversations",
-	"automation",
-	"team",
-	"activity",
-	"settings",
-]);
-
-function ProjectNavItems({
-	projectId,
-	isAnonymous,
-}: {
-	projectId: string;
-	isAnonymous?: boolean;
-}) {
+function ProjectNavItems({ projectId }: { projectId: string }) {
 	const { t } = useTranslation("appShell");
 	const location = useRouterState({ select: (s) => s.location.pathname });
 	const { hasProjectPermission } = useProjectPermissions(projectId);
+	const { hasPermission } = usePermissions();
+	const { getRegistrations } = usePluginRegistry();
+	const canOpen = (action: string) =>
+		hasPermission(action) || hasProjectPermission(action);
+	// A plugin's own settings tab counts as something to open in Settings.
+	const hasVisiblePluginSettingsTab = getRegistrations(
+		"project.settings.tab",
+	).some(
+		(r) =>
+			!r.hidden &&
+			(!r.requiredPermission || hasProjectPermission(r.requiredPermission)),
+	);
 
 	const [collapsed, setCollapsed] = useState(() => {
 		try {
@@ -1101,10 +1117,11 @@ function ProjectNavItems({
 				<SidebarGroupContent>
 					<SidebarMenu>
 						{PROJECT_NAV_ITEMS.filter((item) => {
-							if (isAnonymous && ANON_HIDDEN_SEGMENTS.has(item.segment))
-								return false;
 							const required = PERMISSION_GATED_SEGMENTS[item.segment];
-							return !required || hasProjectPermission(required);
+							if (!required) return true;
+							if (item.segment === "settings" && hasVisiblePluginSettingsTab)
+								return true;
+							return required.some(canOpen);
 						}).map(({ segment, icon: Icon, labelKey }) => {
 							const href = segment
 								? `/projects/${projectId}/${segment}`
@@ -1148,14 +1165,14 @@ function PluginProjectPages({ projectId }: { projectId: string }) {
 	const { t } = useTranslation("appShell");
 	const { getNavItems } = usePluginRegistry();
 	const location = useRouterState({ select: (s) => s.location.pathname });
-	// A nav item's own requiredPermission no longer hides it from the
-	// sidebar — matching how the built-in project nav (Team, Environments,
-	// etc. in PROJECT_NAV_ITEMS below) is always shown to any project
-	// member regardless of their specific permissions. The page it routes
-	// to renders a no-permission state instead (see ProjectPluginPage),
-	// consistent with how project settings tabs already behave (e.g.
-	// TaskTypesSettings).
-	const navItems = getNavItems("project");
+	// A nav item is only listed for members who hold its requiredPermission,
+	// like the built-in project nav. (Opening the URL directly still shows a
+	// no-permission state, see ProjectPluginPage.)
+	const { hasProjectPermission } = useProjectPermissions(projectId);
+	const navItems = getNavItems("project").filter(
+		(item) =>
+			!item.requiredPermission || hasProjectPermission(item.requiredPermission),
+	);
 	if (navItems.length === 0) return null;
 
 	return (
@@ -1196,9 +1213,8 @@ function PluginProjectPages({ projectId }: { projectId: string }) {
  * cross-project time-tracking summary), routed to
  * /admin/plugins/:pluginId/:slug. Rendered inline in the existing
  * "Administration" SidebarMenu, so no extra group wrapper here. `navItems`
- * is unfiltered by permission (see AppSidebar's `adminPluginNavItems`) — a
- * caller who lacks an item's `requiredPermission` still sees the link, and
- * gets a no-permission state on the page itself. */
+ * is already filtered by permission (see AppSidebar's `adminPluginNavItems`),
+ * so a caller who lacks an item's `requiredPermission` never sees the link. */
 function PluginAdminPages({ navItems }: { navItems: PluginNavRegistration[] }) {
 	return (
 		<>
@@ -1219,13 +1235,7 @@ function PluginAdminPages({ navItems }: { navItems: PluginNavRegistration[] }) {
 }
 
 // ── Project Interactions Section ───────────────────────────────────────────────
-function ProjectInteractionsSection({
-	projectId,
-	isAnonymous,
-}: {
-	projectId: string;
-	isAnonymous?: boolean;
-}) {
+function ProjectInteractionsSection({ projectId }: { projectId: string }) {
 	const { t } = useTranslation("appShell");
 	const location = useRouterState({ select: (s) => s.location.pathname });
 	const { hasPermission } = usePermissions();
@@ -1248,9 +1258,9 @@ function ProjectInteractionsSection({
 	// users with a project-scoped "Editor" / "Viewer" role (global role = User)
 	// can still see Timeline, Backlog, and open sprints.
 	const canViewSprints =
-		hasPermission("sprints.read") || hasProjectPermission("sprints.read");
+		hasPermission("sprints:read") || hasProjectPermission("sprints:read");
 	const canEditTasks =
-		hasPermission("tasks.write") || hasProjectPermission("tasks.write");
+		hasPermission("tasks:write") || hasProjectPermission("tasks:write");
 
 	const [dragOverInteractionId, setDragOverInteractionId] = useState<
 		string | null
@@ -1339,7 +1349,7 @@ function ProjectInteractionsSection({
 		e: React.DragEvent,
 		interactionId: string,
 	) => {
-		if (!canEditTasks || isAnonymous) return;
+		if (!canEditTasks) return;
 		if (!e.dataTransfer.types.includes("application/x-paca-task-id")) return;
 		e.preventDefault();
 		e.dataTransfer.dropEffect = "move";
@@ -1379,8 +1389,7 @@ function ProjectInteractionsSection({
 	});
 
 	// Hide entire section if user lacks the "View Sprints" permission
-	// (anonymous visitors on public projects can always view interactions)
-	if (!canViewSprints && !isAnonymous) return null;
+	if (!canViewSprints) return null;
 
 	const openSprints = sprints
 		.filter((s) => s.status === "active")
@@ -1684,53 +1693,53 @@ export function AppSidebar() {
 	const brandName = branding?.brand_name;
 
 	const canAccessGlobalRoles =
-		hasPermission("global_roles.read") || hasPermission("global_roles.write");
+		hasPermission("roles:read") || hasPermission("roles:write");
 
 	const canAccessUsers =
-		hasPermission("users.read") || hasPermission("users.write");
+		hasPermission("users:read") || hasPermission("users:write");
 
 	const canAccessGlobalAgents =
-		hasPermission("agents.read") || hasPermission("agents.write");
+		hasPermission("agents:read") || hasPermission("agents:write");
+
+	const canAccessServiceAccounts =
+		hasPermission("service_accounts:read") ||
+		hasPermission("service_accounts:write");
 
 	// plugins.write replaced users.write as a rough "is this someone
 	// important" proxy once it got its own dedicated permission — see authz.
 	// PermissionPluginsRead's doc comment on the Go side. This nav-link
 	// check was never updated when that happened.
-	const canAccessPlugins = hasPermission("plugins.write");
+	const canAccessPlugins = hasPermission("plugins:write");
 
 	const canAccessSettings =
-		hasPermission("settings.write") || hasPermission("settings.sso.write");
+		hasPermission("settings:write") || hasPermission("settings.sso:write");
 
-	const canCreateProject = hasPermission("projects.create");
+	const canCreateProject = hasPermission("projects:create");
 
-	// A plugin admin nav item's own declared `requiredPermission` no longer
-	// hides it from the sidebar — the page it routes to renders a
-	// no-permission state instead (see AdminPluginPage), matching how core
-	// admin pages (Users, Global Roles) already behave: reachable by anyone
-	// who can already see the Administration section, with the page itself
-	// enforcing the finer-grained check.
-	const adminPluginNavItems = getNavItems("admin");
+	// A plugin admin nav item is only listed for callers who hold its
+	// declared `requiredPermission` (the same fallback as AdminPluginPage:
+	// plugins:write when it declares none).
+	const adminPluginNavItems = getNavItems("admin").filter((item) =>
+		hasPermission(item.requiredPermission ?? "plugins:write"),
+	);
 
-	// Deliberately does NOT include `adminPluginNavItems.length > 0`: unlike
-	// before, an item's permission can no longer be satisfied just by
-	// hiding it, so a plugin with an admin page must not be able to
-	// single-handedly reveal the "Administration" heading to a user with
-	// zero admin permissions of any kind — that would surface an entire
-	// nav section to people who have no reason to ever open it.
+	// Only shown to someone who can see Administration for another reason: a
+	// plugin with an admin page must not reveal the heading by itself.
 	const showAdminSection =
 		canAccessGlobalRoles ||
 		canAccessUsers ||
 		canAccessGlobalAgents ||
+		canAccessServiceAccounts ||
 		canAccessPlugins ||
 		canAccessSettings;
 	// Plugin-contributed admin pages get their own sidebar section, separate
-	// from core workspace administration — the "Plugins" management link
-	// itself (canAccessPlugins) stays in Administration. Gated on
-	// showAdminSection for the same reason as above: only shown to someone
-	// who can already see Administration for another reason.
+	// from core workspace administration.
 	const showPluginsSection = showAdminSection && adminPluginNavItems.length > 0;
 	const isProjectContext = !!projectId;
-	const isAnonymous = !user;
+	// The docs tree is only listed for members who can read docs.
+	const { hasProjectPermission } = useProjectPermissions(projectId ?? "");
+	const canReadDocs =
+		hasPermission("docs:read") || hasProjectPermission("docs:read");
 
 	return (
 		<Sidebar collapsible="icon">
@@ -1791,12 +1800,9 @@ export function AppSidebar() {
 					<>
 						{user && <ProjectNav />}
 						{user && <SidebarSeparator />}
-						<ProjectInteractionsSection
-							projectId={projectId}
-							isAnonymous={isAnonymous}
-						/>
+						<ProjectInteractionsSection projectId={projectId} />
 						<SidebarSeparator />
-						<DocsSidebarSection projectId={projectId} />
+						{canReadDocs && <DocsSidebarSection projectId={projectId} />}
 						<SidebarSeparator />
 						<ExtensionPoint
 							point="sidebar.project.section"
@@ -1804,7 +1810,7 @@ export function AppSidebar() {
 						/>
 						<SidebarSeparator />
 						<PluginProjectPages projectId={projectId} />
-						<ProjectNavItems projectId={projectId} isAnonymous={isAnonymous} />
+						<ProjectNavItems projectId={projectId} />
 					</>
 				) : (
 					<>
@@ -1853,6 +1859,13 @@ export function AppSidebar() {
 													to="/admin/agents"
 													icon={Bot}
 													label={t("nav.agents")}
+												/>
+											) : null}
+											{canAccessServiceAccounts ? (
+												<NavItem
+													to="/admin/service-accounts"
+													icon={ServerCog}
+													label={t("nav.serviceAccounts")}
 												/>
 											) : null}
 											{canAccessPlugins ? (

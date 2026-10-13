@@ -25,8 +25,8 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { EntityAvatar } from "@/components/shared/entity-avatar";
 import { NoPermissionState } from "@/components/shared/no-permission-state";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -70,7 +70,7 @@ import {
 } from "@/lib/agent-api";
 import { getApiErrorMessage, isForbiddenError } from "@/lib/api-error";
 import { formatCompactTokens, formatUsageCost } from "@/lib/format-usage";
-import { resolveAgentAvatarUrl } from "@/lib/provider-logos";
+import { agentAvatar } from "@/lib/provider-logos";
 import { cn } from "@/lib/utils";
 import { ConversationFilters } from "./conversation-filters";
 
@@ -138,13 +138,6 @@ function ConversationListItem({
 	const statusColor = CONVERSATION_STATUS_COLORS[conv.status];
 	const statusLabel = CONVERSATION_STATUS_LABELS[conv.status];
 	const triggerLabel = conversationTriggerLabel(conv, t);
-	const initials = (agent?.name ?? "?")
-		.split(" ")
-		.map((w) => w[0])
-		.join("")
-		.toUpperCase()
-		.slice(0, 2);
-	const avatarUrl = agent ? resolveAgentAvatarUrl(agent) : undefined;
 	// conv.title takes precedence once goose has named the underlying
 	// session or the user has renamed it — falling back to exactly what
 	// this list already showed before conversations could have a name at
@@ -172,12 +165,14 @@ function ConversationListItem({
 				)}
 			>
 				<div className="flex items-center gap-2 min-w-0">
-					<Avatar className="size-6 rounded-md bg-primary/10 shrink-0">
-						{avatarUrl ? <AvatarImage src={avatarUrl} /> : null}
-						<AvatarFallback className="rounded-md bg-primary/10 text-primary text-[10px] font-semibold">
-							{initials}
-						</AvatarFallback>
-					</Avatar>
+					<EntityAvatar
+						{...(agent
+							? agentAvatar(agent)
+							: { name: "?", type: "agent" as const })}
+						size="sm"
+						shape="rounded"
+						className="shrink-0"
+					/>
 					<span className="text-sm font-medium truncate flex-1">
 						{displayName}
 					</span>
@@ -363,8 +358,8 @@ export function ConversationsLayout({ projectId }: { projectId?: string }) {
 	// Global chat has no project-scoped permissions to wait on.
 	const isPermissionsLoading = !!projectId && isProjectPermissionsLoading;
 	const canStartConversation =
-		!projectId || hasProjectPermission("conversations.write");
-	const canRead = !projectId || hasProjectPermission("conversations.read");
+		!projectId || hasProjectPermission("conversations:write");
+	const canRead = !projectId || hasProjectPermission("conversations:read");
 
 	const [filters, setFilters] = useState<ConversationFiltersState>({});
 

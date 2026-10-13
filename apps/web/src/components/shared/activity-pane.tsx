@@ -5,6 +5,7 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import {
+	Cog,
 	GitBranch,
 	Loader2,
 	MessageSquare,
@@ -24,7 +25,7 @@ import {
 	type CommentEditorHandle,
 } from "@/components/shared/comment-blocknote";
 import { ContentDiffDialog } from "@/components/shared/content-diff";
-import { EntityAvatarContent } from "@/components/shared/entity-avatar";
+import { EntityAvatar } from "@/components/shared/entity-avatar";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -33,6 +34,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useActorAvatar } from "@/hooks/use-actor-avatar";
 import { timeAgo } from "@/lib/time-ago";
 import { cn } from "@/lib/utils";
 
@@ -286,6 +288,7 @@ export function ActivityPane<T extends ActivityEntry>({
 					)}
 					{visible.map((entry) => (
 						<ActivityItemInner
+							projectId={projectId}
 							key={entry.id}
 							entry={entry}
 							describeActivity={describeActivity}
@@ -373,6 +376,7 @@ export function ActivityPane<T extends ActivityEntry>({
 }
 
 interface ActivityItemInnerProps<T extends ActivityEntry> {
+	projectId: string;
 	entry: T;
 	describeActivity: (entry: T) => ReactNode;
 	getCommentBlocks: (content: T["content"]) => unknown[] | null;
@@ -390,6 +394,7 @@ interface ActivityItemInnerProps<T extends ActivityEntry> {
 }
 
 function ActivityItemInner<T extends ActivityEntry>({
+	projectId,
 	entry,
 	describeActivity,
 	getCommentBlocks,
@@ -414,7 +419,7 @@ function ActivityItemInner<T extends ActivityEntry>({
 	const isComment = entry.activity_type === "comment";
 	const displayName =
 		entry.actor_name || entry.actor_username || t("activityPane.systemActor");
-	const initial = displayName.slice(0, 1).toUpperCase();
+	const resolveActor = useActorAvatar(projectId);
 
 	const isOwnComment =
 		isComment &&
@@ -457,18 +462,16 @@ function ActivityItemInner<T extends ActivityEntry>({
 
 	return (
 		<div className="flex gap-3">
-			<div
-				className={cn(
-					"flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold mt-0.5 ring-1",
-					isComment
-						? "bg-linear-to-br from-primary/20 to-primary/10 text-primary ring-primary/15"
-						: "bg-muted/40 text-muted-foreground/80 ring-border/20",
-				)}
-			>
-				<EntityAvatarContent avatarUrl={entry.actor_avatar_thumb_url}>
-					{initial}
-				</EntityAvatarContent>
-			</div>
+			<EntityAvatar
+				{...resolveActor({
+					id: entry.actor_id,
+					name: entry.actor_name || entry.actor_username,
+					avatarUrl: entry.actor_avatar_thumb_url,
+				})}
+				fallback={<Cog className="size-3" />}
+				size="sm"
+				className="mt-0.5 shrink-0"
+			/>
 			<div className="flex-1 min-w-0">
 				{isComment ? (
 					<div className="group rounded-xl rounded-tl-lg border border-border/25 bg-card/70 px-3.5 py-2.5">

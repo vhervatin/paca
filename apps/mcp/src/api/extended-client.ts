@@ -8,11 +8,11 @@ import type {
 	PacaConfig,
 	ProjectMember,
 	ProjectRole,
+	ReplaceMemberRolesInput,
 	SuccessEnvelope,
 	TaskStatus,
 	TaskType,
 	UpdateCustomFieldInput,
-	UpdateMemberRoleInput,
 	UpdateRoleInput,
 	UpdateTaskStatusInput,
 	UpdateTaskTypeInput,
@@ -44,9 +44,6 @@ export class PacaAPIExtendedClient {
 			"Content-Type": "application/json",
 			"X-API-Key": this.config.apiKey,
 		};
-		if (this.config.agentId) {
-			headers["X-Agent-ID"] = this.config.agentId;
-		}
 
 		const options: RequestInit = {
 			method,
@@ -125,21 +122,24 @@ export class PacaAPIExtendedClient {
 		return this.post(`/api/v1/projects/${projectId}/members`, input);
 	}
 
-	async getMyProjectPermissions(
-		projectId: string,
-	): Promise<Record<string, boolean>> {
+	/** Returns the caller's effective IAM actions in the project. */
+	async getMyProjectPermissions(projectId: string): Promise<string[]> {
 		const response = await this.get(
 			`/api/v1/projects/${projectId}/members/me/permissions`,
 		);
-		return response.permissions || {};
+		return response.actions || [];
 	}
 
+	/** Replaces the set of roles the member holds in the project. */
 	async updateProjectMemberRole(
 		projectId: string,
-		userId: string,
-		input: UpdateMemberRoleInput,
-	): Promise<ProjectMember> {
-		return this.patch(`/api/v1/projects/${projectId}/members/${userId}`, input);
+		memberId: string,
+		input: ReplaceMemberRolesInput,
+	): Promise<ProjectRole[]> {
+		return this.put(
+			`/api/v1/projects/${projectId}/members/${memberId}/roles`,
+			input,
+		);
 	}
 
 	async removeProjectMember(projectId: string, userId: string): Promise<void> {
@@ -163,12 +163,19 @@ export class PacaAPIExtendedClient {
 		return this.post(`/api/v1/projects/${projectId}/roles`, input);
 	}
 
+	async getProjectRole(
+		projectId: string,
+		roleId: string,
+	): Promise<ProjectRole> {
+		return this.get(`/api/v1/projects/${projectId}/roles/${roleId}`);
+	}
+
 	async updateProjectRole(
 		projectId: string,
 		roleId: string,
 		input: UpdateRoleInput,
 	): Promise<ProjectRole> {
-		return this.patch(`/api/v1/projects/${projectId}/roles/${roleId}`, input);
+		return this.put(`/api/v1/projects/${projectId}/roles/${roleId}`, input);
 	}
 
 	async deleteProjectRole(projectId: string, roleId: string): Promise<void> {

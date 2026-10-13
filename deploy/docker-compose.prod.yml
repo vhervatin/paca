@@ -251,8 +251,6 @@ services:
       PLUGINS_FRONTEND_DIR: /plugins-frontend
       PLUGINS_MCP_DIR: /plugins-mcp
       PLUGINS_SKILLS_DIR: /plugins-skills
-      # Pre-shared key matching PACA_API_KEY in the agent-runner service.
-      AGENT_API_KEY: ${AGENT_API_KEY:-}
       # Version check (home "new version" banner). Set PACA_VERSION to the
       # build tag in production so the banner compares correctly.
       PACA_VERSION: ${PACA_VERSION:-dev}
@@ -392,8 +390,6 @@ services:
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
       PACA_API_URL: http://api:8080
       PACA_GATEWAY_URL: http://gateway:8080
-      # Must match AGENT_API_KEY in the api service.
-      PACA_API_KEY: ${AGENT_API_KEY:-}
       DOCKER_SOCKET: /var/run/docker.sock
       # The Goose-based sandbox image — built from
       # services/agent-server/Dockerfile (adds Node.js + the Paca MCP

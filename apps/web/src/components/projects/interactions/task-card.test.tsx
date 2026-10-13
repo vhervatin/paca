@@ -104,11 +104,11 @@ describe("TaskCard", () => {
 			);
 
 		const { unmount } = renderCard([]);
-		expect(screen.queryByText("T")).not.toBeInTheDocument();
+		expect(screen.queryByText("T2")).not.toBeInTheDocument();
 		unmount();
 
 		renderCard(["member-2"]);
-		expect(screen.getByText("T")).toBeInTheDocument();
+		expect(screen.getByText("T2")).toBeInTheDocument();
 	});
 
 	it("does not render a type badge when task has no task_type_id", () => {
@@ -236,8 +236,8 @@ describe("TaskCard", () => {
 			/>,
 			{ wrapper },
 		);
-		// assigned state: filled avatar circle with the primary gradient
-		const assigneeEl = container.querySelector(".from-primary\\/20");
+		// assigned state: an avatar is rendered for the assignee
+		const assigneeEl = container.querySelector("[data-slot='avatar']");
 		expect(assigneeEl).toBeInTheDocument();
 	});
 

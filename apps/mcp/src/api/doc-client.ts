@@ -2,6 +2,7 @@ import type {
 	CreateFolderInput,
 	DocumentActivity,
 	DocumentFolder,
+	DocumentSearchHit,
 	DocumentSnapshot,
 	PacaConfig,
 	SuccessEnvelope,
@@ -29,9 +30,6 @@ export class PacaAPIDocClient {
 			"Content-Type": "application/json",
 			"X-API-Key": this.config.apiKey,
 		};
-		if (this.config.agentId) {
-			headers["X-Agent-ID"] = this.config.agentId;
-		}
 
 		const options: RequestInit = {
 			method,
@@ -220,5 +218,21 @@ export class PacaAPIDocClient {
 		await this.delete(
 			`/api/v1/projects/${projectId}/docs/${docId}/files/${fileId}`,
 		);
+	}
+
+	/**
+	 * Searches a project's documents by title or body text
+	 * (GET /docs/search) — the list endpoint only matches titles.
+	 */
+	async searchDocuments(
+		projectId: string,
+		query: string,
+		limit = 20,
+	): Promise<DocumentSearchHit[]> {
+		const response = await this.get(
+			`/api/v1/projects/${projectId}/docs/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+		);
+		if (Array.isArray(response)) return response;
+		return response?.items ?? [];
 	}
 }

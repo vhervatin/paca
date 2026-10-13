@@ -16,7 +16,6 @@ import (
 
 	apikeydom "github.com/Paca-AI/api/internal/domain/apikey"
 	userdom "github.com/Paca-AI/api/internal/domain/user"
-	"github.com/Paca-AI/api/internal/platform/authz"
 	jwttoken "github.com/Paca-AI/api/internal/platform/token"
 	apikeysvc "github.com/Paca-AI/api/internal/service/apikey"
 	authsvc "github.com/Paca-AI/api/internal/service/auth"
@@ -64,12 +63,12 @@ func (r *fakeAPIKeyRepo) FindByHash(_ context.Context, hash string) (*apikeydom.
 	return k, nil
 }
 
-func (r *fakeAPIKeyRepo) ListByUserID(_ context.Context, userID uuid.UUID) ([]*apikeydom.APIKey, error) {
+func (r *fakeAPIKeyRepo) ListByAccountID(_ context.Context, accountID uuid.UUID) ([]*apikeydom.APIKey, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var out []*apikeydom.APIKey
 	for _, k := range r.byID {
-		if k.UserID == userID && k.RevokedAt == nil {
+		if k.AccountID == accountID && k.RevokedAt == nil {
 			out = append(out, k)
 		}
 	}
@@ -126,7 +125,7 @@ func buildAPIKeyTestRouter(apiKeyRepo *fakeAPIKeyRepo) (http.Handler, *jwttoken.
 	r := router.New(router.Deps{
 		TokenManager: tm,
 		APIKeyAuth:   apiKeyService,
-		Authorizer:   authz.NewAuthorizer(nil),
+		IAM:          newIAM(nil),
 		Health:       handler.NewHealthHandler(),
 		Auth:         handler.NewAuthHandler(authService, testCookieCfg),
 		User:         handler.NewUserHandler(userService),
@@ -294,7 +293,7 @@ func TestAPIKey_AuthenticateViaAPIKey(t *testing.T) {
 	_ = userRepo.Create(context.Background(), &userdom.User{
 		ID:       userID,
 		Username: "apikeyuser",
-		Role:     userdom.RoleUser,
+		Roles:    testRoles("USER"),
 	})
 	tok := issueUserToken(t, userID.String())
 

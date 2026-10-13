@@ -56,7 +56,8 @@ func (h *APIKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	in := apikeydom.CreateInput{
-		UserID:    userID,
+		AccountID: userID,
+		CreatedBy: &userID,
 		Name:      req.Name,
 		ExpiresAt: req.ExpiresAt,
 	}
