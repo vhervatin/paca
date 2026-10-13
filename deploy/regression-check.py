@@ -101,8 +101,8 @@ def capture():
         snap["evup"]["version"] = None
     code, _ = req("GET", API + "/releases")
     snap["evup"]["changelog_ok"] = code == 200
-    code, body = req("GET", API + "/admin/settings")
-    snap["evup"]["settings_has_email"] = code == 200 and '"email"' in body
+    # (obs.: o SMTP/e-mail virou plugin com.paca.smtp a partir do v0.19 — não
+    # fica mais em /admin/settings; não checamos aqui p/ não dar falso vermelho.)
 
     # Usuários
     users, _ = list_all("/admin/users")
@@ -163,7 +163,7 @@ def compare(baseline, now):
         print(f"  {flag} {key}: {a} → {b}{pct(a,b)}")
 
     # EVUP features
-    for f in ("changelog_ok", "settings_has_email"):
+    for f in ("changelog_ok",):
         a, b = baseline["evup"].get(f), now["evup"].get(f)
         if a and not b:
             issues.append(f"customização EVUP sumiu: {f}")

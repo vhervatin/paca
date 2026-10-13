@@ -74,9 +74,10 @@ check("projects 200", ok, f"HTTP {code}")
 code, body = req("GET", API + "/agents/llm-models")
 check("agents/llm-models 200 (nunca 500)", code == 200, f"HTTP {code} {body[:120]}")
 
-# global-roles (a página quebrou uma vez); o endpoint tem que responder
-code, body = req("GET", API + "/admin/global-roles")
-check("admin/global-roles 200", code == 200, f"HTTP {code}")
+# roles IAM (v0.19+ substituiu /admin/global-roles pelo modelo IAM /admin/roles;
+# a página de Funções Globais depende disto)
+code, body = req("GET", API + "/admin/roles")
+check("admin/roles 200 (IAM)", code == 200, f"HTTP {code}")
 
 # member picker (bug: "nenhum usuário disponível") — a listagem que alimenta o
 # dialog "Adicionar membro" tem que responder 200 com itens. A causa raiz era o
