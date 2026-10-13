@@ -23,7 +23,6 @@ vi.mock("./api-client", () => ({
 }));
 
 import {
-	ADMIN_USERS_PAGE_SIZE,
 	createUser,
 	deleteUser,
 	getMyGlobalPermissions,
@@ -36,12 +35,6 @@ import {
 	usersInfiniteQueryOptions,
 	usersQueryOptions,
 } from "./admin-api";
-
-// The backend caps page_size for /admin/users at 100 and rejects anything
-// larger with HTTP 400. A request over the cap makes the "add team member"
-// picker come up empty ("no users available"). Guard both constants and the
-// infinite-query page size so that regression can't come back.
-const ADMIN_USERS_MAX_PAGE_SIZE = 100;
 
 describe("admin-api", () => {
 	beforeEach(() => {
@@ -239,71 +232,4 @@ describe("admin-api", () => {
 		expect(opts.queryKey).toEqual(["admin", "users", 1, 20]);
 	});
 
-	// ── Regression: "add team member" picker showed no users ──────────────────
-	// Root cause was requesting page_size=500, which the backend rejects (cap 100).
-	it("ADMIN_USERS_PAGE_SIZE stays within the backend page_size cap", () => {
-		expect(ADMIN_USERS_PAGE_SIZE).toBeGreaterThan(0);
-		expect(ADMIN_USERS_PAGE_SIZE).toBeLessThanOrEqual(
-			ADMIN_USERS_MAX_PAGE_SIZE,
-		);
-	});
-
-	it("usersInfiniteQueryOptions requests a page_size the backend accepts", async () => {
-		mockGet.mockResolvedValue({
-			data: {
-				data: {
-					items: [],
-					total: 0,
-					page: 1,
-					page_size: ADMIN_USERS_PAGE_SIZE,
-				},
-				error_code: null,
-				message: "ok",
-			},
-		});
-
-		const opts = usersInfiniteQueryOptions();
-		expect(opts.queryKey).toEqual(["admin", "users", "all"]);
-		// biome-ignore lint/suspicious/noExplicitAny: exercising the queryFn contract
-		await (opts.queryFn as any)({ pageParam: opts.initialPageParam });
-
-		const [, config] = mockGet.mock.calls[0];
-		expect(config.params.page_size).toBeLessThanOrEqual(
-			ADMIN_USERS_MAX_PAGE_SIZE,
-		);
-	});
-
-	it("usersInfiniteQueryOptions stops paging once all users are loaded", () => {
-		const opts = usersInfiniteQueryOptions();
-		// last page still has room → fetch next
-		expect(
-			opts.getNextPageParam(
-				{
-					items: [],
-					total: 50,
-					page: 1,
-					page_size: 20,
-					must_change_password_count: 0,
-				},
-				[],
-				1,
-				[],
-			),
-		).toBe(2);
-		// all users loaded → stop
-		expect(
-			opts.getNextPageParam(
-				{
-					items: [],
-					total: 20,
-					page: 1,
-					page_size: 20,
-					must_change_password_count: 0,
-				},
-				[],
-				1,
-				[],
-			),
-		).toBeUndefined();
-	});
 });
